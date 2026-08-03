@@ -4,58 +4,89 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define MAX_MACHINES 10
-#define GRID_SIZE 20
-#define K_SAFE 1.6  /* Constant approach speed of body/parts (m/s) as per ISO 13855 */
-#define C_SAFE 0.25 /* Intrusion distance constant buffer (m) */
+#define MAX_MACHINES 15
+#define GRID_SIZE_X 20
+#define GRID_SIZE_Y 20
+#define K_SAFE 1.6
+#define C_SAFE 0.25
 
 typedef struct {
     int id;
     char name[30];
-    int x;                /* X coordinate on floor grid (meters) */
-    int y;                /* Y coordinate on floor grid (meters) */
-    double process_time;  /* Dwell/process time per part (mins) */
-    double setup_time;    /* Setup time per batch (mins) */
-    double stopping_time; /* Machine stopping time (seconds) */
-    double safety_dist;   /* Minimum safety distance (meters) */
+    double x;             /* Center X coordinate */
+    double y;             /* Center Y coordinate */
+    double dim_x;         /* Geometric Width */
+    double dim_y;         /* Geometric Height */
+    double process_time;
+    double setup_time;
+    double stopping_time;
+    double safety_dist;
 } Machine;
 
 typedef struct {
     int src_id;
     int dest_id;
-    double volume;        /* Frequency/Volume of material transfer (parts/hour) */
+    double volume;
 } MaterialFlow;
 
-Machine machines[MAX_MACHINES] = {
-    {1, "Raw Material Intake", 1, 1, 2.0, 5.0, 0.1, 0.0},
-    {2, "CNC Milling", 12, 14, 8.5, 20.0, 1.2, 0.0},
-    {3, "Laser Welder", 5, 8, 4.0, 15.0, 0.8, 0.0},
-    {4, "Surface Treatment", 18, 2, 6.0, 10.0, 0.5, 0.0},
-    {5, "Quality Assembly", 15, 10, 5.0, 8.0, 0.3, 0.0}
+Machine machines[] = {
+    {1, "Raw Material Intake", 2.0, 2.0, 3.0, 2.0, 2.0, 5.0, 0.1, 0.0},
+    {2, "CNC Milling", 12.0, 14.0, 4.0, 4.0, 8.5, 20.0, 1.2, 0.0},
+    {3, "Laser Welder", 5.0, 8.0, 3.0, 3.0, 4.0, 15.0, 0.8, 0.0},
+    {4, "Surface Treatment", 17.0, 3.0, 5.0, 3.0, 6.0, 10.0, 0.5, 0.0},
+    {5, "Quality Assembly", 15.0, 10.0, 3.5, 2.5, 5.0, 8.0, 0.3, 0.0}
 };
 int num_machines = 5;
 
 MaterialFlow flows[] = {
-    {1, 2, 120.0}, /* Raw Material to CNC */
-    {2, 3, 100.0}, /* CNC to Laser Welder */
-    {3, 4, 80.0},  /* Laser Welder to Surface Treatment */
-    {4, 5, 95.0},  /* Surface Treatment to Quality Assembly */
-    {2, 5, 15.0}   /* CNC directly to Quality Assembly */
+    {1, 2, 120.0},
+    {2, 3, 100.0},
+    {3, 4, 80.0},
+    {4, 5, 95.0},
+    {2, 5, 15.0}
 };
 int num_flows = 5;
 
-/* Calculate Euclidean Distance between coordinates */
-double calculate_distance(int x1, int y1, int x2, int y2) {
-    return sqrt((double)((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)));
+double calculate_center_distance(double x1, double y1, double x2, double y2) {
+    return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }
 
-/* ISO 13855 safety distance calculation: S = K * T + C */
+double calculate_boundary_distance(double x1, double y1, double w1, double h1,
+                                   double x2, double y2, double w2, double h2) {
+    double dx = fabs(x1 - x2) - (w1 + w2) / 2.0;
+    double dy = fabs(y1 - y2) - (h1 + h2) / 2.0;
+    double dx_eff = (dx > 0.0) ? dx : 0.0;
+    double dy_eff = (dy > 0.0) ? dy : 0.0;
+    if (dx < 0.0 && dy < 0.0) {
+        return 0.0; /* Colliding/Overlapping */
+    }
+    return sqrt(dx_eff * dx_eff + dy_eff * dy_eff);
+}
+
 double calculate_iso_safety_distance(double stop_time) {
-    double total_response_time = stop_time + 0.1; /* 100ms system response time buffer */
+    double total_response_time = stop_time + 0.1;
     return (K_SAFE * total_response_time) + C_SAFE;
 }
 
-/* Evaluate layout transport cost = sum(distance * flow_volume) */
+bool check_overlap(double x1, double y1, double w1, double h1,
+                   double x2, double y2, double w2, double h2) {
+    double min_x1 = x1 - w1 / 2.0;
+    double max_x1 = x1 + w1 / 2.0;
+    double min_y1 = y1 - h1 / 2.0;
+    double max_y1 = y1 + h1 / 2.0;
+    
+    double min_x2 = x2 - w2 / 2.0;
+    double max_x2 = x2 + w2 / 2.0;
+    double min_y2 = y2 - h2 / 2.0;
+    double max_y2 = y2 + h2 / 2.0;
+    
+    return min_x1 < max_x2 && max_x1 > min_x2 && min_y1 < max_y2 && max_y1 > min_y2;
+}
+
+bool is_out_of_bounds(double x, double y, double w, double h) {
+    return (x - w/2.0 < 0.0) || (x + w/2.0 > GRID_SIZE_X) || (y - h/2.0 < 0.0) || (y + h/2.0 > GRID_SIZE_Y);
+}
+
 double evaluate_layout(void) {
     double total_cost = 0.0;
     int i, j;
@@ -63,59 +94,49 @@ double evaluate_layout(void) {
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
         int idx_src = -1, idx_dest = -1;
-        
         for (j = 0; j < num_machines; j++) {
             if (machines[j].id == src) idx_src = j;
             if (machines[j].id == dest) idx_dest = j;
         }
-        
         if (idx_src != -1 && idx_dest != -1) {
-            double dist = calculate_distance(machines[idx_src].x, machines[idx_src].y, 
-                                             machines[idx_dest].x, machines[idx_dest].y);
+            double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, 
+                                                    machines[idx_dest].x, machines[idx_dest].y);
             total_cost += dist * flows[i].volume;
         }
     }
     return total_cost;
 }
 
-/* Perform layout optimization (Hill-climbing heuristic) */
 void optimize_placement(void) {
-    double best_cost;
+    double best_cost = evaluate_layout();
     bool improved = true;
     int iterations = 0;
-    int i, dx, dy, k;
-
-    printf("\n>>> Starting Factory Floor Machine Placement Optimization Heuristic <<<\n");
-    best_cost = evaluate_layout();
-    printf("Initial Layout Transport Cost (m * parts/hr): %.2f\n", best_cost);
+    int i, k;
+    double dx, dy;
     
     while (improved && iterations < 100) {
         improved = false;
         iterations++;
-        
         for (i = 0; i < num_machines; i++) {
-            int original_x = machines[i].x;
-            int original_y = machines[i].y;
-            int best_dx = 0, best_dy = 0;
+            double original_x = machines[i].x;
+            double original_y = machines[i].y;
+            double w = machines[i].dim_x;
+            double h = machines[i].dim_y;
+            double best_dx = 0.0, best_dy = 0.0;
             
-            /* Try 8-neighborhood coordinate search to optimize material flows */
-            for (dx = -2; dx <= 2; dx++) {
-                for (dy = -2; dy <= 2; dy++) {
-                    int nx, ny;
+            for (dx = -2.0; dx <= 2.0; dx += 0.5) {
+                for (dy = -2.0; dy <= 2.0; dy += 0.5) {
+                    double nx, ny;
                     bool overlap = false;
                     double current_cost;
-                    
-                    if (dx == 0 && dy == 0) continue;
+                    if (dx == 0.0 && dy == 0.0) continue;
                     
                     nx = original_x + dx;
                     ny = original_y + dy;
+                    if (is_out_of_bounds(nx, ny, w, h)) continue;
                     
-                    /* Floor boundaries check */
-                    if (nx < 0 || nx > GRID_SIZE || ny < 0 || ny > GRID_SIZE) continue;
-                    
-                    /* Overlap prevention check */
                     for (k = 0; k < num_machines; k++) {
-                        if (k != i && machines[k].x == nx && machines[k].y == ny) {
+                        if (k != i && check_overlap(nx, ny, w, h, machines[k].x, machines[k].y, machines[k].dim_x, machines[k].dim_y)) {
                             overlap = true;
                             break;
                         }
@@ -134,8 +155,6 @@ void optimize_placement(void) {
                     }
                 }
             }
-            
-            /* Apply best structural placement step */
             if (improved) {
                 machines[i].x = original_x + best_dx;
                 machines[i].y = original_y + best_dy;
@@ -145,143 +164,63 @@ void optimize_placement(void) {
             }
         }
     }
-    printf("Optimization Heuristic Completed in %d Iterations.\n", iterations);
-    printf("Optimized Layout Transport Cost (m * parts/hr): %.2f\n", best_cost);
 }
 
-/* Perform Dwell & Cycle Time Calculations */
-void analyze_dwell_times(void) {
+int main(void) {
+    double init_cost = evaluate_layout();
+    optimize_placement();
+    double opt_cost = evaluate_layout();
+    
+    FILE *fp = fopen("layout_output.json", "w");
+    if (!fp) return 1;
+    
+    fprintf(fp, "{\n");
+    fprintf(fp, "  \"initial_transport_cost\": %.2f,\n", init_cost);
+    fprintf(fp, "  \"optimized_transport_cost\": %.2f,\n", opt_cost);
+    
     double total_dwell = 0.0;
-    double bottleneck_time = 0.0;
+    double bottleneck_time = -1.0;
     char bottleneck_name[30] = "";
     int i;
-
-    printf("\n=== MANUFACTURING DWELL TIME AND CYCLE TIME ANALYSIS ===\n");
-    printf("%-25s | %-12s | %-12s | %-15s | %-15s\n", 
-           "Machine Name", "Process (m)", "Setup (m)", "Dwell Time (m)", "Capacity (P/hr)");
-    printf("-------------------------------------------------------------------------------------\n");
-    
-    for (i = 0; i < num_machines; i++) {
-        /* Dwell time per part = process time + (setup time / typical batch size of 50 parts) */
-        double batch_size = 50.0;
-        double dwell = machines[i].process_time + (machines[i].setup_time / batch_size);
-        double capacity = 60.0 / (machines[i].process_time); /* Max hourly throughput capacity */
-        
+    for(i=0; i<num_machines; i++) {
+        double dwell = machines[i].process_time + (machines[i].setup_time / 50.0);
         total_dwell += dwell;
-        
-        printf("%-25s | %-12.2f | %-12.2f | %-15.2f | %-15.2f\n", 
-               machines[i].name, machines[i].process_time, machines[i].setup_time, dwell, capacity);
-               
-        if (dwell > bottleneck_time) {
+        if(dwell > bottleneck_time) {
             bottleneck_time = dwell;
             strcpy(bottleneck_name, machines[i].name);
         }
     }
-    printf("-------------------------------------------------------------------------------------\n");
-    printf("Total Manufacturing Direct Dwell Time: %.2f minutes\n", total_dwell);
-    printf("Identified Production Bottleneck: %s with Dwell Time of %.2f mins/part\n", bottleneck_name, bottleneck_time);
-}
-
-/* Perform Safety Calculations */
-void calculate_safety_metrics(void) {
-    int i, j;
-    printf("\n=== MANUFACTURING LINE SAFETY CALCULATIONS (ISO 13855) ===\n");
-    printf("%-25s | %-18s | %-20s | %-20s\n", 
-           "Machine Name", "Stop Time (s)", "Req. Clearance (m)", "Current Safe Zone Status");
-    printf("----------------------------------------------------------------------------------------------\n");
     
+    fprintf(fp, "  \"dwell_time_analysis\": {\n");
+    fprintf(fp, "    \"total_dwell_time\": %.2f,\n", total_dwell);
+    fprintf(fp, "    \"bottleneck_machine\": \"%s\",\n", bottleneck_name);
+    fprintf(fp, "    \"bottleneck_dwell_time\": %.2f\n", bottleneck_time);
+    fprintf(fp, "  },\n");
+    
+    fprintf(fp, "  \"machines\": [\n");
     for (i = 0; i < num_machines; i++) {
-        machines[i].safety_dist = calculate_iso_safety_distance(machines[i].stopping_time);
+        double s_dist = calculate_iso_safety_distance(machines[i].stopping_time);
         bool safe = true;
-        double min_allowed_dist = machines[i].safety_dist;
-        
-        for (j = 0; j < num_machines; j++) {
+        for (int j = 0; j < num_machines; j++) {
             if (i == j) continue;
-            double actual_dist = calculate_distance(machines[i].x, machines[i].y, machines[j].x, machines[j].y);
-            if (actual_dist < min_allowed_dist) {
-                safe = false;
-            }
+            double actual_dist = calculate_boundary_distance(
+                machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y
+            );
+            if (actual_dist < s_dist) safe = false;
         }
-        
-        printf("%-25s | %-18.2f | %-20.2f | %-20s\n", 
-               machines[i].name, 
-               machines[i].stopping_time, 
-               machines[i].safety_dist, 
-               safe ? "SAFE" : "WARNING: TOO CLOSE");
+        fprintf(fp, "    {\n");
+        fprintf(fp, "      \"id\": %d,\n", machines[i].id);
+        fprintf(fp, "      \"name\": \"%s\",\n", machines[i].name);
+        fprintf(fp, "      \"optimized_x\": %.2f,\n", machines[i].x);
+        fprintf(fp, "      \"optimized_y\": %.2f,\n", machines[i].y);
+        fprintf(fp, "      \"safety_dist_required\": %.2f,\n", s_dist);
+        fprintf(fp, "      \"is_safe\": %s\n", safe ? "true" : "false");
+        fprintf(fp, "    }%s\n", (i == num_machines - 1) ? "" : ",");
     }
-    printf("----------------------------------------------------------------------------------------------\n");
-}
-
-/* Print factory floor mapping layout visual */
-void print_layout_map(void) {
-    char grid[GRID_SIZE + 1][GRID_SIZE + 1];
-    int r, c, i;
-
-    printf("\n=== FACTORY FLOOR MACHINE PLACEMENT MAP (Grid: 20x20 meters) ===\n");
-    
-    for (r = 0; r <= GRID_SIZE; r++) {
-        for (c = 0; c <= GRID_SIZE; c++) {
-            grid[r][c] = '.';
-        }
-    }
-    
-    for (i = 0; i < num_machines; i++) {
-        int x = machines[i].x;
-        int y = machines[i].y;
-        if (x >= 0 && x <= GRID_SIZE && y >= 0 && y <= GRID_SIZE) {
-            grid[y][x] = '0' + machines[i].id;
-        }
-    }
-    
-    for (r = GRID_SIZE; r >= 0; r--) {
-        printf("%02d | ", r);
-        for (c = 0; c <= GRID_SIZE; c++) {
-            printf("%c ", grid[r][c]);
-        }
-        printf("\n");
-    }
-    
-    printf("   -");
-    for (c = 0; c <= GRID_SIZE; c++) printf("--");
-    printf("\n     ");
-    for (c = 0; c <= GRID_SIZE; c++) {
-        if (c % 5 == 0) printf("%02d ", c);
-        else printf("   ");
-    }
-    printf("\n\nMachine IDs Map:\n");
-    for (i = 0; i < num_machines; i++) {
-        printf("[%d] %s at (%d, %d)\n", machines[i].id, machines[i].name, machines[i].x, machines[i].y);
-    }
-}
-
-int main(void) {
-    printf("===================================================================\n");
-    printf("        FACTORY FLOOR LAYOUT & MANUFACTURING OPTIMIZER             \n");
-    printf("===================================================================\n");
-    
-    /* 1. Display original layout mapping */
-    printf("--- INITIAL STAGE ---\n");
-    print_layout_map();
-    evaluate_layout();
-    
-    /* 2. Perform safety calculations */
-    calculate_safety_metrics();
-    
-    /* 3. Perform Placement Heuristic Optimization */
-    optimize_placement();
-    
-    /* 4. Perform Safety Calculations on updated positions */
-    printf("\n--- POST-OPTIMIZATION CHECK ---\n");
-    calculate_safety_metrics();
-    print_layout_map();
-    
-    /* 5. Manufacturing Dwell Time Analysis */
-    analyze_dwell_times();
-    
-    printf("\n===================================================================\n");
-    printf("Optimization completed successfully. Layout can be safely deployed.\n");
-    printf("===================================================================\n");
-    
+    fprintf(fp, "  ]\n");
+    fprintf(fp, "}\n");
+    fclose(fp);
     return 0;
 }
 
