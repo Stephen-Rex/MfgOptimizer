@@ -33,7 +33,7 @@ DEFAULT_FLOWS = [
     {"src_id": 2, "dest_id": 5, "volume": 15.0}
 ]
 
-# --- Python Engine Fallback Logic ---
+# --- Python Engine Fallback Logic (Rectangular Support) ---
 def calculate_distance(x1, y1, x2, y2):
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
@@ -52,7 +52,7 @@ def evaluate_layout(machines_dict, flows_list):
             total_cost += dist * flow["volume"]
     return total_cost
 
-def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=20):
+def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size_x=20, grid_size_y=20):
     machines = [dict(m) for m in machines_list]
     improved = True
     iterations = 0
@@ -77,9 +77,11 @@ def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=
                     nx = original_x + dx
                     ny = original_y + dy
                     
-                    if nx < 0 or nx > grid_size or ny < 0 or ny > grid_size:
+                    # Boundary check for rectangular dimensions
+                    if nx < 0 or nx > grid_size_x or ny < 0 or ny > grid_size_y:
                         continue
                     
+                    # Overlap check
                     overlap = False
                     for k in range(len(machines)):
                         if k != i and machines[k]["x"] == nx and machines[k]["y"] == ny:
@@ -88,6 +90,7 @@ def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=
                     if overlap:
                         continue
                     
+                    # Temporarily move
                     machines[i]["x"] = nx
                     machines[i]["y"] = ny
                     
@@ -98,6 +101,7 @@ def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=
                         best_dy = dy
                         improved = True
             
+            # Apply best step
             if improved:
                 machines[i]["x"] = original_x + best_dx
                 machines[i]["y"] = original_y + best_dy
@@ -105,6 +109,7 @@ def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=
                 machines[i]["x"] = original_x
                 machines[i]["y"] = original_y
                 
+    # Evaluate safety compliance
     for m in machines:
         m["safety_dist_required"] = calculate_safety_dist(m["stopping_time"], k_safe, c_safe)
         m["is_safe"] = True
@@ -115,6 +120,7 @@ def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=
             if act_dist < m["safety_dist_required"]:
                 m["is_safe"] = False
 
+    # Manufacturing Dwell times
     total_dwell = 0.0
     bottleneck_time = -1.0
     bottleneck_machine = ""
@@ -139,8 +145,8 @@ def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=
         "machines": machines
     }
 
-# --- C Code Generation ---
-def generate_c_code_template(machines, flows, k_safe, c_safe, grid_size):
+# --- C Code Generation (Rectangular Support) ---
+def generate_c_code_template(machines, flows, k_safe, c_safe, grid_size_x, grid_size_y):
     machines_str = ""
     for m in machines:
         machines_str += f'    {{{m["id"]}, "{m["name"]}", {int(m["x"])}, {int(m["y"])}, {m["process_time"]}, {m["setup_time"]}, {m["stopping_time"]}, 0.0}},\n'
@@ -158,7 +164,8 @@ def generate_c_code_template(machines, flows, k_safe, c_safe, grid_size):
 #include <stdbool.h>
 
 #define MAX_MACHINES 15
-#define GRID_SIZE {grid_size}
+#define GRID_SIZE_X {grid_size_x}
+#define GRID_SIZE_Y {grid_size_y}
 #define K_SAFE {k_safe}
 #define C_SAFE {c_safe}
 
@@ -241,7 +248,7 @@ void optimize_placement(void) {{
                     
                     nx = original_x + dx;
                     ny = original_y + dy;
-                    if (nx < 0 || nx > GRID_SIZE || ny < 0 || ny > GRID_SIZE) continue;
+                    if (nx < 0 || nx > GRID_SIZE_X || ny < 0 || ny > GRID_SIZE_Y) continue;
                     
                     for (k = 0; k < num_machines; k++) {{
                         if (k != i && machines[k].x == nx && machines[k].y == ny) {{
@@ -334,11 +341,14 @@ int main(void) {{
 st.markdown("## 🏭 Industrial Optimization Web-GUI")
 st.markdown("Configure layouts, run optimization, and analyze ISO safety bounds with zero local setups required.")
 
-# --- SIDEBAR: Global Parameters ---
+# --- SIDEBAR: Global Parameters & Dynamic Rectangular Inputs ---
 st.sidebar.header("⚙️ Global Safety Constants")
 k_safe = st.sidebar.number_input("Approach speed (K) [m/s]", min_value=0.1, max_value=5.0, value=1.6, step=0.1)
 c_safe = st.sidebar.number_input("Intrusion constant (C) [meters]", min_value=0.0, max_value=2.0, value=0.25, step=0.05)
-grid_size = st.sidebar.slider("Floor Dimension (Meters)", min_value=10, max_value=100, value=20)
+
+st.sidebar.subheader("📐 Rectangular Plant Dimensions")
+grid_size_x = st.sidebar.slider("Floor Width (X) [Meters]", min_value=10, max_value=100, value=20)
+grid_size_y = st.sidebar.slider("Floor Height (Y) [Meters]", min_value=10, max_value=100, value=20)
 
 engine_selection = st.sidebar.radio(
     "🖥️ Optimizer Engine Mode",
@@ -382,7 +392,8 @@ c_source_code = generate_c_code_template(
     edited_flows.to_dict(orient="records"),
     k_safe,
     c_safe,
-    grid_size
+    grid_size_x,
+    grid_size_y
 )
 
 with tab2:
@@ -418,7 +429,7 @@ with tab3:
                 if compile_process.returncode != 0:
                     st.error(f"Compilation Failed: {compile_process.stderr}")
                     st.warning("Defaulting to high-fidelity Python Simulator fallback instead!")
-                    results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+                    results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size_x, grid_size_y)
                     execution_msg = "Python Simulation Fallback (Compiler Error)"
                 else:
                     run_process = subprocess.run(
@@ -432,15 +443,15 @@ with tab3:
                         execution_msg = "Compiled C Binary Backend"
                     else:
                         st.error("C Binary did not output results JSON. Using Python Engine.")
-                        results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+                        results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size_x, grid_size_y)
                         execution_msg = "Python Simulation Fallback (Execution Failure)"
             except Exception as e:
                 st.error(f"Could not execute C compiler subprocess: {e}")
                 st.warning("IT restricts execution. Defaulting to Python Simulation Fallback.")
-                results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+                results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size_x, grid_size_y)
                 execution_msg = "Python Simulation Fallback"
         else:
-            results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+            results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size_x, grid_size_y)
             execution_msg = "Pure Python Simulator Engine (Instant Browser Runtime)"
 
         # --- Display KPI Metric Cards ---
@@ -469,8 +480,8 @@ with tab3:
             st.markdown("### 🗺️ Floor Layout & Safety Clearance Map")
             
             fig, ax = plt.subplots(figsize=(8, 8))
-            ax.set_xlim(-2, grid_size + 4)
-            ax.set_ylim(-2, grid_size + 4)
+            ax.set_xlim(-2, grid_size_x + 4)
+            ax.set_ylim(-2, grid_size_y + 4)
             ax.set_aspect('equal')
             ax.grid(True, which='both', linestyle='--', alpha=0.5)
             
@@ -535,7 +546,7 @@ with tab3:
                 )
                 ax.add_patch(circle)
                 
-            ax.set_title("Factory Layout Map (Grid: meters)\nCircles = ISO 13855 Hazard Zones", fontsize=12)
+            ax.set_title(f"Factory Layout Map (Grid: {grid_size_x}x{grid_size_y} meters)\nCircles = ISO 13855 Hazard Zones", fontsize=12)
             ax.set_xlabel("X coordinate (m)")
             ax.set_ylabel("Y coordinate (m)")
             st.pyplot(fig)
