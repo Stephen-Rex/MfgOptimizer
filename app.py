@@ -398,7 +398,7 @@ void optimize_placement(void) {{
             }}
             machines[i].x = original_x + best_dx;
             machines[i].y = original_y + best_dy;
-        }
+        }}
     }}
 }}
 
