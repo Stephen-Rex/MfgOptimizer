@@ -7,8 +7,6 @@
 #define MAX_MACHINES 15
 #define GRID_SIZE_X 20
 #define GRID_SIZE_Y 20
-#define K_SAFE 1.6
-#define C_SAFE 0.25
 
 typedef struct {
     int id;
@@ -17,10 +15,12 @@ typedef struct {
     double y;             /* Center Y coordinate */
     double dim_x;         /* Geometric Width */
     double dim_y;         /* Geometric Height */
+    double so_px;         /* Positive X Standoff (clearance) */
+    double so_nx;         /* Negative X Standoff (clearance) */
+    double so_py;         /* Positive Y Standoff (clearance) */
+    double so_ny;         /* Negative Y Standoff (clearance) */
     double process_time;
     double setup_time;
-    double stopping_time;
-    double safety_dist;
 } Machine;
 
 typedef struct {
@@ -30,11 +30,11 @@ typedef struct {
 } MaterialFlow;
 
 Machine machines[] = {
-    {1, "Raw Material Intake", 2.0, 2.0, 3.0, 2.0, 2.0, 5.0, 0.1, 0.0},
-    {2, "CNC Milling", 12.0, 14.0, 4.0, 4.0, 8.5, 20.0, 1.2, 0.0},
-    {3, "Laser Welder", 5.0, 8.0, 3.0, 3.0, 4.0, 15.0, 0.8, 0.0},
-    {4, "Surface Treatment", 17.0, 3.0, 5.0, 3.0, 6.0, 10.0, 0.5, 0.0},
-    {5, "Quality Assembly", 15.0, 10.0, 3.5, 2.5, 5.0, 8.0, 0.3, 0.0}
+    {1, "Raw Material Intake", 3.0, 2.0, 3.0, 2.0, 1.0, 1.0, 1.0, 1.0, 2.0, 5.0},
+    {2, "CNC Milling", 12.0, 14.0, 4.0, 4.0, 1.5, 1.5, 1.5, 1.5, 8.5, 20.0},
+    {3, "Laser Welder", 5.0, 8.0, 3.0, 3.0, 1.2, 1.2, 1.2, 1.2, 4.0, 15.0},
+    {4, "Surface Treatment", 17.0, 3.0, 5.0, 3.0, 1.0, 1.0, 1.0, 1.0, 6.0, 10.0},
+    {5, "Quality Assembly", 15.0, 10.0, 3.5, 2.5, 0.8, 0.8, 0.8, 0.8, 5.0, 8.0}
 };
 int num_machines = 5;
 
@@ -51,40 +51,25 @@ double calculate_center_distance(double x1, double y1, double x2, double y2) {
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }
 
-double calculate_boundary_distance(double x1, double y1, double w1, double h1,
-                                   double x2, double y2, double w2, double h2) {
-    double dx = fabs(x1 - x2) - (w1 + w2) / 2.0;
-    double dy = fabs(y1 - y2) - (h1 + h2) / 2.0;
-    double dx_eff = (dx > 0.0) ? dx : 0.0;
-    double dy_eff = (dy > 0.0) ? dy : 0.0;
-    if (dx < 0.0 && dy < 0.0) {
-        return 0.0; /* Colliding/Overlapping */
-    }
-    return sqrt(dx_eff * dx_eff + dy_eff * dy_eff);
-}
-
-double calculate_iso_safety_distance(double stop_time) {
-    double total_response_time = stop_time + 0.1;
-    return (K_SAFE * total_response_time) + C_SAFE;
-}
-
-bool check_overlap(double x1, double y1, double w1, double h1,
-                   double x2, double y2, double w2, double h2) {
-    double min_x1 = x1 - w1 / 2.0;
-    double max_x1 = x1 + w1 / 2.0;
-    double min_y1 = y1 - h1 / 2.0;
-    double max_y1 = y1 + h1 / 2.0;
+/* Axis-Aligned Bounding Box (AABB) intersection check for Safe Footprint Overlaps */
+bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, double nx1, double py1, double ny1,
+                        double x2, double y2, double w2, double h2, double px2, double nx2, double py2, double ny2) {
+    double min_x1 = x1 - w1 / 2.0 - nx1;
+    double max_x1 = x1 + w1 / 2.0 + px1;
+    double min_y1 = y1 - h1 / 2.0 - ny1;
+    double max_y1 = y1 + h1 / 2.0 + py1;
     
-    double min_x2 = x2 - w2 / 2.0;
-    double max_x2 = x2 + w2 / 2.0;
-    double min_y2 = y2 - h2 / 2.0;
-    double max_y2 = y2 + h2 / 2.0;
+    double min_x2 = x2 - w2 / 2.0 - nx2;
+    double max_x2 = x2 + w2 / 2.0 + px2;
+    double min_y2 = y2 - h2 / 2.0 - ny2;
+    double max_y2 = y2 + h2 / 2.0 + py2;
     
     return min_x1 < max_x2 && max_x1 > min_x2 && min_y1 < max_y2 && max_y1 > min_y2;
 }
 
-bool is_out_of_bounds(double x, double y, double w, double h) {
-    return (x - w/2.0 < 0.0) || (x + w/2.0 > GRID_SIZE_X) || (y - h/2.0 < 0.0) || (y + h/2.0 > GRID_SIZE_Y);
+/* Check if the entire Safe Footprint Box protrudes past rectangular floor boundary walls */
+bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, double nx, double py, double ny) {
+    return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
 }
 
 double evaluate_layout(void) {
@@ -122,29 +107,36 @@ void optimize_placement(void) {
             double original_y = machines[i].y;
             double w = machines[i].dim_x;
             double h = machines[i].dim_y;
+            double px = machines[i].so_px;
+            double nx = machines[i].so_nx;
+            double py = machines[i].so_py;
+            double ny = machines[i].so_ny;
+            
             double best_dx = 0.0, best_dy = 0.0;
             
             for (dx = -2.0; dx <= 2.0; dx += 0.5) {
                 for (dy = -2.0; dy <= 2.0; dy += 0.5) {
-                    double nx, ny;
+                    double nx_coord, ny_coord;
                     bool overlap = false;
                     double current_cost;
                     if (dx == 0.0 && dy == 0.0) continue;
                     
-                    nx = original_x + dx;
-                    ny = original_y + dy;
-                    if (is_out_of_bounds(nx, ny, w, h)) continue;
+                    nx_coord = original_x + dx;
+                    ny_coord = original_y + dy;
+                    if (is_safe_out_of_bounds(nx_coord, ny_coord, w, h, px, nx, py, ny)) continue;
                     
                     for (k = 0; k < num_machines; k++) {
-                        if (k != i && check_overlap(nx, ny, w, h, machines[k].x, machines[k].y, machines[k].dim_x, machines[k].dim_y)) {
+                        if (k != i && check_safe_overlap(nx_coord, ny_coord, w, h, px, nx, py, ny,
+                                                         machines[k].x, machines[k].y, machines[k].dim_x, machines[k].dim_y,
+                                                         machines[k].so_px, machines[k].so_nx, machines[k].so_py, machines[k].so_ny)) {
                             overlap = true;
                             break;
                         }
                     }
                     if (overlap) continue;
                     
-                    machines[i].x = nx;
-                    machines[i].y = ny;
+                    machines[i].x = nx_coord;
+                    machines[i].y = ny_coord;
                     current_cost = evaluate_layout();
                     
                     if (current_cost < best_cost) {
@@ -199,22 +191,29 @@ int main(void) {
     
     fprintf(fp, "  \"machines\": [\n");
     for (i = 0; i < num_machines; i++) {
-        double s_dist = calculate_iso_safety_distance(machines[i].stopping_time);
         bool safe = true;
-        for (int j = 0; j < num_machines; j++) {
-            if (i == j) continue;
-            double actual_dist = calculate_boundary_distance(
-                machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
-                machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y
-            );
-            if (actual_dist < s_dist) safe = false;
+        
+        /* Check if current optimized machine position has any out of bounds or overlap violations */
+        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
+            safe = false;
+        } else {
+            for (int j = 0; j < num_machines; j++) {
+                if (i != j && check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                                 machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,
+                                                 machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,
+                                                 machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {
+                    safe = false;
+                    break;
+                }
+            }
         }
+        
         fprintf(fp, "    {\n");
         fprintf(fp, "      \"id\": %d,\n", machines[i].id);
         fprintf(fp, "      \"name\": \"%s\",\n", machines[i].name);
         fprintf(fp, "      \"optimized_x\": %.2f,\n", machines[i].x);
         fprintf(fp, "      \"optimized_y\": %.2f,\n", machines[i].y);
-        fprintf(fp, "      \"safety_dist_required\": %.2f,\n", s_dist);
         fprintf(fp, "      \"is_safe\": %s\n", safe ? "true" : "false");
         fprintf(fp, "    }%s\n", (i == num_machines - 1) ? "" : ",");
     }
@@ -223,4 +222,3 @@ int main(void) {
     fclose(fp);
     return 0;
 }
-
