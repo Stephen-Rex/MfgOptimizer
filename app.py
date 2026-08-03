@@ -728,14 +728,14 @@ with tab3:
                 )
                 ax.add_patch(safety_box)
                 
-            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\\n Dashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
+            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m) \\n Dashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
             ax.set_xlabel("X coordinate (m)")
             ax.set_ylabel("Y coordinate (m)")
             
             # --- Matplotlib Plot Legend stating ID and machine name under the plot ---
             legend_labels_list = [f"[{m['id']}] {m['name']}" for m in opt_machines]
             legend_str = "  |  ".join(legend_labels_list)
-            fig.text(0.5, -0.05, f"Legend:\\n{legend_str}", ha='center', fontsize=9, weight='bold', style='italic', bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F2F6', edgecolor='#1F2937', alpha=0.9))
+            fig.text(0.5, -0.05, f"Legend: \\n {legend_str}", ha='center', fontsize=9, weight='bold', style='italic', bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F2F6', edgecolor='#1F2937', alpha=0.9))
             
             st.pyplot(fig)
             
