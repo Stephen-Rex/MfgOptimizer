@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Default Datasets ---
+# --- Default Datasets with Initial Spacing s Along Polyline ---
 DEFAULT_MACHINES = [
     {"id": 1, "name": "Raw Material Intake", "s": 0.0, "dim_x": 3.0, "dim_y": 2.0, "so_px": 1.0, "so_nx": 1.0, "so_py": 1.0, "so_ny": 1.0, "process_time": 2.0, "setup_time": 5.0},
     {"id": 2, "name": "CNC Milling", "s": 8.0, "dim_x": 4.0, "dim_y": 4.0, "so_px": 1.5, "so_nx": 1.5, "so_py": 1.5, "so_ny": 1.5, "process_time": 8.5, "setup_time": 20.0},
@@ -174,7 +174,6 @@ def python_optimize_layout(machines_list, flows_list, vertices, path_buffer, gri
                         m["is_safe"] = False
                         break
 
-    # Dwell timings
     total_dwell = 0.0
     bottleneck_time = -1.0
     bottleneck_machine = ""
@@ -326,12 +325,6 @@ double evaluate_polyline_layout_with_penalties(void) {{
     double transport_cost = 0.0;
     double penalty = 0.0;
     int i, j;
-
-    for (i = 0; i < num_machines; i++) {{
-        double offset_dist = get_machine_offset(machines[i], path_buffer_val);
-        get_offset_point_on_polyline(machines[i].s, offset_dist, &machines[i].x, &machines[i].y);
-    }}
-
     for (i = 0; i < num_flows; i++) {{
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
@@ -346,7 +339,6 @@ double evaluate_polyline_layout_with_penalties(void) {{
             transport_cost += dist * flows[i].volume;
         }}
     }}
-
     for (i = 0; i < num_machines; i++) {{
         if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {{
@@ -361,7 +353,6 @@ double evaluate_polyline_layout_with_penalties(void) {{
             }}
         }}
     }}
-
     return transport_cost + penalty;
 }}
 
@@ -371,14 +362,12 @@ void optimize_placement(void) {{
     int iterations = 0;
     int i;
     double ds;
-
-    while (improved && iterations < 150) {{
+    while (improved && iterations < 100) {{
         improved = false;
         iterations++;
         for (i = 1; i < num_machines; i++) {{
             double original_s = machines[i].s;
             double best_ds = 0.0;
-            
             for (ds = -3.0; ds <= 3.0; ds += 0.5) {{
                 if (ds == 0.0) continue;
                 double candidate_s = original_s + ds;
@@ -401,14 +390,11 @@ int main(void) {{
     double init_cost = evaluate_polyline_layout_with_penalties();
     optimize_placement();
     double opt_cost = evaluate_polyline_layout_with_penalties();
-    
     FILE *fp = fopen("layout_output.json", "w");
     if (!fp) return 1;
-    
-    fprintf(fp, "{{\\n");
+    fprintf(fp, "{{\n");
     fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
     fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
-    
     double total_dwell = 0.0;
     double bottleneck_time = -1.0;
     char bottleneck_name[30] = "";
@@ -421,13 +407,11 @@ int main(void) {{
             strcpy(bottleneck_name, machines[i].name);
         }}
     }}
-    
     fprintf(fp, "  \\\"dwell_time_analysis\\\": {{\\n");
     fprintf(fp, "    \\\"total_dwell_time\\\": %.2f,\\n", total_dwell);
     fprintf(fp, "    \\\"bottleneck_machine\\\": \\\"%s\\\",\\n", bottleneck_name);
     fprintf(fp, "    \\\"bottleneck_dwell_time\\\": %.2f\\n", bottleneck_time);
     fprintf(fp, "  }},\\n");
-    
     fprintf(fp, "  \\\"machines\\\": [\\n");
     for (i = 0; i < num_machines; i++) {{
         bool safe = true;
@@ -633,14 +617,29 @@ with tab3:
             ax.set_xlim(-2, grid_size_x + 4)
             ax.set_ylim(-2, grid_size_y + 4)
             ax.set_aspect('equal')
-            ax.grid(True, which='both', linestyle='--', alpha=0.5)
             
-            # 1. Draw custom 5-point Polyline Path inputted by user
+            # --- THE BLUEPRINT ENHANCEMENT ---
+            # Set canvas outer background to neutral light gray
+            fig.patch.set_facecolor('#EFEFEF')
+            # Set the room area background (inside ax) to deep blueprint blue (#002D62)
+            # Anything outside coordinates (0,0) and (grid_size_x, grid_size_y) represents "out of bounds" and has no blue color!
+            ax.set_facecolor('#D0D0D0') # Background of plot outside active floor area
+            
+            # Add traditional blueprint-blue background patch for active floor space
+            blueprint_bg = patches.Rectangle((0.0, 0.0), grid_size_x, grid_size_y, facecolor='#002D62', edgecolor='white', linewidth=3, zorder=0, label="Facility Walls")
+            ax.add_patch(blueprint_bg)
+            
+            # Configure custom white drafting-style grid lines
+            ax.grid(True, which='both', color='white', linestyle='--', alpha=0.3, zorder=0.5)
+            # --- END OF BLUEPRINT ENHANCEMENT ---
+
+            # 1. Draw custom 5-point Polyline Path inputted by user (Conveyor backbone)
             vx = [v["x"] for v in vertices_list]
             vy = [v["y"] for v in vertices_list]
-            ax.plot(vx, vy, color="grey", linewidth=4, zorder=1, label="Conveyor Backbone")
+            # Drawn in light gray to stand out beautifully on dark blueprint blue
+            ax.plot(vx, vy, color="#D3D3D3", linewidth=4, zorder=1, label="Conveyor Backbone")
             
-            # 2. Draw Parallel Forklift Lanes & Safety boundaries dynamically offset on either side of custom polyline
+            # 2. Draw Parallel Forklift Lanes & Safety boundaries offset on both sides of the path
             for i in range(len(vx) - 1):
                 x1, y1 = vx[i], vy[i]
                 x2, y2 = vx[i+1], vy[i+1]
@@ -651,15 +650,15 @@ with tab3:
                     ux, uy = dx / length, dy / length
                     nx, ny = -uy, ux # Normal vector perpendicular to segment
                     
-                    # Left boundary line
+                    # Left boundary line (dashed yellow)
                     lx1, ly1 = x1 + path_buffer * nx, y1 + path_buffer * ny
                     lx2, ly2 = x2 + path_buffer * nx, y2 + path_buffer * ny
-                    ax.plot([lx1, lx2], [ly1, ly2], "y--", alpha=0.6, label="Standoff Lane Marking" if i == 0 else "")
+                    ax.plot([lx1, lx2], [ly1, ly2], color="#FFD700", linestyle="--", alpha=0.8, zorder=2, label="Standoff Lane Marking" if i == 0 else "")
                     
-                    # Right boundary line
+                    # Right boundary line (dashed yellow)
                     rx1, ry1 = x1 - path_buffer * nx, y1 - path_buffer * ny
                     rx2, ry2 = x2 - path_buffer * nx, y2 - path_buffer * ny
-                    ax.plot([rx1, rx2], [ry1, ry2], "y--", alpha=0.6)
+                    ax.plot([rx1, rx2], [ry1, ry2], color="#FFD700", linestyle="--", alpha=0.8, zorder=2)
 
             # 3. Draw each Machine Footprint and its safety boundaries along the custom path
             for m in opt_machines:
@@ -681,17 +680,17 @@ with tab3:
                 # Plot Initial Footprints (Dotted gray box)
                 init_box = patches.Rectangle(
                     (m_init_x - w/2.0, m_init_y - h/2.0), w, h,
-                    linewidth=1, linestyle=":", edgecolor="gray", facecolor="none", alpha=0.3
+                    linewidth=1, linestyle=":", edgecolor="#A9A9A9", facecolor="none", alpha=0.4, zorder=3
                 )
                 ax.add_patch(init_box)
                 
                 # Plot Optimized Footprints (Solid colored box)
-                border_color = "green" if m["is_safe"] else "red"
+                border_color = "#32CD32" if m["is_safe"] else "#FF3333" # Bright lime-green or neon-red
                 fill_color = "lightgreen" if m["is_safe"] else "lightcoral"
                 
                 opt_box = patches.Rectangle(
                     (opt_x - w/2.0, opt_y - h/2.0), w, h,
-                    linewidth=2, edgecolor=border_color, facecolor=fill_color, zorder=5, alpha=0.9
+                    linewidth=2, edgecolor=border_color, facecolor=fill_color, zorder=5, alpha=0.8
                 )
                 ax.add_patch(opt_box)
                 
@@ -699,7 +698,7 @@ with tab3:
                 ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
                 
                 # Draw Travel Vectors
-                ax.plot([m_init_x, opt_x], [m_init_y, opt_y], "r:", alpha=0.4)
+                ax.plot([m_init_x, opt_x], [m_init_y, opt_y], color="#FF4500", linestyle=":", alpha=0.5, zorder=4) # Orange dotted vector
                 
                 # Draw Asymmetric Safe Bounding Box (Standoff boundaries)
                 safety_box = patches.Rectangle(
