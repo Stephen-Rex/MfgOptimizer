@@ -202,18 +202,20 @@ def python_optimize_layout(machines_list, flows_list, vertices, path_buffer, gri
 def generate_c_code_template(machines, flows, vertices, path_buffer, grid_size_x, grid_size_y):
     machines_str = ""
     for m in machines:
-        machines_str += f'    {{{m["id"]}, "{m["name"]}", {m["s"]}, 0.0, 0.0, {m["dim_x"]}, {m["dim_y"]}, {m["so_px"]}, {m["so_nx"]}, {m["so_py"]}, {m["so_ny"]}, {m["process_time"]}, {m["setup_time"]}}},\n'
-    machines_str = machines_str.rstrip(",\n")
+        machines_str += "    {{{}, \"{}\", {}, 0.0, 0.0, {}, {}, {}, {}, {}, {}, {}, {}}},\\n".format(
+            m["id"], m["name"], m["s"], m["dim_x"], m["dim_y"], m["so_px"], m["so_nx"], m["so_py"], m["so_ny"], m["process_time"], m["setup_time"]
+        )
+    machines_str = machines_str.rstrip(",\\n")
 
     flows_str = ""
     for f in flows:
-        flows_str += f'    {{{int(f["src_id"])}, {int(f["dest_id"])}, {f["volume"]}}},\n'
-    flows_str = flows_str.rstrip(",\n")
+        flows_str += "    {{{}, {}, {}}},\\n".format(int(f["src_id"]), int(f["dest_id"]), f["volume"])
+    flows_str = flows_str.rstrip(",\\n")
 
-    vx_str = ", ".join([f"{v['x']:.2f}" for v in vertices])
-    vy_str = ", ".join([f"{v['y']:.2f}" for v in vertices])
+    vx_str = ", ".join(["{:.2f}".format(v['x']) for v in vertices])
+    vy_str = ", ".join(["{:.2f}".format(v['y']) for v in vertices])
 
-    return f"""#include <stdio.h>
+    template_code = """#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -248,12 +250,12 @@ typedef struct {{
 Machine machines[] = {{
 {machines_str}
 }};
-int num_machines = {len(machines)};
+int num_machines = {num_machines};
 
 MaterialFlow flows[] = {{
 {flows_str}
 }};
-int num_flows = {len(flows)};
+int num_flows = {num_flows};
 
 /* Dynamic vertices arrays generated from user GUI inputs */
 double polyline_x[5] = {{{vx_str}}};
@@ -392,7 +394,7 @@ int main(void) {{
     double opt_cost = evaluate_polyline_layout_with_penalties();
     FILE *fp = fopen("layout_output.json", "w");
     if (!fp) return 1;
-    fprintf(fp, "{{\n");
+    fprintf(fp, "{{\\n");
     fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
     fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
     double total_dwell = 0.0;
@@ -407,7 +409,8 @@ int main(void) {{
             strcpy(bottleneck_name, machines[i].name);
         }}
     }}
-    fprintf(fp, "  \\\"dwell_time_analysis\\\": {{\\n");
+    fprintf(fp, "  \\\"dwell_time_analysis\\"; {{\\\
+");
     fprintf(fp, "    \\\"total_dwell_time\\\": %.2f,\\n", total_dwell);
     fprintf(fp, "    \\\"bottleneck_machine\\\": \\\"%s\\\",\\n", bottleneck_name);
     fprintf(fp, "    \\\"bottleneck_dwell_time\\\": %.2f\\n", bottleneck_time);
@@ -438,11 +441,22 @@ int main(void) {{
         fprintf(fp, "    }}%s\\n", (i == num_machines - 1) ? "" : ",");
     }}
     fprintf(fp, "  ]\\n");
-    fprintf(fp, "}}\\n");
+    fprintf(fp, "}}\n");
     fclose(fp);
     return 0;
 }}
 """
+    return template_code.format(
+        grid_size_x=grid_size_x,
+        grid_size_y=grid_size_y,
+        machines_str=machines_str,
+        num_machines=len(machines),
+        flows_str=flows_str,
+        num_flows=len(flows),
+        vx_str=vx_str,
+        vy_str=vy_str,
+        path_buffer=path_buffer
+    )
 
 # --- App Header layout ---
 st.markdown("## 🏭 Custom Polyline Material Flow Assembly Optimizer")
@@ -455,6 +469,9 @@ grid_size_y = st.sidebar.slider("Floor Height (Y) [Meters]", min_value=15, max_v
 
 st.sidebar.subheader("🚚 Fork Truck Safety Corridor")
 path_buffer = st.sidebar.slider("Standoff buffer Width (Each Side) [Meters]", min_value=0.5, max_value=1.5, value=1.0, step=0.1)
+
+st.sidebar.subheader("👁️ Visual Customization")
+show_machine_names = st.sidebar.checkbox("Show Machine Names on Layout Plot", value=True)
 
 engine_selection = st.sidebar.radio(
     "🖥️ Optimizer Engine Mode",
@@ -693,9 +710,10 @@ with tab3:
                     linewidth=2, edgecolor=border_color, facecolor=fill_color, zorder=5, alpha=0.8
                 )
                 ax.add_patch(opt_box)
-            # --- UPGRADE 1: Check toggled state for machine name display ---
+                
+                # Check toggled state for machine name display
                 if show_machine_names:
-                    label_text = f"[{m_id}]\n{m['name']}"
+                    label_text = f"[{m_id}]\\n{m['name']}"
                 else:
                     label_text = f"[{m_id}]"
                     
@@ -710,41 +728,20 @@ with tab3:
                 )
                 ax.add_patch(safety_box)
                 
-            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
+            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
             ax.set_xlabel("X coordinate (m)")
             ax.set_ylabel("Y coordinate (m)")
             
-            # --- UPGRADE 2: Matplotlib Plot Legend stating ID and machine name under the plot ---
+            # --- Matplotlib Plot Legend stating ID and machine name under the plot ---
             legend_labels_list = [f"[{m['id']}] {m['name']}" for m in opt_machines]
             legend_str = "  |  ".join(legend_labels_list)
-            fig.text(0.5, -0.05, f"Legend:\n{legend_str}", ha='center', fontsize=9, weight='bold', style='italic', bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F2F6', edgecolor='#1F2937', alpha=0.9))
+            fig.text(0.5, -0.05, f"Legend:\\n{legend_str}", ha='center', fontsize=9, weight='bold', style='italic', bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F2F6', edgecolor='#1F2937', alpha=0.9))
             
             st.pyplot(fig)
             
-            # --- UPGRADE 3: Streamlit Layout Legend underneath the plot ---
+            # --- Streamlit Layout Legend underneath the plot ---
             st.markdown("#### 🔑 Layout ID Legend")
             st.markdown(" | ".join([f"**[{m['id']}]** {m['name']}" for m in opt_machines]))
-
-
-
-                
-            # Label inside the rectangle
-            ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
-            # Draw Travel Vectors
-            ax.plot([m_init_x, opt_x], [m_init_y, opt_y], color="#FF4500", linestyle=":", alpha=0.5, zorder=4) # Orange dotted vector
-                
-            # Draw Asymmetric Safe Bounding Box (Standoff boundaries)
-            safety_box = patches.Rectangle(
-                (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
-                w + so_nx + so_px, h + so_ny + so_py,
-                linewidth=1.2, linestyle="--", edgecolor=border_color, facecolor="none", zorder=3, alpha=0.8
-            )
-            ax.add_patch(safety_box)
-                
-            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
-            ax.set_xlabel("X coordinate (m)")
-            ax.set_ylabel("Y coordinate (m)")
-            st.pyplot(fig)
             
         # Plot 2: Manufacturing dwell time analysis & bottleneck
         with col_plot2:
