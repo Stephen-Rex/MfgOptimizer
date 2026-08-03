@@ -353,7 +353,7 @@ int main(void) {{
     FILE *fp = fopen("layout_output.json", "w");
     if (!fp) return 1;
     
-    fprintf(fp, "{{\\n");
+    fprintf(fp, "{{\n");
     fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
     fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
     
@@ -676,3 +676,4 @@ with tab3:
                 "Status": "✅ SAFE" if m["is_safe"] else "❌ WARNING: ENVELOPE COLLISION"
             })
         st.table(pd.DataFrame(detailed_report))
+
