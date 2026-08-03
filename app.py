@@ -80,7 +80,7 @@ def do_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
     if o1 == 0 and on_segment(x1, y1, x3, y3, x2, y2): return True
     if o2 == 0 and on_segment(x1, y1, x4, y4, x2, y2): return True
     if o3 == 0 and on_segment(x3, y3, x1, y1, x4, y4): return True
-    if o4 == 0 && on_segment(x3, y3, x2, y2, x4, y4): return True
+    if o4 == 0 and on_segment(x3, y3, x2, y2, x4, y4): return True
     
     return False
 
