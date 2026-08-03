@@ -116,17 +116,22 @@ double evaluate_polyline_layout(void) {
             if (machines[j].id == dest) idx_dest = j;
         }
         if (idx_src != -1 && idx_dest != -1) {
-            double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, \n                                                    machines[idx_dest].x, machines[idx_dest].y);
+            double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, 
+                                                    machines[idx_dest].x, machines[idx_dest].y);
             transport_cost += dist * flows[i].volume;
         }
     }
 
     for (i = 0; i < num_machines; i++) {
-        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,\n                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
+        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
             penalty += 10000.0;
         }
         for (j = i + 1; j < num_machines; j++) {
-            if (check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,\n                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,\n                                   machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,\n                                   machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {
+            if (check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,
+                                   machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,
+                                   machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {
                 penalty += 20000.0;
             }
         }
