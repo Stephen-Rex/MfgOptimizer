@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Default Datasets ---
+# --- Default Datasets with Initial Spacing s Along Polyline ---
 DEFAULT_MACHINES = [
     {"id": 1, "name": "Raw Material Intake", "s": 0.0, "dim_x": 3.0, "dim_y": 2.0, "so_px": 1.0, "so_nx": 1.0, "so_py": 1.0, "so_ny": 1.0, "process_time": 2.0, "setup_time": 5.0},
     {"id": 2, "name": "CNC Milling", "s": 8.0, "dim_x": 4.0, "dim_y": 4.0, "so_px": 1.5, "so_nx": 1.5, "so_py": 1.5, "so_ny": 1.5, "process_time": 8.5, "setup_time": 20.0},
@@ -81,7 +81,7 @@ def on_segment(px, py, qx, qy, rx, ry):
     return qx <= max(px, rx) and qx >= min(px, rx) and \
            qy <= max(py, ry) and qy >= min(py, ry)
 
-# --- CORRECTED LINE 177: Changed && to and ---
+# --- CORRECTED LINE 177: Changed C-style && to python-style and ---
 def do_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
     if (x1 == x3 and y1 == y3) or (x1 == x4 and y1 == y4) or \
        (x2 == x3 and y2 == y3) or (x2 == x4 and y2 == y4):
@@ -139,7 +139,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
     while improved and iterations < 150:
         improved = False
         iterations += 1
-        for i in range(1, len(machines)): 
+        for i in range(1, len(machines)): # Machine 1 (Intake) is fixed at s=0
             original_s = machines[i]["s"]
             best_ds = 0.0
             
@@ -200,11 +200,12 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
         "machines": machines
     }
 
-# --- C Code Template String ---
+# --- CORRECTED LINE 207: Dynamically interpolate x and y coordinates from parametric s parameter ---
 def generate_c_code_template(machines, flows, grid_size_x, grid_size_y):
     machines_str = ""
     for m in machines:
-        machines_str += f'    {{{m["id"]}, "{m["name"]}", {m["x"]}, {m["y"]}, {m["dim_x"]}, {m["dim_y"]}, {m["so_px"]}, {m["so_nx"]}, {m["so_py"]}, {m["so_ny"]}, {m["process_time"]}, {m["setup_time"]}}},\n'
+        x_calc, y_coord = get_point_on_polyline(m["s"], grid_size_x, grid_size_y)
+        machines_str += f'    {{{m["id"]}, "{m["name"]}", {m["s"]}, {x_calc:.2f}, {y_coord:.2f}, {m["dim_x"]}, {m["dim_y"]}, {m["so_px"]}, {m["so_nx"]}, {m["so_py"]}, {m["so_ny"]}, {m["process_time"]}, {m["setup_time"]}}},\n'
     machines_str = machines_str.rstrip(",\n")
 
     flows_str = ""
@@ -225,8 +226,9 @@ def generate_c_code_template(machines, flows, grid_size_x, grid_size_y):
 typedef struct {{
     int id;
     char name[30];
-    double x;             /* Center X coordinate */
-    double y;             /* Center Y coordinate */
+    double s;             /* Cumulative distance along polyline */
+    double x;             /* Calculated Cartesian X coordinate */
+    double y;             /* Calculated Cartesian Y coordinate */
     double dim_x;         /* Geometric Width */
     double dim_y;         /* Geometric Height */
     double so_px;         /* Positive X Standoff */
@@ -257,6 +259,33 @@ double calculate_center_distance(double x1, double y1, double x2, double y2) {{
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }}
 
+void get_point_on_polyline(double s, double grid_x, double grid_y, double *out_x, double *out_y) {{
+    double vx[4], vy[4];
+    vx[0] = 3.0; vy[0] = 3.0;
+    vx[1] = 3.0; vy[1] = grid_y - 3.0;
+    vx[2] = grid_x - 3.0; vy[2] = grid_y - 3.0;
+    vx[3] = grid_x - 3.0; vy[3] = 3.0;
+    
+    double seg_lens[3];
+    int i;
+    for (i = 0; i < 3; i++) {{
+        seg_lens[i] = sqrt((vx[i+1]-vx[i])*(vx[i+1]-vx[i]) + (vy[i+1]-vy[i])*(vy[i+1]-vy[i]));
+    }}
+    
+    double current_s = 0.0;
+    for (i = 0; i < 3; i++) {{
+        if (s <= current_s + seg_lens[i]) {{
+            double ratio = (s - current_s) / seg_lens[i];
+            *out_x = vx[i] + ratio * (vx[i+1] - vx[i]);
+            *out_y = vy[i] + ratio * (vy[i+1] - vy[i]);
+            return;
+        }}
+        current_s += seg_lens[i];
+    }}
+    *out_x = vx[3];
+    *out_y = vy[3];
+}}
+
 bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, double nx1, double py1, double ny1,
                         double x2, double y2, double w2, double h2, double px2, double nx2, double py2, double ny2) {{
     double min_x1 = x1 - w1 / 2.0 - nx1;
@@ -274,35 +303,6 @@ bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, 
 
 bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, double nx, double py, double ny) {{
     return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
-}}
-
-int get_orientation(double px, double py, double qx, double qy, double rx, double ry) {{
-    double val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
-    if (fabs(val) < 1e-7) return 0;
-    return (val > 0.0) ? 1 : 2;
-}}
-
-bool on_segment(double px, double py, double qx, double qy, double rx, double ry) {{
-    return qx <= fmax(px, rx) && qx >= fmin(px, rx) &&
-           qy <= fmax(py, ry) && qy >= fmin(py, ry);
-}}
-
-bool do_intersect(double x1, double y1, double x2, double y2,
-                  double x3, double y3, double x4, double y4) {{
-    if ((x1 == x3 && y1 == y3) || (x1 == x4 && y1 == y4) ||
-        (x2 == x3 && y2 == y3) || (x2 == x4 && y2 == y4)) {{
-        return false;
-    }}
-    int o1 = get_orientation(x1, y1, x2, y2, x3, y3);
-    int o2 = get_orientation(x1, y1, x2, y2, x4, y4);
-    int o3 = get_orientation(x3, y3, x4, y4, x1, y1);
-    int o4 = get_orientation(x3, y3, x4, y4, x2, y2);
-    if (o1 != o2 && o3 != o4) return true;
-    if (o1 == 0 && on_segment(x1, y1, x3, y3, x2, y2)) return true;
-    if (o2 == 0 && on_segment(x1, y1, x4, y4, x2, y2)) return true;
-    if (o3 == 0 && on_segment(x3, y3, x1, y1, x4, y4)) return true;
-    if (o4 == 0 && on_segment(x3, y3, x2, y2, x4, y4)) return true;
-    return false;
 }}
 
 double evaluate_polyline_layout_with_penalties(void) {{
@@ -616,12 +616,12 @@ with tab3:
                 opt_x = m.get("optimized_x", m.get("x"))
                 opt_y = m.get("optimized_y", m.get("y"))
                 
-                # CORRECTED LINE 423: Initialized m_init within the drawing loop
-                m_init = init_lookup.get(m_id, {"x": opt_x, "y": opt_y})
+                # CORRECTED LINE 423: Grab m_init from init_lookup dynamically
+                m_init_x, m_init_y = get_point_on_polyline(init_lookup[m_id]["s"], grid_size_x, grid_size_y)
                 
                 # 1. Plot Initial Footprints (Dotted gray box)
                 init_box = patches.Rectangle(
-                    (m_init["x"] - w/2.0, m_init["y"] - h/2.0), w, h,
+                    (m_init_x - w/2.0, m_init_y - h/2.0), w, h,
                     linewidth=1, linestyle=":", edgecolor="gray", facecolor="none", alpha=0.3
                 )
                 ax.add_patch(init_box)
@@ -639,7 +639,7 @@ with tab3:
                 ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
                 
                 # 3. Draw Travel Vectors
-                ax.plot([m_init["x"], opt_x], [m_init["y"], opt_y], "r:", alpha=0.4)
+                ax.plot([m_init_x, opt_x], [m_init_y, opt_y], "r:", alpha=0.4)
                 
                 # 4. Draw Asymmetric Safe Bounding Box
                 safety_box = patches.Rectangle(
@@ -693,15 +693,24 @@ with tab3:
             so_py = m.get("so_py", init_lookup[m["id"]].get("so_py", 0.0))
             so_ny = m.get("so_ny", init_lookup[m["id"]].get("so_ny", 0.0))
             
-            # Recalculate overlaps
+            # CORRECTED LINE 482: Fetch dimensional limits from init_lookup table to support C mode
             is_overlapping = False
             for other in opt_machines:
                 if m["id"] != other["id"]:
                     ox = other.get("optimized_x", other.get("x"))
                     oy = other.get("optimized_y", other.get("y"))
+                    
+                    other_init = init_lookup[other["id"]]
+                    other_w = other_init.get("dim_x", 1.0)
+                    other_h = other_init.get("dim_y", 1.0)
+                    other_so_px = other_init.get("so_px", 0.0)
+                    other_so_nx = other_init.get("so_nx", 0.0)
+                    other_so_py = other_init.get("so_py", 0.0)
+                    other_so_ny = other_init.get("so_ny", 0.0)
+                    
                     if check_safe_overlap(opt_x, opt_y, w, h, so_px, so_nx, so_py, so_ny,
-                                       ox, oy, other["dim_x"], other["dim_y"],
-                                       other["so_px"], other["so_nx"], other["so_py"], other["so_ny"]):
+                                       ox, oy, other_w, other_h,
+                                       other_so_px, other_so_nx, other_so_py, other_so_ny):
                         is_overlapping = True
                         break
                         
