@@ -11,8 +11,9 @@
 typedef struct {
     int id;
     char name[30];
-    double x;             /* Center X coordinate */
-    double y;             /* Center Y coordinate */
+    double s;             /* Cumulative distance along polyline */
+    double x;             /* Calculated Cartesian X coordinate */
+    double y;             /* Calculated Cartesian Y coordinate */
     double dim_x;         /* Geometric Width */
     double dim_y;         /* Geometric Height */
     double so_px;         /* Positive X Standoff */
@@ -30,11 +31,11 @@ typedef struct {
 } MaterialFlow;
 
 Machine machines[] = {
-    {1, "Raw Material Intake", 3.0, 2.0, 3.0, 2.0, 1.0, 1.0, 1.0, 1.0, 2.0, 5.0},
-    {2, "CNC Milling", 12.0, 14.0, 4.0, 4.0, 1.5, 1.5, 1.5, 1.5, 8.5, 20.0},
-    {3, "Laser Welder", 5.0, 8.0, 3.0, 3.0, 1.2, 1.2, 1.2, 1.2, 4.0, 15.0},
-    {4, "Surface Treatment", 17.0, 3.0, 5.0, 3.0, 1.0, 1.0, 1.0, 1.0, 6.0, 10.0},
-    {5, "Quality Assembly", 15.0, 10.0, 3.5, 2.5, 0.8, 0.8, 0.8, 0.8, 5.0, 8.0}
+    {1, "Raw Material Intake", 0.0, 0.0, 0.0, 3.0, 2.0, 1.0, 1.0, 1.0, 1.0, 2.0, 5.0},
+    {2, "CNC Milling", 10.0, 0.0, 0.0, 4.0, 4.0, 1.5, 1.5, 1.5, 1.5, 8.5, 20.0},
+    {3, "Laser Welder", 20.0, 0.0, 0.0, 3.0, 3.0, 1.2, 1.2, 1.2, 1.2, 4.0, 15.0},
+    {4, "Surface Treatment", 30.0, 0.0, 0.0, 5.0, 3.0, 1.0, 1.0, 1.0, 1.0, 6.0, 10.0},
+    {5, "Quality Assembly", 40.0, 0.0, 0.0, 3.5, 2.5, 0.8, 0.8, 0.8, 0.8, 5.0, 8.0}
 };
 int num_machines = 5;
 
@@ -49,6 +50,34 @@ int num_flows = 5;
 
 double calculate_center_distance(double x1, double y1, double x2, double y2) {
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+}
+
+/* Interpolate 2D Cartesian Coordinate from cumulative distance along Dynamic U-Shape Polyline */
+void get_point_on_polyline(double s, double grid_x, double grid_y, double *out_x, double *out_y) {
+    double vx[4], vy[4];
+    vx[0] = 3.0; vy[0] = 3.0;
+    vx[1] = 3.0; vy[1] = grid_y - 3.0;
+    vx[2] = grid_x - 3.0; vy[2] = grid_y - 3.0;
+    vx[3] = grid_x - 3.0; vy[3] = 3.0;
+    
+    double seg_lens[3];
+    int i;
+    for (i = 0; i < 3; i++) {
+        seg_lens[i] = sqrt((vx[i+1]-vx[i])*(vx[i+1]-vx[i]) + (vy[i+1]-vy[i])*(vy[i+1]-vy[i]));
+    }
+    
+    double current_s = 0.0;
+    for (i = 0; i < 3; i++) {
+        if (s <= current_s + seg_lens[i]) {
+            double ratio = (s - current_s) / seg_lens[i];
+            *out_x = vx[i] + ratio * (vx[i+1] - vx[i]);
+            *out_y = vy[i] + ratio * (vy[i+1] - vy[i]);
+            return;
+        }
+        current_s += seg_lens[i];
+    }
+    *out_x = vx[3];
+    *out_y = vy[3];
 }
 
 bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, double nx1, double py1, double ny1,
@@ -70,48 +99,18 @@ bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, do
     return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
 }
 
-/* Helper functions for 2D Line Segment Intersection Math */
-int get_orientation(double px, double py, double qx, double qy, double rx, double ry) {
-    double val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
-    if (fabs(val) < 1e-7) return 0;  /* Collinear */
-    return (val > 0.0) ? 1 : 2;      /* Clockwise or Counterclockwise */
-}
-
-bool on_segment(double px, double py, double qx, double qy, double rx, double ry) {
-    return qx <= fmax(px, rx) && qx >= fmin(px, rx) &&
-           qy <= fmax(py, ry) && qy >= fmin(py, ry);
-}
-
-bool do_intersect(double x1, double y1, double x2, double y2,
-                  double x3, double y3, double x4, double y4) {
-    /* Exclude flows that connect to the exact same machine center (sequential processes) */
-    if ((x1 == x3 && y1 == y3) || (x1 == x4 && y1 == y4) ||
-        (x2 == x3 && y2 == y3) || (x2 == x4 && y2 == y4)) {
-        return false;
-    }
-
-    int o1 = get_orientation(x1, y1, x2, y2, x3, y3);
-    int o2 = get_orientation(x1, y1, x2, y2, x4, y4);
-    int o3 = get_orientation(x3, y3, x4, y4, x1, y1);
-    int o4 = get_orientation(x3, y3, x4, y4, x2, y2);
-
-    if (o1 != o2 && o3 != o4) return true;
-
-    if (o1 == 0 && on_segment(x1, y1, x3, y3, x2, y2)) return true;
-    if (o2 == 0 && on_segment(x1, y1, x4, y4, x2, y2)) return true;
-    if (o3 == 0 && on_segment(x3, y3, x1, y1, x4, y4)) return true;
-    if (o4 == 0 && on_segment(x3, y3, x2, y2, x4, y4)) return true;
-
-    return false;
-}
-
-/* Cost evaluator utilizing high penalties for overlaps, boundary violations, and path crossings */
-double evaluate_layout_with_penalties(void) {
+/* Cost evaluator utilizing dynamic coordinates calculated from sequential line packaging values */
+double evaluate_polyline_layout(void) {
     double transport_cost = 0.0;
     double penalty = 0.0;
-    int i, j, k;
+    int i, j;
 
-    /* 1. Calculate weighted material transport cost */
+    /* 1. Map 1D spacings to 2D coordinates */
+    for (i = 0; i < num_machines; i++) {
+        get_point_on_polyline(machines[i].s, GRID_SIZE_X, GRID_SIZE_Y, &machines[i].x, &machines[i].y);
+    }
+
+    /* 2. Calculate sequential flow cost along path */
     for (i = 0; i < num_flows; i++) {
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
@@ -127,7 +126,7 @@ double evaluate_layout_with_penalties(void) {
         }
     }
 
-    /* 2. Overlap and out-of-bounds containment penalties */
+    /* 3. Safety Box overlap penalty values */
     for (i = 0; i < num_machines; i++) {
         if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
@@ -143,88 +142,50 @@ double evaluate_layout_with_penalties(void) {
         }
     }
 
-    /* 3. Segment intersection crossings penalties */
-    for (i = 0; i < num_flows; i++) {
-        int src_a = flows[i].src_id;
-        int dest_a = flows[i].dest_id;
-        int idx_src_a = -1, idx_dest_a = -1;
-        for (k = 0; k < num_machines; k++) {
-            if (machines[k].id == src_a) idx_src_a = k;
-            if (machines[k].id == dest_a) idx_dest_a = k;
-        }
-        if (idx_src_a == -1 || idx_dest_a == -1) continue;
-
-        double ax1 = machines[idx_src_a].x;
-        double ay1 = machines[idx_src_a].y;
-        double ax2 = machines[idx_dest_a].x;
-        double ay2 = machines[idx_dest_a].y;
-
-        for (j = i + 1; j < num_flows; j++) {
-            int src_b = flows[j].src_id;
-            int dest_b = flows[j].dest_id;
-            int idx_src_b = -1, idx_dest_b = -1;
-            for (k = 0; k < num_machines; k++) {
-                if (machines[k].id == src_b) idx_src_b = k;
-                if (machines[k].id == dest_b) idx_dest_b = k;
-            }
-            if (idx_src_b == -1 || idx_dest_b == -1) continue;
-
-            double bx1 = machines[idx_src_b].x;
-            double by1 = machines[idx_src_b].y;
-            double bx2 = machines[idx_dest_b].x;
-            double by2 = machines[idx_dest_b].y;
-
-            if (do_intersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2)) {
-                penalty += 15000.0;
-            }
-        }
-    }
-
     return transport_cost + penalty;
 }
 
 void optimize_placement(void) {
-    double best_cost = evaluate_layout_with_penalties();
+    double best_cost = evaluate_polyline_layout();
     bool improved = true;
     int iterations = 0;
     int i;
-    double dx, dy;
-    
-    while (improved && iterations < 100) {
+    double ds;
+
+    while (improved && iterations < 150) {
         improved = false;
         iterations++;
-        for (i = 0; i < num_machines; i++) {
-            double original_x = machines[i].x;
-            double original_y = machines[i].y;
-            double best_dx = 0.0, best_dy = 0.0;
+        for (i = 1; i < num_machines; i++) { /* Machine 1 at s=0 is anchored */
+            double original_s = machines[i].s;
+            double best_ds = 0.0;
             
-            /* Wider search radius coordinates exploration */
-            for (dx = -3.0; dx <= 3.0; dx += 0.5) {
-                for (dy = -3.0; dy <= 3.0; dy += 0.5) {
-                    if (dx == 0.0 && dy == 0.0) continue;
-                    
-                    machines[i].x = original_x + dx;
-                    machines[i].y = original_y + dy;
-                    
-                    double current_cost = evaluate_layout_with_penalties();
-                    if (current_cost < best_cost) {
-                        best_cost = current_cost;
-                        best_dx = dx;
-                        best_dy = dy;
-                        improved = true;
-                    }
+            for (ds = -4.0; ds <= 4.0; ds += 0.5) {
+                if (ds == 0.0) continue;
+                
+                double candidate_s = original_s + ds;
+                
+                /* Keep sequential orders intact and prevent physical spacing overlap */
+                double min_s = machines[i-1].s + (machines[i-1].dim_x + machines[i].dim_x)/2.0;
+                if (candidate_s < min_s) continue;
+                
+                machines[i].s = candidate_s;
+                double current_cost = evaluate_polyline_layout();
+                
+                if (current_cost < best_cost) {
+                    best_cost = current_cost;
+                    best_ds = ds;
+                    improved = true;
                 }
             }
-            machines[i].x = original_x + best_dx;
-            machines[i].y = original_y + best_dy;
+            machines[i].s = original_s + best_ds;
         }
     }
 }
 
 int main(void) {
-    double init_cost = evaluate_layout_with_penalties();
+    double init_cost = evaluate_polyline_layout();
     optimize_placement();
-    double opt_cost = evaluate_layout_with_penalties();
+    double opt_cost = evaluate_polyline_layout();
     
     FILE *fp = fopen("layout_output.json", "w");
     if (!fp) return 1;
@@ -255,8 +216,6 @@ int main(void) {
     fprintf(fp, "  \"machines\": [\n");
     for (i = 0; i < num_machines; i++) {
         bool safe = true;
-        
-        /* Confirm absolute compliance on final optimal placement */
         if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
             safe = false;
