@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Default Datasets with Geometric Footprints & Directional Standoffs ---
+# --- Default Datasets ---
 DEFAULT_MACHINES = [
     {"id": 1, "name": "Raw Material Intake", "x": 3.0, "y": 2.0, "dim_x": 3.0, "dim_y": 2.0, "so_px": 1.0, "so_nx": 1.0, "so_py": 1.0, "so_ny": 1.0, "process_time": 2.0, "setup_time": 5.0},
     {"id": 2, "name": "CNC Milling", "x": 12.0, "y": 14.0, "dim_x": 4.0, "dim_y": 4.0, "so_px": 1.5, "so_nx": 1.5, "so_py": 1.5, "so_ny": 1.5, "process_time": 8.5, "setup_time": 20.0},
@@ -33,7 +33,7 @@ DEFAULT_FLOWS = [
     {"src_id": 2, "dest_id": 5, "volume": 15.0}
 ]
 
-# --- Python Engine Math & Fallback Logic (Directional Standoffs) ---
+# --- Python Engine Math (Crossing Paths & Soft Penalties) ---
 def calculate_center_distance(x1, y1, x2, y2):
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
@@ -53,26 +53,84 @@ def check_safe_overlap(x1, y1, w1, h1, px1, nx1, py1, ny1, x2, y2, w2, h2, px2, 
 def is_safe_out_of_bounds(x, y, w, h, px, nx, py, ny, grid_x, grid_y):
     return (x - w/2.0 - nx < 0) or (x + w/2.0 + px > grid_x) or (y - h/2.0 - ny < 0) or (y + h/2.0 + py > grid_y)
 
-def evaluate_layout(machines_dict, flows_list):
-    total_cost = 0.0
+# --- 2D Vector Segment Cross-Product Intersection Solver ---
+def get_orientation(px, py, qx, qy, rx, ry):
+    val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy)
+    if abs(val) < 1e-7:
+        return 0  # Collinear
+    return 1 if val > 0 else 2  # Clockwise or Counterclockwise
+
+def on_segment(px, py, qx, qy, rx, ry):
+    return qx <= max(px, rx) and qx >= min(px, rx) and \
+           qy <= max(py, ry) and qy >= min(py, ry)
+
+def do_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
+    if (x1 == x3 and y1 == y3) or (x1 == x4 and y1 == y4) or \
+       (x2 == x3 and y2 == y3) or (x2 == x4 and y2 == y4):
+        return False  # Shared endpoints representing connected sequential flows
+        
+    o1 = get_orientation(x1, y1, x2, y2, x3, y3)
+    o2 = get_orientation(x1, y1, x2, y2, x4, y4)
+    o3 = get_orientation(x3, y3, x4, y4, x1, y1)
+    o4 = get_orientation(x3, y3, x4, y4, x2, y2)
+    
+    if o1 != o2 and o3 != o4:
+        return True
+        
+    if o1 == 0 and on_segment(x1, y1, x3, y3, x2, y2): return True
+    if o2 == 0 and on_segment(x1, y1, x4, y4, x2, y2): return True
+    if o3 == 0 and on_segment(x3, y3, x1, y1, x4, y4): return True
+    if o4 == 0 && on_segment(x3, y3, x2, y2, x4, y4): return True
+    
+    return False
+
+# --- Penalty Evaluator (Soft-Constraint Model) ---
+def evaluate_layout_with_penalties(machines, flows_list, grid_x, grid_y):
+    transport_cost = 0.0
+    penalty = 0.0
+    machines_dict = {m["id"]: m for m in machines}
+    
+    # 1. Transport cost
     for flow in flows_list:
-        src = flow["src_id"]
-        dest = flow["dest_id"]
+        src, dest = flow["src_id"], flow["dest_id"]
         if src in machines_dict and dest in machines_dict:
-            m1 = machines_dict[src]
-            m2 = machines_dict[dest]
+            m1, m2 = machines_dict[src], machines_dict[dest]
             dist = calculate_center_distance(m1["x"], m1["y"], m2["x"], m2["y"])
-            total_cost += dist * flow["volume"]
-    return total_cost
+            transport_cost += dist * flow["volume"]
+            
+    # 2. Overlap and boundaries containment check
+    for i, m1 in enumerate(machines):
+        if is_safe_out_of_bounds(m1["x"], m1["y"], m1["dim_x"], m1["dim_y"], m1["so_px"], m1["so_nx"], m1["so_py"], m1["so_ny"], grid_x, grid_y):
+            penalty += 10000.0
+        for j, m2 in enumerate(machines):
+            if i < j:
+                if check_safe_overlap(m1["x"], m1["y"], m1["dim_x"], m1["dim_y"], m1["so_px"], m1["so_nx"], m1["so_py"], m1["so_ny"],
+                                   m2["x"], m2["y"], m2["dim_x"], m2["dim_y"], m2["so_px"], m2["so_nx"], m2["so_py"], m2["so_ny"]):
+                    penalty += 20000.0
+                    
+    # 3. Path crossings intersection checks
+    for i, f1 in enumerate(flows_list):
+        m1_src, m1_dst = machines_dict[f1["src_id"]], machines_dict[f1["dest_id"]]
+        ax1, ay1 = m1_src["x"], m1_src["y"]
+        ax2, ay2 = m1_dst["x"], m1_dst["y"]
+        
+        for j, f2 in enumerate(flows_list):
+            if i < j:
+                m2_src, m2_dst = machines_dict[f2["src_id"]], machines_dict[f2["dest_id"]]
+                bx1, by1 = m2_src["x"], m2_src["y"]
+                bx2, by2 = m2_dst["x"], m2_dst["y"]
+                
+                if do_intersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2):
+                    penalty += 15000.0
+                    
+    return transport_cost + penalty
 
 def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_y=20):
     machines = [dict(m) for m in machines_list]
     improved = True
     iterations = 0
     
-    machines_dict = {m["id"]: m for m in machines}
-    initial_cost = evaluate_layout(machines_dict, flows_list)
-    best_cost = initial_cost
+    best_cost = evaluate_layout_with_penalties(machines, flows_list, grid_size_x, grid_size_y)
     
     while improved and iterations < 100:
         improved = False
@@ -80,59 +138,28 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
         for i in range(len(machines)):
             original_x = machines[i]["x"]
             original_y = machines[i]["y"]
-            w = machines[i]["dim_x"]
-            h = machines[i]["dim_y"]
-            px = machines[i]["so_px"]
-            nx = machines[i]["so_nx"]
-            py = machines[i]["so_py"]
-            ny = machines[i]["so_ny"]
-            
             best_dx, best_dy = 0.0, 0.0
             
-            for dx in np.arange(-2.0, 2.5, 0.5):
-                for dy in np.arange(-2.0, 2.5, 0.5):
+            # Wide spatial steps
+            for dx in np.arange(-3.0, 3.5, 0.5):
+                for dy in np.arange(-3.0, 3.5, 0.5):
                     if dx == 0.0 and dy == 0.0:
                         continue
                     
-                    nx_coord = original_x + dx
-                    ny_coord = original_y + dy
+                    machines[i]["x"] = original_x + dx
+                    machines[i]["y"] = original_y + dy
                     
-                    # Boundary check for entire safe bounding box
-                    if is_safe_out_of_bounds(nx_coord, ny_coord, w, h, px, nx, py, ny, grid_size_x, grid_size_y):
-                        continue
-                    
-                    # Overlap check with other machine's safe footprints
-                    overlap = False
-                    for k in range(len(machines)):
-                        if k != i:
-                            if check_safe_overlap(nx_coord, ny_coord, w, h, px, nx, py, ny,
-                                               machines[k]["x"], machines[k]["y"], machines[k]["dim_x"], machines[k]["dim_y"],
-                                               machines[k]["so_px"], machines[k]["so_nx"], machines[k]["so_py"], machines[k]["so_ny"]):
-                                overlap = True
-                                break
-                    if overlap:
-                        continue
-                    
-                    # Temporarily apply move
-                    machines[i]["x"] = nx_coord
-                    machines[i]["y"] = ny_coord
-                    
-                    current_cost = evaluate_layout({m["id"]: m for m in machines}, flows_list)
+                    current_cost = evaluate_layout_with_penalties(machines, flows_list, grid_size_x, grid_size_y)
                     if current_cost < best_cost:
                         best_cost = current_cost
                         best_dx = dx
                         best_dy = dy
                         improved = True
             
-            # Apply best step
-            if improved:
-                machines[i]["x"] = original_x + best_dx
-                machines[i]["y"] = original_y + best_dy
-            else:
-                machines[i]["x"] = original_x
-                machines[i]["y"] = original_y
-                
-    # Evaluate safety compliance status (Boundary and overlap checks)
+            machines[i]["x"] = original_x + best_dx
+            machines[i]["y"] = original_y + best_dy
+            
+    # Compile compliance results
     for i, m in enumerate(machines):
         m["is_safe"] = True
         if is_safe_out_of_bounds(m["x"], m["y"], m["dim_x"], m["dim_y"], m["so_px"], m["so_nx"], m["so_py"], m["so_ny"], grid_size_x, grid_size_y):
@@ -146,7 +173,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
                         m["is_safe"] = False
                         break
 
-    # Manufacturing Dwell times
+    # Dwell calculations
     total_dwell = 0.0
     bottleneck_time = -1.0
     bottleneck_machine = ""
@@ -160,7 +187,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
             bottleneck_machine = m["name"]
 
     return {
-        "initial_transport_cost": initial_cost,
+        "initial_transport_cost": evaluate_layout_with_penalties(machines_list, flows_list, grid_size_x, grid_size_y),
         "optimized_transport_cost": best_cost,
         "iterations": iterations,
         "dwell_time_analysis": {
@@ -171,7 +198,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
         "machines": machines
     }
 
-# --- C Code Generation (Directional Standoff Support) ---
+# --- C Code Template String ---
 def generate_c_code_template(machines, flows, grid_size_x, grid_size_y):
     machines_str = ""
     for m in machines:
@@ -247,9 +274,39 @@ bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, do
     return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
 }}
 
-double evaluate_layout(void) {{
-    double total_cost = 0.0;
-    int i, j;
+int get_orientation(double px, double py, double qx, double qy, double rx, double ry) {{
+    double val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
+    if (fabs(val) < 1e-7) return 0;
+    return (val > 0.0) ? 1 : 2;
+}}
+
+bool on_segment(double px, double py, double qx, double qy, double rx, double ry) {{
+    return qx <= fmax(px, rx) && qx >= fmin(px, rx) &&
+           qy <= fmax(py, ry) && qy >= fmin(py, ry);
+}}
+
+bool do_intersect(double x1, double y1, double x2, double y2,
+                  double x3, double y3, double x4, double y4) {{
+    if ((x1 == x3 && y1 == y3) || (x1 == x4 && y1 == y4) ||
+        (x2 == x3 && y2 == y3) || (x2 == x4 && y2 == y4)) {{
+        return false;
+    }}
+    int o1 = get_orientation(x1, y1, x2, y2, x3, y3);
+    int o2 = get_orientation(x1, y1, x2, y2, x4, y4);
+    int o3 = get_orientation(x3, y3, x4, y4, x1, y1);
+    int o4 = get_orientation(x3, y3, x4, y4, x2, y2);
+    if (o1 != o2 && o3 != o4) return true;
+    if (o1 == 0 && on_segment(x1, y1, x3, y3, x2, y2)) return true;
+    if (o2 == 0 && on_segment(x1, y1, x4, y4, x2, y2)) return true;
+    if (o3 == 0 && on_segment(x3, y3, x1, y1, x4, y4)) return true;
+    if (o4 == 0 && on_segment(x3, y3, x2, y2, x4, y4)) return true;
+    return false;
+}}
+
+double evaluate_layout_with_penalties(void) {{
+    double transport_cost = 0.0;
+    double penalty = 0.0;
+    int i, j, k;
     for (i = 0; i < num_flows; i++) {{
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
@@ -261,58 +318,76 @@ double evaluate_layout(void) {{
         if (idx_src != -1 && idx_dest != -1) {{
             double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, 
                                                     machines[idx_dest].x, machines[idx_dest].y);
-            total_cost += dist * flows[i].volume;
+            transport_cost += dist * flows[i].volume;
         }}
     }}
-    return total_cost;
+    for (i = 0; i < num_machines; i++) {{
+        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {{
+            penalty += 10000.0;
+        }}
+        for (j = i + 1; j < num_machines; j++) {{
+            if (check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,
+                                   machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,
+                                   machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {{
+                penalty += 20000.0;
+            }}
+        }}
+    }}
+    for (i = 0; i < num_flows; i++) {{
+        int src_a = flows[i].src_id;
+        int dest_a = flows[i].dest_id;
+        int idx_src_a = -1, idx_dest_a = -1;
+        for (k = 0; k < num_machines; k++) {{
+            if (machines[k].id == src_a) idx_src_a = k;
+            if (machines[k].id == dest_a) idx_dest_a = k;
+        }}
+        if (idx_src_a == -1 || idx_dest_a == -1) continue;
+        double ax1 = machines[idx_src_a].x;
+        double ay1 = machines[idx_src_a].y;
+        double ax2 = machines[idx_dest_a].x;
+        double ay2 = machines[idx_dest_a].y;
+        for (j = i + 1; j < num_flows; j++) {{
+            int src_b = flows[j].src_id;
+            int dest_b = flows[j].dest_id;
+            int idx_src_b = -1, idx_dest_b = -1;
+            for (k = 0; k < num_machines; k++) {{
+                if (machines[k].id == src_b) idx_src_b = k;
+                if (machines[k].id == dest_b) idx_dest_b = k;
+            }}
+            if (idx_src_b == -1 || idx_dest_b == -1) continue;
+            double bx1 = machines[idx_src_b].x;
+            double by1 = machines[idx_src_b].y;
+            double bx2 = machines[idx_dest_b].x;
+            double by2 = machines[idx_dest_b].y;
+            if (do_intersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2)) {{
+                penalty += 15000.0;
+            }}
+        }}
+    }}
+    return transport_cost + penalty;
 }}
 
 void optimize_placement(void) {{
-    double best_cost = evaluate_layout();
+    double best_cost = evaluate_layout_with_penalties();
     bool improved = true;
     int iterations = 0;
-    int i, k;
+    int i;
     double dx, dy;
-    
     while (improved && iterations < 100) {{
         improved = false;
         iterations++;
         for (i = 0; i < num_machines; i++) {{
             double original_x = machines[i].x;
             double original_y = machines[i].y;
-            double w = machines[i].dim_x;
-            double h = machines[i].dim_y;
-            double px = machines[i].so_px;
-            double nx = machines[i].so_nx;
-            double py = machines[i].so_py;
-            double ny = machines[i].so_ny;
             double best_dx = 0.0, best_dy = 0.0;
-            
-            for (dx = -2.0; dx <= 2.0; dx += 0.5) {{
-                for (dy = -2.0; dy <= 2.0; dy += 0.5) {{
-                    double nx_coord, ny_coord;
-                    bool overlap = false;
-                    double current_cost;
+            for (dx = -3.0; dx <= 3.0; dx += 0.5) {{
+                for (dy = -3.0; dy <= 3.0; dy += 0.5) {{
                     if (dx == 0.0 && dy == 0.0) continue;
-                    
-                    nx_coord = original_x + dx;
-                    ny_coord = original_y + dy;
-                    if (is_safe_out_of_bounds(nx_coord, ny_coord, w, h, px, nx, py, ny)) continue;
-                    
-                    for (k = 0; k < num_machines; k++) {{
-                        if (k != i && check_safe_overlap(nx_coord, ny_coord, w, h, px, nx, py, ny,
-                                                         machines[k].x, machines[k].y, machines[k].dim_x, machines[k].dim_y,
-                                                         machines[k].so_px, machines[k].so_nx, machines[k].so_py, machines[k].so_ny)) {{
-                            overlap = true;
-                            break;
-                        }}
-                    }}
-                    if (overlap) continue;
-                    
-                    machines[i].x = nx_coord;
-                    machines[i].y = ny_coord;
-                    current_cost = evaluate_layout();
-                    
+                    machines[i].x = original_x + dx;
+                    machines[i].y = original_y + dy;
+                    double current_cost = evaluate_layout_with_penalties();
                     if (current_cost < best_cost) {{
                         best_cost = current_cost;
                         best_dx = dx;
@@ -321,29 +396,21 @@ void optimize_placement(void) {{
                     }}
                 }}
             }}
-            if (improved) {{
-                machines[i].x = original_x + best_dx;
-                machines[i].y = original_y + best_dy;
-            }} else {{
-                machines[i].x = original_x;
-                machines[i].y = original_y;
-            }}
-        }}
+            machines[i].x = original_x + best_dx;
+            machines[i].y = original_y + best_dy;
+        }
     }}
 }}
 
 int main(void) {{
-    double init_cost = evaluate_layout();
+    double init_cost = evaluate_layout_with_penalties();
     optimize_placement();
-    double opt_cost = evaluate_layout();
-    
+    double opt_cost = evaluate_layout_with_penalties();
     FILE *fp = fopen("layout_output.json", "w");
     if (!fp) return 1;
-    
     fprintf(fp, "{{\\n");
     fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
     fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
-    
     double total_dwell = 0.0;
     double bottleneck_time = -1.0;
     char bottleneck_name[30] = "";
@@ -356,13 +423,11 @@ int main(void) {{
             strcpy(bottleneck_name, machines[i].name);
         }}
     }}
-    
     fprintf(fp, "  \\\"dwell_time_analysis\\\": {{\\n");
     fprintf(fp, "    \\\"total_dwell_time\\\": %.2f,\\n", total_dwell);
     fprintf(fp, "    \\\"bottleneck_machine\\\": \\\"%s\\\",\\n", bottleneck_name);
     fprintf(fp, "    \\\"bottleneck_dwell_time\\\": %.2f\\n", bottleneck_time);
     fprintf(fp, "  }},\\n");
-    
     fprintf(fp, "  \\\"machines\\\": [\\n");
     for (i = 0; i < num_machines; i++) {{
         bool safe = true;
@@ -395,11 +460,11 @@ int main(void) {{
 }}
 """
 
-# --- App Header Layout ---
-st.markdown("## 🏭 Industrial Optimizer: Bounding Box & Directional Standoffs Edition")
-st.markdown("Prevent floor plans from clipping. Define asymmetric clearance zones (Positive X, Negative X, Positive Y, Negative Y) per machine footprint.")
+# --- App Header layout ---
+st.markdown("## 🏭 Industrial Routing & Safe Layout Planner (Path Crossing Solver)")
+st.markdown("Ensures that directional standoff safety envelopes never overlap AND that part transfer line segments do not intersect with each other.")
 
-# --- SIDEBAR: Global Parameters & Dynamic Rectangular Inputs ---
+# --- SIDEBAR: Global Parameters & Grid Sliders ---
 st.sidebar.subheader("📐 Rectangular Plant Dimensions")
 grid_size_x = st.sidebar.slider("Floor Width (X) [Meters]", min_value=10, max_value=100, value=20)
 grid_size_y = st.sidebar.slider("Floor Height (Y) [Meters]", min_value=10, max_value=100, value=20)
@@ -421,8 +486,8 @@ tab1, tab2, tab3 = st.tabs(["📋 Configure Parameters", "👁️ Generated C So
 with tab1:
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("🤖 Machine Geometry & Dynamic Standoffs")
-        st.markdown("Configure custom width/height and asymmetric clearance standoffs (**so_px, so_nx, so_py, so_ny**) in meters:")
+        st.subheader("🤖 Machine Geometry & Directional Standoffs")
+        st.markdown("Define footprints (`dim_x, dim_y`) and directional clearance zones (**so_px, so_nx, so_py, so_ny**) in meters:")
         edited_machines = st.data_editor(
             st.session_state.machines_df,
             num_rows="dynamic",
@@ -511,6 +576,42 @@ with tab3:
         # --- Display KPI Metric Cards ---
         st.success(f"Execution Successful! Source Engine: **{execution_msg}**")
         
+        opt_machines = results["machines"]
+        opt_lookup = {m["id"]: m for m in opt_machines}
+        init_lookup = {m["id"]: m for m in machines_data}
+
+        # Calculate final safety metrics on the fly
+        overlaps_count = 0
+        for i in range(len(machines_data)):
+            for j in range(i + 1, len(machines_data)):
+                m1 = opt_lookup[machines_data[i]["id"]]
+                m2 = opt_lookup[machines_data[j]["id"]]
+                x1 = m1.get("optimized_x", m1.get("x"))
+                y1 = m1.get("optimized_y", m1.get("y"))
+                x2 = m2.get("optimized_x", m2.get("x"))
+                y2 = m2.get("optimized_y", m2.get("y"))
+                if check_safe_overlap(x1, y1, m1["dim_x"], m1["dim_y"], m1["so_px"], m1["so_nx"], m1["so_py"], m1["so_ny"],
+                                   x2, y2, m2["dim_x"], m2["dim_y"], m2["so_px"], m2["so_nx"], m2["so_py"], m2["so_ny"]):
+                    overlaps_count += 1
+
+        crossings_count = 0
+        for i in range(len(flows_data)):
+            for j in range(i + 1, len(flows_data)):
+                f1 = flows_data[i]
+                f2 = flows_data[j]
+                m1_src = opt_lookup[f1["src_id"]]
+                m1_dst = opt_lookup[f1["dest_id"]]
+                m2_src = opt_lookup[f2["src_id"]]
+                m2_dst = opt_lookup[f2["dest_id"]]
+                
+                ax1, ay1 = m1_src.get("optimized_x", m1_src.get("x")), m1_src.get("optimized_y", m1_src.get("y"))
+                ax2, ay2 = m1_dst.get("optimized_x", m1_dst.get("x")), m1_dst.get("optimized_y", m1_dst.get("y"))
+                bx1, by1 = m2_src.get("optimized_x", m2_src.get("x")), m2_src.get("optimized_y", m2_src.get("y"))
+                bx2, by2 = m2_dst.get("optimized_x", m2_dst.get("x")), m2_dst.get("optimized_y", m2_dst.get("y"))
+                
+                if do_intersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2):
+                    crossings_count += 1
+
         col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
         
         init_cost = results["initial_transport_cost"]
@@ -518,30 +619,26 @@ with tab3:
         reduction = ((init_cost - opt_cost) / init_cost) * 100 if init_cost > 0 else 0
         
         with col_metric1:
-            st.metric("Initial Layout Cost", f"{init_cost:.2f} m·parts/hr")
+            st.metric("Flow-Distance Travel Cost", f"{opt_cost:.2f} m·parts/hr")
         with col_metric2:
-            st.metric("Optimized Layout Cost", f"{opt_cost:.2f} m·parts/hr", delta=f"-{reduction:.1f}% Layout Cost")
+            st.metric("Bottleneck Cycle Time", f"{results['dwell_time_analysis']['bottleneck_dwell_time']:.2f} mins/part")
         with col_metric3:
-            st.metric("Bottleneck Machine", results["dwell_time_analysis"]["bottleneck_machine"])
+            st.metric("Safety Box Overlaps", f"{overlaps_count}", delta=f"{overlaps_count} Violations", delta_color="inverse")
         with col_metric4:
-            st.metric("Production Cycle Time", f"{results['dwell_time_analysis']['bottleneck_dwell_time']:.2f} mins/part")
+            st.metric("Flow Line Crossings", f"{crossings_count}", delta=f"{crossings_count} Violations", delta_color="inverse")
 
         # --- Visual Post-Processing Plots ---
         col_plot1, col_plot2 = st.columns(2)
         
         # Plot 1: Floor Mapping & Safety Zones
         with col_plot1:
-            st.markdown("### 🗺️ Floor Layout, Footprints & Asymmetric Standoffs")
+            st.markdown("### 🗺️ Floor Layout, Footprints & Flow Clearances")
             
             fig, ax = plt.subplots(figsize=(8, 8))
             ax.set_xlim(-2, grid_size_x + 4)
             ax.set_ylim(-2, grid_size_y + 4)
             ax.set_aspect('equal')
             ax.grid(True, which='both', linestyle='--', alpha=0.5)
-            
-            init_lookup = {m["id"]: m for m in machines_data}
-            opt_machines = results["machines"]
-            opt_lookup = {m["id"]: m for m in opt_machines}
             
             # Draw flow vector lines between optimized centers
             for flow in flows_data:
@@ -557,19 +654,31 @@ with tab3:
                     m2_x = m2.get("optimized_x", m2.get("x"))
                     m2_y = m2.get("optimized_y", m2.get("y"))
                     
-                    width = max(1.0, min(5.0, vol / 30.0))
+                    width = max(1.5, min(6.0, vol / 20.0))
+                    
+                    # Highlight if flow line is intersecting with another
+                    is_crossing = False
+                    for other_flow in flows_data:
+                        if other_flow != flow:
+                            m3 = opt_lookup[other_flow["src_id"]]
+                            m4 = opt_lookup[other_flow["dest_id"]]
+                            bx1, by1 = m3.get("optimized_x", m3.get("x")), m3.get("optimized_y", m3.get("y"))
+                            bx2, by2 = m4.get("optimized_x", m4.get("x")), m4.get("optimized_y", m4.get("y"))
+                            if do_intersect(m1_x, m1_y, m2_x, m2_y, bx1, by1, bx2, by2):
+                                is_crossing = True
+                                break
+                    
+                    line_color = "red" if is_crossing else "teal"
                     ax.annotate(
                         "",
                         xy=(m2_x, m2_y),
                         xytext=(m1_x, m1_y),
-                        arrowprops=dict(arrowstyle="->", color="teal", alpha=0.5, lw=width, shrinkA=10, shrinkB=10)
+                        arrowprops=dict(arrowstyle="->", color=line_color, alpha=0.7, lw=width, shrinkA=12, shrinkB=12)
                     )
             
             # Draw each Machine Footprint and its ISO Safety envelope
             for m in opt_machines:
                 m_id = m["id"]
-                
-                # Retrieve dimensions and directional standoffs
                 w = m.get("dim_x", init_lookup[m_id].get("dim_x", 1.0))
                 h = m.get("dim_y", init_lookup[m_id].get("dim_y", 1.0))
                 so_px = m.get("so_px", init_lookup[m_id].get("so_px", 0.0))
@@ -577,7 +686,6 @@ with tab3:
                 so_py = m.get("so_py", init_lookup[m_id].get("so_py", 0.0))
                 so_ny = m.get("so_ny", init_lookup[m_id].get("so_ny", 0.0))
                 
-                # Coordinates
                 opt_x = m.get("optimized_x", m.get("x"))
                 opt_y = m.get("optimized_y", m.get("y"))
                 m_init = init_lookup.get(m_id, {"x": opt_x, "y": opt_y})
@@ -585,7 +693,7 @@ with tab3:
                 # 1. Plot Initial Footprints (Dotted gray box)
                 init_box = patches.Rectangle(
                     (m_init["x"] - w/2.0, m_init["y"] - h/2.0), w, h,
-                    linewidth=1, linestyle=":", edgecolor="gray", facecolor="none", alpha=0.4
+                    linewidth=1, linestyle=":", edgecolor="gray", facecolor="none", alpha=0.3
                 )
                 ax.add_patch(init_box)
                 
@@ -599,16 +707,12 @@ with tab3:
                 )
                 ax.add_patch(opt_box)
                 
-                # Label machine name and ID inside the rectangle
                 ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
                 
-                # 3. Draw Travel Trajectory Vectors
+                # 3. Draw Travel Vectors
                 ax.plot([m_init["x"], opt_x], [m_init["y"], opt_y], "r:", alpha=0.4)
                 
-                # 4. Draw Asymmetric Safe Bounding Box (Dashed Boundary Box: Standoffs + Dimensions)
-                # Bottom-left coordinate: (Center_X - w/2 - Standoff_NX, Center_Y - h/2 - Standoff_NY)
-                # Box Width: w + Standoff_NX + Standoff_PX
-                # Box Height: h + Standoff_NY + Standoff_PY
+                # 4. Draw Asymmetric Safe Bounding Box
                 safety_box = patches.Rectangle(
                     (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
                     w + so_nx + so_px, h + so_ny + so_py,
@@ -616,7 +720,7 @@ with tab3:
                 )
                 ax.add_patch(safety_box)
                 
-            ax.set_title(f"Floor Map ({grid_size_x}m x {grid_size_y}m)\nSolid Box = Footprint, Dashed Box = Asymmetrical Safe Zone", fontsize=11)
+            ax.set_title(f"Layout Diagram ({grid_size_x}m x {grid_size_y}m)\nSolid Box = Physical Bounds, Dashed Box = Safety Limits", fontsize=11)
             ax.set_xlabel("X coordinate (m)")
             ax.set_ylabel("Y coordinate (m)")
             st.pyplot(fig)
@@ -625,9 +729,7 @@ with tab3:
         with col_plot2:
             st.markdown("### ⏱️ Manufacturing Dwell Times & Throughput Cap")
             
-            opt_machines = results["machines"]
             names = [m["name"] for m in opt_machines]
-            
             dwells = [m["process_time"] + (m["setup_time"] / 50.0) for m in opt_machines]
             capacities = [60.0 / m["process_time"] if m["process_time"] > 0 else 0 for m in opt_machines]
             
@@ -652,7 +754,7 @@ with tab3:
         # Output Detailed Post-Optimization Report Table
         st.markdown("### 📋 Station Safety Clearance & Compliance Detail Report")
         detailed_report = []
-        for m in results["machines"]:
+        for m in opt_machines:
             opt_x = m.get("optimized_x", m.get("x"))
             opt_y = m.get("optimized_y", m.get("y"))
             w = m.get("dim_x", init_lookup[m["id"]].get("dim_x", 1.0))
@@ -662,6 +764,48 @@ with tab3:
             so_py = m.get("so_py", init_lookup[m["id"]].get("so_py", 0.0))
             so_ny = m.get("so_ny", init_lookup[m["id"]].get("so_ny", 0.0))
             
+            # Recalculate overlaps specific to this machine
+            is_overlapping = False
+            for other in opt_machines:
+                if m["id"] != other["id"]:
+                    ox = other.get("optimized_x", other.get("x"))
+                    oy = other.get("optimized_y", other.get("y"))
+                    if check_safe_overlap(opt_x, opt_y, w, h, so_px, so_nx, so_py, so_ny,
+                                       ox, oy, other["dim_x"], other["dim_y"],
+                                       other["so_px"], other["so_nx"], other["so_py"], other["so_ny"]):
+                        is_overlapping = True
+                        break
+                        
+            # Recalculate path crossings specific to this machine
+            has_crossing = False
+            for flow in flows_data:
+                if flow["src_id"] == m["id"] or flow["dest_id"] == m["id"]:
+                    m_dst = opt_lookup[flow["dest_id"]] if flow["src_id"] == m["id"] else opt_lookup[flow["src_id"]]
+                    dst_x = m_dst.get("optimized_x", m_dst.get("x"))
+                    dst_y = m_dst.get("optimized_y", m_dst.get("y"))
+                    
+                    for other_flow in flows_data:
+                        if other_flow != flow:
+                            m3 = opt_lookup[other_flow["src_id"]]
+                            m4 = opt_lookup[other_flow["dest_id"]]
+                            bx1, by1 = m3.get("optimized_x", m3.get("x")), m3.get("optimized_y", m3.get("y"))
+                            bx2, by2 = m4.get("optimized_x", m4.get("x")), m4.get("optimized_y", m4.get("y"))
+                            if do_intersect(opt_x, opt_y, dst_x, dst_y, bx1, by1, bx2, by2):
+                                has_crossing = True
+                                break
+                    if has_crossing:
+                        break
+                        
+            status = "✅ COMPLIANT"
+            if is_overlapping and has_crossing:
+                status = "❌ FAIL: STANDOFF OVERLAP & CROSSING PATHS"
+            elif is_overlapping:
+                status = "❌ FAIL: STANDOFF ZONE OVERLAP"
+            elif has_crossing:
+                status = "❌ FAIL: INTERSECTING TRANSITS"
+            elif is_safe_out_of_bounds(opt_x, opt_y, w, h, so_px, so_nx, so_py, so_ny, grid_size_x, grid_size_y):
+                status = "❌ FAIL: OUT-OF-BOUNDS PROTRUSION"
+                
             detailed_report.append({
                 "ID": m["id"],
                 "Machine Name": m["name"],
@@ -669,6 +813,6 @@ with tab3:
                 "Center Coord": f"({opt_x:.2f}, {opt_y:.2f})",
                 "Standoffs (NX, PX, NY, PY)": f"({so_nx}m, {so_px}m, {so_ny}m, {so_py}m)",
                 "Safe Footprint Envelope": f"({w + so_nx + so_px:.2f}m x {h + so_ny + so_py:.2f}m)",
-                "Status": "✅ SAFE" if m["is_safe"] else "❌ WARNING: STANDOFF COLLISION / OUT-OF-BOUNDS"
+                "Compliance Status": status
             })
         st.table(pd.DataFrame(detailed_report))
