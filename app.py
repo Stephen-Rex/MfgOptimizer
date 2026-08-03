@@ -630,7 +630,7 @@ with tab3:
         with col_plot1:
             st.markdown("### 🗺️ Floor Layout, Footprints & Flow Clearances")
             
-            fig, ax = plt.subplots(figsize=(8, 8))
+            fig, ax = plt.subplots(figsize=(8, 5))
             ax.set_xlim(-2, grid_size_x + 4)
             ax.set_ylim(-2, grid_size_y + 4)
             ax.set_aspect('equal')
