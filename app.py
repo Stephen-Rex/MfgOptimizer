@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Default Datasets with Initial Spacing s Along Polyline ---
+# --- Default Datasets ---
 DEFAULT_MACHINES = [
     {"id": 1, "name": "Raw Material Intake", "s": 0.0, "dim_x": 3.0, "dim_y": 2.0, "so_px": 1.0, "so_nx": 1.0, "so_py": 1.0, "so_ny": 1.0, "process_time": 2.0, "setup_time": 5.0},
     {"id": 2, "name": "CNC Milling", "s": 8.0, "dim_x": 4.0, "dim_y": 4.0, "so_px": 1.5, "so_nx": 1.5, "so_py": 1.5, "so_ny": 1.5, "process_time": 8.5, "setup_time": 20.0},
@@ -33,24 +33,32 @@ DEFAULT_FLOWS = [
     {"src_id": 2, "dest_id": 5, "volume": 15.0}
 ]
 
-# --- Polyline Cartesian Mapper Helper ---
-def get_point_on_polyline(s, grid_x, grid_y):
-    vx = [3.0, 3.0, grid_x - 3.0, grid_x - 3.0]
-    vy = [3.0, grid_y - 3.0, grid_y - 3.0, 3.0]
+DEFAULT_VERTICES = [
+    {"point_id": 1, "x": 3.0, "y": 3.0},
+    {"point_id": 2, "x": 3.0, "y": 17.0},
+    {"point_id": 3, "x": 10.0, "y": 17.0},
+    {"point_id": 4, "x": 17.0, "y": 10.0},
+    {"point_id": 5, "x": 17.0, "y": 3.0}
+]
+
+# --- Polyline Cartesian Mapper (Dynamic Vertex Support) ---
+def get_point_on_polyline(s, vertices):
+    vx = [v["x"] for v in vertices]
+    vy = [v["y"] for v in vertices]
     
     seg_lens = []
-    for i in range(3):
+    for i in range(4):
         seg_lens.append(math.sqrt((vx[i+1]-vx[i])**2 + (vy[i+1]-vy[i])**2))
         
     current_s = 0.0
-    for i in range(3):
+    for i in range(4):
         if s <= current_s + seg_lens[i]:
             ratio = (s - current_s) / seg_lens[i]
             x = vx[i] + ratio * (vx[i+1] - vx[i])
             y = vy[i] + ratio * (vy[i+1] - vy[i])
             return x, y
         current_s += seg_lens[i]
-    return vx[3], vy[3]
+    return vx[4], vy[4]
 
 def calculate_center_distance(x1, y1, x2, y2):
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
@@ -71,43 +79,13 @@ def check_safe_overlap(x1, y1, w1, h1, px1, nx1, py1, ny1, x2, y2, w2, h2, px2, 
 def is_safe_out_of_bounds(x, y, w, h, px, nx, py, ny, grid_x, grid_y):
     return (x - w/2.0 - nx < 0) or (x + w/2.0 + px > grid_x) or (y - h/2.0 - ny < 0) or (y + h/2.0 + py > grid_y)
 
-def get_orientation(px, py, qx, qy, rx, ry):
-    val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy)
-    if abs(val) < 1e-7:
-        return 0  
-    return 1 if val > 0 else 2  
-
-def on_segment(px, py, qx, qy, rx, ry):
-    return qx <= max(px, rx) and qx >= min(px, rx) and \
-           qy <= max(py, ry) and qy >= min(py, ry)
-
-# --- CORRECTED LINE 177: Changed C-style && to python-style and ---
-def do_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
-    if (x1 == x3 and y1 == y3) or (x1 == x4 and y1 == y4) or \
-       (x2 == x3 and y2 == y3) or (x2 == x4 and y2 == y4):
-        return False  
-        
-    o1 = get_orientation(x1, y1, x2, y2, x3, y3)
-    o2 = get_orientation(x1, y1, x2, y2, x4, y4)
-    o3 = get_orientation(x3, y3, x4, y4, x1, y1)
-    o4 = get_orientation(x3, y3, x4, y4, x2, y2)
-    
-    if o1 != o2 and o3 != o4:
-        return True
-        
-    if o1 == 0 and on_segment(x1, y1, x3, y3, x2, y2): return True
-    if o2 == 0 and on_segment(x1, y1, x4, y4, x2, y2): return True
-    if o3 == 0 and on_segment(x3, y3, x1, y1, x4, y4): return True
-    if o4 == 0 and on_segment(x3, y3, x2, y2, x4, y4): return True
-    
-    return False
-
-def evaluate_polyline_layout(machines, flows_list, grid_x, grid_y):
+# --- Soft-Penalty Cost Evaluator ---
+def evaluate_polyline_layout(machines, flows_list, vertices, grid_x, grid_y):
     transport_cost = 0.0
     penalty = 0.0
     
     for m in machines:
-        m["x"], m["y"] = get_point_on_polyline(m["s"], grid_x, grid_y)
+        m["x"], m["y"] = get_point_on_polyline(m["s"], vertices)
         
     machines_dict = {m["id"]: m for m in machines}
     
@@ -129,17 +107,17 @@ def evaluate_polyline_layout(machines, flows_list, grid_x, grid_y):
                     
     return transport_cost + penalty
 
-def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_y=20):
+def python_optimize_layout(machines_list, flows_list, vertices, grid_size_x=20, grid_size_y=20):
     machines = [dict(m) for m in machines_list]
     improved = True
     iterations = 0
     
-    best_cost = evaluate_polyline_layout(machines, flows_list, grid_size_x, grid_size_y)
+    best_cost = evaluate_polyline_layout(machines, flows_list, vertices, grid_size_x, grid_size_y)
     
     while improved and iterations < 150:
         improved = False
         iterations += 1
-        for i in range(1, len(machines)): # Machine 1 (Intake) is fixed at s=0
+        for i in range(1, len(machines)): # Machine 1 is fixed at s=0
             original_s = machines[i]["s"]
             best_ds = 0.0
             
@@ -153,7 +131,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
                     continue
                 
                 machines[i]["s"] = candidate_s
-                current_cost = evaluate_polyline_layout(machines, flows_list, grid_size_x, grid_size_y)
+                current_cost = evaluate_polyline_layout(machines, flows_list, vertices, grid_size_x, grid_size_y)
                 
                 if current_cost < best_cost:
                     best_cost = current_cost
@@ -162,8 +140,9 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
             
             machines[i]["s"] = original_s + best_ds
             
+    # Calculate final status checks
     for i, m in enumerate(machines):
-        m["x"], m["y"] = get_point_on_polyline(m["s"], grid_size_x, grid_size_y)
+        m["x"], m["y"] = get_point_on_polyline(m["s"], vertices)
         m["is_safe"] = True
         if is_safe_out_of_bounds(m["x"], m["y"], m["dim_x"], m["dim_y"], m["so_px"], m["so_nx"], m["so_py"], m["so_ny"], grid_size_x, grid_size_y):
             m["is_safe"] = False
@@ -176,6 +155,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
                         m["is_safe"] = False
                         break
 
+    # Dwell timings
     total_dwell = 0.0
     bottleneck_time = -1.0
     bottleneck_machine = ""
@@ -189,7 +169,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
             bottleneck_machine = m["name"]
 
     return {
-        "initial_transport_cost": evaluate_polyline_layout(machines_list, flows_list, grid_size_x, grid_size_y),
+        "initial_transport_cost": evaluate_polyline_layout(machines_list, flows_list, vertices, grid_size_x, grid_size_y),
         "optimized_transport_cost": best_cost,
         "iterations": iterations,
         "dwell_time_analysis": {
@@ -200,18 +180,20 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
         "machines": machines
     }
 
-# --- CORRECTED LINE 207: Dynamically interpolate x and y coordinates from parametric s parameter ---
-def generate_c_code_template(machines, flows, grid_size_x, grid_size_y):
+# --- C Code Template Generator ---
+def generate_c_code_template(machines, flows, vertices, grid_size_x, grid_size_y):
     machines_str = ""
     for m in machines:
-        x_calc, y_coord = get_point_on_polyline(m["s"], grid_size_x, grid_size_y)
-        machines_str += f'    {{{m["id"]}, "{m["name"]}", {m["s"]}, {x_calc:.2f}, {y_coord:.2f}, {m["dim_x"]}, {m["dim_y"]}, {m["so_px"]}, {m["so_nx"]}, {m["so_py"]}, {m["so_ny"]}, {m["process_time"]}, {m["setup_time"]}}},\n'
+        machines_str += f'    {{{m["id"]}, "{m["name"]}", {m["s"]}, 0.0, 0.0, {m["dim_x"]}, {m["dim_y"]}, {m["so_px"]}, {m["so_nx"]}, {m["so_py"]}, {m["so_ny"]}, {m["process_time"]}, {m["setup_time"]}}},\n'
     machines_str = machines_str.rstrip(",\n")
 
     flows_str = ""
     for f in flows:
         flows_str += f'    {{{int(f["src_id"])}, {int(f["dest_id"])}, {f["volume"]}}},\n'
     flows_str = flows_str.rstrip(",\n")
+
+    vx_str = ", ".join([f"{v['x']:.2f}" for v in vertices])
+    vy_str = ", ".join([f"{v['y']:.2f}" for v in vertices])
 
     return f"""#include <stdio.h>
 #include <stdlib.h>
@@ -255,35 +237,34 @@ MaterialFlow flows[] = {{
 }};
 int num_flows = {len(flows)};
 
+/* Dynamic vertices arrays generated from user GUI inputs */
+double polyline_x[5] = {{{vx_str}}};
+double polyline_y[5] = {{{vy_str}}};
+
 double calculate_center_distance(double x1, double y1, double x2, double y2) {{
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }}
 
-void get_point_on_polyline(double s, double grid_x, double grid_y, double *out_x, double *out_y) {{
-    double vx[4], vy[4];
-    vx[0] = 3.0; vy[0] = 3.0;
-    vx[1] = 3.0; vy[1] = grid_y - 3.0;
-    vx[2] = grid_x - 3.0; vy[2] = grid_y - 3.0;
-    vx[3] = grid_x - 3.0; vy[3] = 3.0;
-    
-    double seg_lens[3];
+void get_point_on_polyline(double s, double *out_x, double *out_y) {{
+    double seg_lens[4];
     int i;
-    for (i = 0; i < 3; i++) {{
-        seg_lens[i] = sqrt((vx[i+1]-vx[i])*(vx[i+1]-vx[i]) + (vy[i+1]-vy[i])*(vy[i+1]-vy[i]));
+    for (i = 0; i < 4; i++) {{
+        seg_lens[i] = sqrt((polyline_x[i+1]-polyline_x[i])*(polyline_x[i+1]-polyline_x[i]) + 
+                           (polyline_y[i+1]-polyline_y[i])*(polyline_y[i+1]-polyline_y[i]));
     }}
     
     double current_s = 0.0;
-    for (i = 0; i < 3; i++) {{
+    for (i = 0; i < 4; i++) {{
         if (s <= current_s + seg_lens[i]) {{
             double ratio = (s - current_s) / seg_lens[i];
-            *out_x = vx[i] + ratio * (vx[i+1] - vx[i]);
-            *out_y = vy[i] + ratio * (vy[i+1] - vy[i]);
+            *out_x = polyline_x[i] + ratio * (polyline_x[i+1] - polyline_x[i]);
+            *out_y = polyline_y[i] + ratio * (polyline_y[i+1] - polyline_y[i]);
             return;
         }}
         current_s += seg_lens[i];
     }}
-    *out_x = vx[3];
-    *out_y = vy[3];
+    *out_x = polyline_x[4];
+    *out_y = polyline_y[4];
 }}
 
 bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, double nx1, double py1, double ny1,
@@ -309,6 +290,11 @@ double evaluate_polyline_layout_with_penalties(void) {{
     double transport_cost = 0.0;
     double penalty = 0.0;
     int i, j;
+
+    for (i = 0; i < num_machines; i++) {{
+        get_point_on_polyline(machines[i].s, &machines[i].x, &machines[i].y);
+    }}
+
     for (i = 0; i < num_flows; i++) {{
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
@@ -323,6 +309,7 @@ double evaluate_polyline_layout_with_penalties(void) {{
             transport_cost += dist * flows[i].volume;
         }}
     }}
+
     for (i = 0; i < num_machines; i++) {{
         if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {{
@@ -337,6 +324,7 @@ double evaluate_polyline_layout_with_penalties(void) {{
             }}
         }}
     }}
+
     return transport_cost + penalty;
 }}
 
@@ -346,19 +334,24 @@ void optimize_placement(void) {{
     int iterations = 0;
     int i;
     double ds;
-    while (improved && iterations < 100) {{
+
+    while (improved && iterations < 150) {{
         improved = false;
         iterations++;
         for (i = 1; i < num_machines; i++) {{
             double original_s = machines[i].s;
             double best_ds = 0.0;
-            for (ds = -3.0; ds <= 3.0; ds += 0.5) {{
+            
+            for (ds = -4.0; ds <= 4.0; ds += 0.5) {{
                 if (ds == 0.0) continue;
+                
                 double candidate_s = original_s + ds;
                 double min_s = machines[i-1].s + (machines[i-1].dim_x + machines[i].dim_x)/2.0;
                 if (candidate_s < min_s) continue;
+                
                 machines[i].s = candidate_s;
                 double current_cost = evaluate_polyline_layout_with_penalties();
+                
                 if (current_cost < best_cost) {{
                     best_cost = current_cost;
                     best_ds = ds;
@@ -374,11 +367,14 @@ int main(void) {{
     double init_cost = evaluate_polyline_layout_with_penalties();
     optimize_placement();
     double opt_cost = evaluate_polyline_layout_with_penalties();
+    
     FILE *fp = fopen("layout_output.json", "w");
     if (!fp) return 1;
-    fprintf(fp, "{{\n");
+    
+    fprintf(fp, "{{\\n");
     fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
     fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
+    
     double total_dwell = 0.0;
     double bottleneck_time = -1.0;
     char bottleneck_name[30] = "";
@@ -391,11 +387,13 @@ int main(void) {{
             strcpy(bottleneck_name, machines[i].name);
         }}
     }}
+    
     fprintf(fp, "  \\\"dwell_time_analysis\\\": {{\\n");
     fprintf(fp, "    \\\"total_dwell_time\\\": %.2f,\\n", total_dwell);
     fprintf(fp, "    \\\"bottleneck_machine\\\": \\\"%s\\\",\\n", bottleneck_name);
     fprintf(fp, "    \\\"bottleneck_dwell_time\\\": %.2f\\n", bottleneck_time);
     fprintf(fp, "  }},\\n");
+    
     fprintf(fp, "  \\\"machines\\\": [\\n");
     for (i = 0; i < num_machines; i++) {{
         bool safe = true;
@@ -429,8 +427,8 @@ int main(void) {{
 """
 
 # --- App Header layout ---
-st.markdown("## 🏭 Polyline Part Flow Assembly Optimizer")
-st.markdown("Aligns machinery sequentially along a 2D line segment path with an integrated fork truck & operator safety lane.")
+st.markdown("## 🏭 Custom Polyline Material Flow Assembly Optimizer")
+st.markdown("Specify a custom 5-point polyline to define your conveyor transit path. The GUI maps directional safety envelopes and manned truck corridors centered along your custom route.")
 
 # --- SIDEBAR Parameters ---
 st.sidebar.subheader("📐 Rectangular Plant Dimensions")
@@ -450,25 +448,35 @@ if "machines_df" not in st.session_state:
     st.session_state.machines_df = pd.DataFrame(DEFAULT_MACHINES)
 if "flows_df" not in st.session_state:
     st.session_state.flows_df = pd.DataFrame(DEFAULT_FLOWS)
+if "vertices_df" not in st.session_state:
+    st.session_state.vertices_df = pd.DataFrame(DEFAULT_VERTICES)
 
 # --- TABS Layout ---
 tab1, tab2, tab3 = st.tabs(["📋 Configure Parameters", "👁️ Generated C Source", "📊 Execution & Visual Analytics"])
 
 with tab1:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("🤖 Machine Spacings along Polyline")
-        st.markdown("Set cumulative distances (`s` in meters), dimensions (`dim_x, dim_y`), and directional standoffs:")
+    col_v, col_m, col_f = st.columns([1, 1.2, 0.8])
+    with col_v:
+        st.subheader("📍 Custom Polyline Vertices (5 Points)")
+        st.markdown("Edit coordinates to dynamically define your raw material conveyor path:")
+        edited_vertices = st.data_editor(
+            st.session_state.vertices_df,
+            num_rows="fixed", # Locked at exactly 5 points
+            use_container_width=True,
+            key="vertices_editor"
+        )
+    with col_m:
+        st.subheader("🤖 Machine Spacings along Path")
+        st.markdown("Configure cumulative spacings `s` (m) and footprints:")
         edited_machines = st.data_editor(
             st.session_state.machines_df,
             num_rows="dynamic",
             use_container_width=True,
             key="machine_editor"
         )
-        
-    with col2:
+    with col_f:
         st.subheader("🔄 Material Flow Densities")
-        st.markdown("Specify conveyor transit rates between stations:")
+        st.markdown("Specify station conveyor volumes:")
         edited_flows = st.data_editor(
             st.session_state.flows_df,
             num_rows="dynamic",
@@ -478,10 +486,15 @@ with tab1:
 
 st.session_state.machines_df = edited_machines
 st.session_state.flows_df = edited_flows
+st.session_state.vertices_df = edited_vertices
+
+# Extract vertices to list
+vertices_list = edited_vertices.to_dict(orient="records")
 
 c_source_code = generate_c_code_template(
     edited_machines.to_dict(orient="records"),
     edited_flows.to_dict(orient="records"),
+    vertices_list,
     grid_size_x,
     grid_size_y
 )
@@ -519,7 +532,7 @@ with tab3:
                 if compile_process.returncode != 0:
                     st.error(f"Compilation Failed: {compile_process.stderr}")
                     st.warning("Defaulting to high-fidelity Python Simulator fallback instead!")
-                    results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+                    results = python_optimize_layout(machines_data, flows_data, vertices_list, grid_size_x, grid_size_y)
                     execution_msg = "Python Simulation Fallback (Compiler Error)"
                 else:
                     run_process = subprocess.run(
@@ -533,15 +546,15 @@ with tab3:
                         execution_msg = "Compiled C Binary Backend"
                     else:
                         st.error("C Binary did not output results JSON. Using Python Engine.")
-                        results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+                        results = python_optimize_layout(machines_data, flows_data, vertices_list, grid_size_x, grid_size_y)
                         execution_msg = "Python Simulation Fallback (Execution Failure)"
             except Exception as e:
                 st.error(f"Could not execute C compiler subprocess: {e}")
                 st.warning("IT restricts execution. Defaulting to Python Simulation Fallback.")
-                results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+                results = python_optimize_layout(machines_data, flows_data, vertices_list, grid_size_x, grid_size_y)
                 execution_msg = "Python Simulation Fallback"
         else:
-            results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+            results = python_optimize_layout(machines_data, flows_data, vertices_list, grid_size_x, grid_size_y)
             execution_msg = "Pure Python Simulator Engine (Instant Browser Runtime)"
 
         # --- Display KPI Metric Cards ---
@@ -587,23 +600,33 @@ with tab3:
             ax.set_aspect('equal')
             ax.grid(True, which='both', linestyle='--', alpha=0.5)
             
-            # Draw Dynamic Polyline Flow Path
-            vx = [3.0, 3.0, grid_size_x - 3.0, grid_size_x - 3.0]
-            vy = [3.0, grid_size_y - 3.0, grid_size_y - 3.0, 3.0]
+            # 1. Draw custom 5-point Polyline Path inputted by user
+            vx = [v["x"] for v in vertices_list]
+            vy = [v["y"] for v in vertices_list]
             ax.plot(vx, vy, color="grey", linewidth=4, zorder=1, label="Conveyor Backbone")
             
-            # Draw Parallel Forklift Lanes & Safety boundaries centered along the Polyline
-            # Segment 1: Left vertical
-            ax.plot([3.0 - path_buffer, 3.0 - path_buffer], [3.0 - path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6, label="Standoff Lane Marking")
-            ax.plot([3.0 + path_buffer, 3.0 + path_buffer], [3.0 + path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
-            # Segment 2: Top horizontal
-            ax.plot([3.0 - path_buffer, grid_size_x - 3.0 + path_buffer], [grid_size_y - 3.0 + path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6)
-            ax.plot([3.0 + path_buffer, grid_size_x - 3.0 - path_buffer], [grid_size_y - 3.0 - path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
-            # Segment 3: Right vertical
-            ax.plot([grid_size_x - 3.0 - path_buffer, grid_size_x - 3.0 - path_buffer], [3.0 + path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
-            ax.plot([grid_size_x - 3.0 + path_buffer, grid_size_x - 3.0 + path_buffer], [3.0 - path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6)
+            # 2. Draw Parallel Forklift Lanes & Safety boundaries dynamically offset on either side of custom polyline
+            for i in range(len(vx) - 1):
+                x1, y1 = vx[i], vy[i]
+                x2, y2 = vx[i+1], vy[i+1]
+                
+                dx, dy = x2 - x1, y2 - y1
+                length = math.sqrt(dx**2 + dy**2)
+                if length > 1e-5:
+                    ux, uy = dx / length, dy / length
+                    nx, ny = -uy, ux # Normal vector perpendicular to segment
+                    
+                    # Left boundary line
+                    lx1, ly1 = x1 + path_buffer * nx, y1 + path_buffer * ny
+                    lx2, ly2 = x2 + path_buffer * nx, y2 + path_buffer * ny
+                    ax.plot([lx1, lx2], [ly1, ly2], "y--", alpha=0.6, label="Standoff Lane Marking" if i == 0 else "")
+                    
+                    # Right boundary line
+                    rx1, ry1 = x1 - path_buffer * nx, y1 - path_buffer * ny
+                    rx2, ry2 = x2 - path_buffer * nx, y2 - path_buffer * ny
+                    ax.plot([rx1, rx2], [ry1, ry2], "y--", alpha=0.6)
 
-            # Draw each Machine Footprint and its safety boundaries along the path
+            # 3. Draw each Machine Footprint and its safety boundaries along the custom path
             for m in opt_machines:
                 m_id = m["id"]
                 w = m.get("dim_x", init_lookup[m_id].get("dim_x", 1.0))
@@ -616,17 +639,17 @@ with tab3:
                 opt_x = m.get("optimized_x", m.get("x"))
                 opt_y = m.get("optimized_y", m.get("y"))
                 
-                # CORRECTED LINE 423: Grab m_init from init_lookup dynamically
-                m_init_x, m_init_y = get_point_on_polyline(init_lookup[m_id]["s"], grid_size_x, grid_size_y)
+                # Fetch initial position coordinate
+                m_init_x, m_init_y = get_point_on_polyline(init_lookup[m_id]["s"], vertices_list)
                 
-                # 1. Plot Initial Footprints (Dotted gray box)
+                # Plot Initial Footprints (Dotted gray box)
                 init_box = patches.Rectangle(
                     (m_init_x - w/2.0, m_init_y - h/2.0), w, h,
                     linewidth=1, linestyle=":", edgecolor="gray", facecolor="none", alpha=0.3
                 )
                 ax.add_patch(init_box)
                 
-                # 2. Plot Optimized Footprints (Solid colored box)
+                # Plot Optimized Footprints (Solid colored box)
                 border_color = "green" if m["is_safe"] else "red"
                 fill_color = "lightgreen" if m["is_safe"] else "lightcoral"
                 
@@ -636,12 +659,13 @@ with tab3:
                 )
                 ax.add_patch(opt_box)
                 
+                # Label inside the rectangle
                 ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
                 
-                # 3. Draw Travel Vectors
+                # Draw Travel Vectors
                 ax.plot([m_init_x, opt_x], [m_init_y, opt_y], "r:", alpha=0.4)
                 
-                # 4. Draw Asymmetric Safe Bounding Box
+                # Draw Asymmetric Safe Bounding Box (Standoff boundaries)
                 safety_box = patches.Rectangle(
                     (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
                     w + so_nx + so_px, h + so_ny + so_py,
@@ -649,7 +673,7 @@ with tab3:
                 )
                 ax.add_patch(safety_box)
                 
-            ax.set_title(f"Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
+            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
             ax.set_xlabel("X coordinate (m)")
             ax.set_ylabel("Y coordinate (m)")
             st.pyplot(fig)
@@ -693,7 +717,7 @@ with tab3:
             so_py = m.get("so_py", init_lookup[m["id"]].get("so_py", 0.0))
             so_ny = m.get("so_ny", init_lookup[m["id"]].get("so_ny", 0.0))
             
-            # CORRECTED LINE 482: Fetch dimensional limits from init_lookup table to support C mode
+            # Recalculate overlaps
             is_overlapping = False
             for other in opt_machines:
                 if m["id"] != other["id"]:
