@@ -693,6 +693,40 @@ with tab3:
                     linewidth=2, edgecolor=border_color, facecolor=fill_color, zorder=5, alpha=0.8
                 )
                 ax.add_patch(opt_box)
+            # --- UPGRADE 1: Check toggled state for machine name display ---
+                if show_machine_names:
+                    label_text = f"[{m_id}]\n{m['name']}"
+                else:
+                    label_text = f"[{m_id}]"
+                    
+                ax.text(opt_x, opt_y, label_text, color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
+                
+                ax.plot([m_init_x, opt_x], [m_init_y, opt_y], color="#FF4500", linestyle=":", alpha=0.5, zorder=4)
+                
+                safety_box = patches.Rectangle(
+                    (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
+                    w + so_nx + so_px, h + so_ny + so_py,
+                    linewidth=1.2, linestyle="--", edgecolor=border_color, facecolor="none", zorder=3, alpha=0.8
+                )
+                ax.add_patch(safety_box)
+                
+            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
+            ax.set_xlabel("X coordinate (m)")
+            ax.set_ylabel("Y coordinate (m)")
+            
+            # --- UPGRADE 2: Matplotlib Plot Legend stating ID and machine name under the plot ---
+            legend_labels_list = [f"[{m['id']}] {m['name']}" for m in opt_machines]
+            legend_str = "  |  ".join(legend_labels_list)
+            fig.text(0.5, -0.05, f"Legend:\n{legend_str}", ha='center', fontsize=9, weight='bold', style='italic', bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F2F6', edgecolor='#1F2937', alpha=0.9))
+            
+            st.pyplot(fig)
+            
+            # --- UPGRADE 3: Streamlit Layout Legend underneath the plot ---
+            st.markdown("#### 🔑 Layout ID Legend")
+            st.markdown(" | ".join([f"**[{m['id']}]** {m['name']}" for m in opt_machines]))
+
+
+
                 
                 # Label inside the rectangle
                 ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
