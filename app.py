@@ -728,7 +728,7 @@ with tab3:
                 )
                 ax.add_patch(safety_box)
                 
-            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
+            ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\\n Dashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
             ax.set_xlabel("X coordinate (m)")
             ax.set_ylabel("Y coordinate (m)")
             
