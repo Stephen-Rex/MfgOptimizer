@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Default Datasets with Initial Spacing s Along Polyline ---
+# --- Default Datasets ---
 DEFAULT_MACHINES = [
     {"id": 1, "name": "Raw Material Intake", "s": 0.0, "dim_x": 3.0, "dim_y": 2.0, "so_px": 1.0, "so_nx": 1.0, "so_py": 1.0, "so_ny": 1.0, "process_time": 2.0, "setup_time": 5.0},
     {"id": 2, "name": "CNC Milling", "s": 8.0, "dim_x": 4.0, "dim_y": 4.0, "so_px": 1.5, "so_nx": 1.5, "so_py": 1.5, "so_ny": 1.5, "process_time": 8.5, "setup_time": 20.0},
@@ -76,13 +76,11 @@ def evaluate_polyline_layout(machines, flows_list, grid_x, grid_y):
     transport_cost = 0.0
     penalty = 0.0
     
-    # 1. Map 1D cumulative distances to 2D coordinates on the fly
     for m in machines:
         m["x"], m["y"] = get_point_on_polyline(m["s"], grid_x, grid_y)
         
     machines_dict = {m["id"]: m for m in machines}
     
-    # 2. Material transport flow cost
     for flow in flows_list:
         src, dest = flow["src_id"], flow["dest_id"]
         if src in machines_dict and dest in machines_dict:
@@ -90,7 +88,6 @@ def evaluate_polyline_layout(machines, flows_list, grid_x, grid_y):
             dist = calculate_center_distance(m1["x"], m1["y"], m2["x"], m2["y"])
             transport_cost += dist * flow["volume"]
             
-    # 3. Enforce boundary containment and footprint safety overlaps
     for i, m1 in enumerate(machines):
         if is_safe_out_of_bounds(m1["x"], m1["y"], m1["dim_x"], m1["dim_y"], m1["so_px"], m1["so_nx"], m1["so_py"], m1["so_ny"], grid_x, grid_y):
             penalty += 10000.0
@@ -135,7 +132,6 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
             
             machines[i]["s"] = original_s + best_ds
             
-    # Calculate final status checks
     for i, m in enumerate(machines):
         m["x"], m["y"] = get_point_on_polyline(m["s"], grid_size_x, grid_size_y)
         m["is_safe"] = True
@@ -150,7 +146,6 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
                         m["is_safe"] = False
                         break
 
-    # Dwell timings
     total_dwell = 0.0
     bottleneck_time = -1.0
     bottleneck_machine = ""
@@ -174,6 +169,205 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
         },
         "machines": machines
     }
+
+# --- C Code Template String ---
+def generate_c_code_template(machines, flows, grid_size_x, grid_size_y):
+    machines_str = ""
+    for m in machines:
+        machines_str += f'    {{{m["id"]}, "{m["name"]}", {m["x"]}, {m["y"]}, {m["dim_x"]}, {m["dim_y"]}, {m["so_px"]}, {m["so_nx"]}, {m["so_py"]}, {m["so_ny"]}, {m["process_time"]}, {m["setup_time"]}}},\n'
+    machines_str = machines_str.rstrip(",\n")
+
+    flows_str = ""
+    for f in flows:
+        flows_str += f'    {{{int(f["src_id"])}, {int(f["dest_id"])}, {f["volume"]}}},\n'
+    flows_str = flows_str.rstrip(",\n")
+
+    return f"""#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <stdbool.h>
+
+#define MAX_MACHINES 15
+#define GRID_SIZE_X {grid_size_x}
+#define GRID_SIZE_Y {grid_size_y}
+
+typedef struct {{
+    int id;
+    char name[30];
+    double x;             /* Center X coordinate */
+    double y;             /* Center Y coordinate */
+    double dim_x;         /* Geometric Width */
+    double dim_y;         /* Geometric Height */
+    double so_px;         /* Positive X Standoff */
+    double so_nx;         /* Negative X Standoff */
+    double so_py;         /* Positive Y Standoff */
+    double so_ny;         /* Negative Y Standoff */
+    double process_time;
+    double setup_time;
+}} Machine;
+
+typedef struct {{
+    int src_id;
+    int dest_id;
+    double volume;
+}} MaterialFlow;
+
+Machine machines[] = {{
+{machines_str}
+}};
+int num_machines = {len(machines)};
+
+MaterialFlow flows[] = {{
+{flows_str}
+}};
+int num_flows = {len(flows)};
+
+double calculate_center_distance(double x1, double y1, double x2, double y2) {{
+    return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+}}
+
+bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, double nx1, double py1, double ny1,
+                        double x2, double y2, double w2, double h2, double px2, double nx2, double py2, double ny2) {{
+    double min_x1 = x1 - w1 / 2.0 - nx1;
+    double max_x1 = x1 + w1 / 2.0 + px1;
+    double min_y1 = y1 - h1 / 2.0 - ny1;
+    double max_y1 = y1 + h1 / 2.0 + py1;
+    
+    double min_x2 = x2 - w2 / 2.0 - nx2;
+    double max_x2 = x2 + w2 / 2.0 + px2;
+    double min_y2 = y2 - h2 / 2.0 - ny2;
+    double max_y2 = y2 + h2 / 2.0 + py2;
+    
+    return min_x1 < max_x2 && max_x1 > min_x2 && min_y1 < max_y2 && max_y1 > min_y2;
+}}
+
+bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, double nx, double py, double ny) {{
+    return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
+}}
+
+double evaluate_polyline_layout_with_penalties(void) {{
+    double transport_cost = 0.0;
+    double penalty = 0.0;
+    int i, j;
+    for (i = 0; i < num_flows; i++) {{
+        int src = flows[i].src_id;
+        int dest = flows[i].dest_id;
+        int idx_src = -1, idx_dest = -1;
+        for (j = 0; j < num_machines; j++) {{
+            if (machines[j].id == src) idx_src = j;
+            if (machines[j].id == dest) idx_dest = j;
+        }}
+        if (idx_src != -1 && idx_dest != -1) {{
+            double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, 
+                                                    machines[idx_dest].x, machines[idx_dest].y);
+            transport_cost += dist * flows[i].volume;
+        }}
+    }}
+    for (i = 0; i < num_machines; i++) {{
+        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {{
+            penalty += 10000.0;
+        }}
+        for (j = i + 1; j < num_machines; j++) {{
+            if (check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,
+                                   machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,
+                                   machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {{
+                penalty += 20000.0;
+            }}
+        }}
+    }}
+    return transport_cost + penalty;
+}}
+
+void optimize_placement(void) {{
+    double best_cost = evaluate_polyline_layout_with_penalties();
+    bool improved = true;
+    int iterations = 0;
+    int i;
+    double ds;
+    while (improved && iterations < 100) {{
+        improved = false;
+        iterations++;
+        for (i = 1; i < num_machines; i++) {{
+            double original_s = machines[i].s;
+            double best_ds = 0.0;
+            for (ds = -3.0; ds <= 3.0; ds += 0.5) {{
+                if (ds == 0.0) continue;
+                double candidate_s = original_s + ds;
+                double min_s = machines[i-1].s + (machines[i-1].dim_x + machines[i].dim_x)/2.0;
+                if (candidate_s < min_s) continue;
+                machines[i].s = candidate_s;
+                double current_cost = evaluate_polyline_layout_with_penalties();
+                if (current_cost < best_cost) {{
+                    best_cost = current_cost;
+                    best_dx = ds;
+                    improved = true;
+                }}
+            }}
+            machines[i].s = original_s + best_ds;
+        }}
+    }}
+}}
+
+int main(void) {{
+    double init_cost = evaluate_polyline_layout_with_penalties();
+    optimize_placement();
+    double opt_cost = evaluate_polyline_layout_with_penalties();
+    FILE *fp = fopen("layout_output.json", "w");
+    if (!fp) return 1;
+    fprintf(fp, "{{\n");
+    fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
+    fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
+    double total_dwell = 0.0;
+    double bottleneck_time = -1.0;
+    char bottleneck_name[30] = "";
+    int i;
+    for(i=0; i<num_machines; i++) {{
+        double dwell = machines[i].process_time + (machines[i].setup_time / 50.0);
+        total_dwell += dwell;
+        if(dwell > bottleneck_time) {{
+            bottleneck_time = dwell;
+            strcpy(bottleneck_name, machines[i].name);
+        }}
+    }}
+    fprintf(fp, "  \\\"dwell_time_analysis\\\": {{\\n");
+    fprintf(fp, "    \\\"total_dwell_time\\\": %.2f,\\n", total_dwell);
+    fprintf(fp, "    \\\"bottleneck_machine\\\": \\\"%s\\\",\\n", bottleneck_name);
+    fprintf(fp, "    \\\"bottleneck_dwell_time\\\": %.2f\\n", bottleneck_time);
+    fprintf(fp, "  }},\\n");
+    fprintf(fp, "  \\\"machines\\\": [\\n");
+    for (i = 0; i < num_machines; i++) {{
+        bool safe = true;
+        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {{
+            safe = false;
+        }} else {{
+            for (int j = 0; j < num_machines; j++) {{
+                if (i != j && check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
+                                                 machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,
+                                                 machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,
+                                                 machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {{
+                    safe = false;
+                    break;
+                }}
+            }}
+        }}
+        fprintf(fp, "    {{\\n");
+        fprintf(fp, "      \\\"id\\\": %d,\\n", machines[i].id);
+        fprintf(fp, "      \\\"name\\\": \\\"%s\\\",\\n", machines[i].name);
+        fprintf(fp, "      \\\"optimized_x\\\": %.2f,\\n", machines[i].x);
+        fprintf(fp, "      \\\"optimized_y\\\": %.2f,\\n", machines[i].y);
+        fprintf(fp, "      \\\"is_safe\\\": %s\\n", safe ? "true" : "false");
+        fprintf(fp, "    }}%s\\n", (i == num_machines - 1) ? "" : ",");
+    }}
+    fprintf(fp, "  ]\\n");
+    fprintf(fp, "}}\\n");
+    fclose(fp);
+    return 0;
+}}
+"""
 
 # --- App Header layout ---
 st.markdown("## 🏭 Polyline Part Flow Assembly Optimizer")
@@ -259,119 +453,4 @@ with tab3:
                     f.write(c_source_code)
                 
                 compile_process = subprocess.run(
-                    ["gcc", "optimizer.c", "-o", "optimizer", "-lm"],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                )
-                
-                if compile_process.returncode != 0:
-                    st.error(f"Compilation Failed: {compile_process.stderr}")
-                    st.warning("Defaulting to high-fidelity Python Simulator fallback instead!")
-                    results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
-                    execution_msg = "Python Simulation Fallback (Compiler Error)"
-                else:
-                    run_process = subprocess.run(
-                        ["./optimizer"],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                    )
-                    
-                    if os.path.exists("layout_output.json"):
-                        with open("layout_output.json", "r") as f:
-                            results = json.load(f)
-                        execution_msg = "Compiled C Binary Backend"
-                    else:
-                        st.error("C Binary did not output results JSON. Using Python Engine.")
-                        results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
-                        execution_msg = "Python Simulation Fallback (Execution Failure)"
-            except Exception as e:
-                st.error(f"Could not execute C compiler subprocess: {e}")
-                st.warning("IT restricts execution. Defaulting to Python Simulation Fallback.")
-                results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
-                execution_msg = "Python Simulation Fallback"
-        else:
-            results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
-            execution_msg = "Pure Python Simulator Engine (Instant Browser Runtime)"
-
-        # --- Display KPI Metric Cards ---
-        st.success(f"Execution Successful! Source Engine: **{execution_msg}**")
-        
-        opt_machines = results["machines"]
-        opt_lookup = {m["id"]: m for m in opt_machines}
-        init_lookup = {m["id"]: m for m in machines_data}
-
-        # Calculate final safety overlaps
-        overlaps_count = 0
-        for i in range(len(machines_data)):
-            for j in range(i + 1, len(machines_data)):
-                m1 = opt_lookup[machines_data[i]["id"]]
-                m2 = opt_lookup[machines_data[j]["id"]]
-                x1, y1 = m1.get("optimized_x", m1.get("x")), m1.get("optimized_y", m1.get("y"))
-                x2, y2 = m2.get("optimized_x", m2.get("x")), m2.get("optimized_y", m2.get("y"))
-                if check_safe_overlap(x1, y1, m1["dim_x"], m1["dim_y"], m1["so_px"], m1["so_nx"], m1["so_py"], m1["so_ny"],
-                                   x2, y2, m2["dim_x"], m2["dim_y"], m2["so_px"], m2["so_nx"], m2["so_py"], m2["so_ny"]):
-                    overlaps_count += 1
-
-        col_metric1, col_metric2, col_metric3 = st.columns(3)
-        
-        opt_cost = results["optimized_transport_cost"]
-        
-        with col_metric1:
-            st.metric("Packed Layout Movement Cost", f"{opt_cost:.2f} m·parts/hr")
-        with col_metric2:
-            st.metric("Bottleneck Cycle Time", f"{results['dwell_time_analysis']['bottleneck_dwell_time']:.2f} mins/part")
-        with col_metric3:
-            st.metric("Safety Envelope Overlaps", f"{overlaps_count}", delta=f"{overlaps_count} Violations", delta_color="inverse")
-
-        # --- Visual Post-Processing Plots ---
-        col_plot1, col_plot2 = st.columns(2)
-        
-        # Plot 1: Floor Mapping & Safety Zones
-        with col_plot1:
-            st.markdown("### 🗺️ Floor Layout, Footprints & Flow Clearances")
-            
-            fig, ax = plt.subplots(figsize=(8, 8))
-            ax.set_xlim(-2, grid_size_x + 4)
-            ax.set_ylim(-2, grid_size_y + 4)
-            ax.set_aspect('equal')
-            ax.grid(True, which='both', linestyle='--', alpha=0.5)
-            
-            # Draw Dynamic Polyline Flow Path
-            vx = [3.0, 3.0, grid_size_x - 3.0, grid_size_x - 3.0]
-            vy = [3.0, grid_size_y - 3.0, grid_size_y - 3.0, 3.0]
-            ax.plot(vx, vy, color="grey", linewidth=4, zorder=1, label="Conveyor Backbone")
-            
-            # Draw Parallel Forklift Lanes & Safety boundaries centered along the Polyline
-            # Segment 1: Left vertical
-            ax.plot([3.0 - path_buffer, 3.0 - path_buffer], [3.0 - path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6, label="Standoff Lane Marking")
-            ax.plot([3.0 + path_buffer, 3.0 + path_buffer], [3.0 + path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
-            # Segment 2: Top horizontal
-            ax.plot([3.0 - path_buffer, grid_size_x - 3.0 + path_buffer], [grid_size_y - 3.0 + path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6)
-            ax.plot([3.0 + path_buffer, grid_size_x - 3.0 - path_buffer], [grid_size_y - 3.0 - path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
-            # Segment 3: Right vertical
-            ax.plot([grid_size_x - 3.0 - path_buffer, grid_size_x - 3.0 - path_buffer], [3.0 + path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
-            ax.plot([grid_size_x - 3.0 + path_buffer, grid_size_x - 3.0 + path_buffer], [3.0 - path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6)
-
-            # Draw each Machine Footprint and its safety boundaries along the path
-            for m in opt_machines:
-                m_id = m["id"]
-                w = m.get("dim_x", init_lookup[m_id].get("dim_x", 1.0))
-                h = m.get("dim_y", init_lookup[m_id].get("dim_y", 1.0))
-                so_px = m.get("so_px", init_lookup[m_id].get("so_px", 0.0))
-                so_nx = m.get("so_nx", init_lookup[m_id].get("so_nx", 0.0))
-                so_py = m.get("so_py", init_lookup[m_id].get("so_py", 0.0))
-                so_ny = m.get("so_ny", init_lookup[m_id].get("so_ny", 0.0))
-                
-                opt_x = m.get("optimized_x", m.get("x"))
-                opt_y = m.get("optimized_y", m.get("y"))
-                
-                # Plot Optimized Footprints (Solid colored box)
-                border_color = "green" if m["is_safe"] else "red"
-                fill_color = "lightgreen" if m["is_safe"] else "lightcoral"
-                
-                opt_box = patches.Rectangle(
-                    (opt_x - w/2.0, opt_y - h/2.0), w, h,
-                    linewidth=2, edgecolor=border_color, facecolor=fill_color, zorder=5, alpha=0.9
-                )
-                ax.add_patch(opt_box)
-                
-                # Label inside the rectangle
-                ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fonts
+  
