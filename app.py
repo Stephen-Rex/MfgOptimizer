@@ -1,215 +1,584 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
 import subprocess
 import os
-import re
-import pandas as pd
+import json
+import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-# --- PAGE CONFIGURATION ---
+# --- Page Configurations ---
 st.set_page_config(
-    page_title="Factory Floor Optimizer GUI",
-    page_icon="🤖",
-    layout="wide"
+    page_title="Factory Floor Optimizer & Post-Processor",
+    page_icon="🏭",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("🤖 Factory Floor Optimizer — Parameter Panel & Post-Processor")
-st.markdown("""
-This web application allows engineers to dynamically tune robotic efficiency and safety bounds in the **C Optimization Backend** and visualizes the optimized layout post-processing predictions.
-""")
+# --- Default Datasets ---
+DEFAULT_MACHINES = [
+    {"id": 1, "name": "Raw Material Intake", "x": 1, "y": 1, "process_time": 2.0, "setup_time": 5.0, "stopping_time": 0.1},
+    {"id": 2, "name": "CNC Milling", "x": 12, "y": 14, "process_time": 8.5, "setup_time": 20.0, "stopping_time": 1.2},
+    {"id": 3, "name": "Laser Welder", "x": 5, "y": 8, "process_time": 4.0, "setup_time": 15.0, "stopping_time": 0.8},
+    {"id": 4, "name": "Surface Treatment", "x": 18, "y": 2, "process_time": 6.0, "setup_time": 10.0, "stopping_time": 0.5},
+    {"id": 5, "name": "Quality Assembly", "x": 15, "y": 10, "process_time": 5.0, "setup_time": 8.0, "stopping_time": 0.3}
+]
 
-# --- SIDEBAR PARAMETERS ---
-st.sidebar.header("🛠️ Optimization Parameters")
+DEFAULT_FLOWS = [
+    {"src_id": 1, "dest_id": 2, "volume": 120.0},
+    {"src_id": 2, "dest_id": 3, "volume": 100.0},
+    {"src_id": 3, "dest_id": 4, "volume": 80.0},
+    {"src_id": 4, "dest_id": 5, "volume": 95.0},
+    {"src_id": 2, "dest_id": 5, "volume": 15.0}
+]
 
-automation_factor = st.sidebar.slider(
-    "Robotics Automation Factor (Speedup)",
-    min_value=0.0,
-    max_value=2.0,
-    value=0.5,
-    step=0.05,
-    help="Higher values exponentially reduce the process dwell-times of robotic nodes."
+# --- Python Engine Fallback Logic ---
+def calculate_distance(x1, y1, x2, y2):
+    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+def calculate_safety_dist(stop_time, k_safe, c_safe):
+    return k_safe * (stop_time + 0.1) + c_safe
+
+def evaluate_layout(machines_dict, flows_list):
+    total_cost = 0.0
+    for flow in flows_list:
+        src = flow["src_id"]
+        dest = flow["dest_id"]
+        if src in machines_dict and dest in machines_dict:
+            m1 = machines_dict[src]
+            m2 = machines_dict[dest]
+            dist = calculate_distance(m1["x"], m1["y"], m2["x"], m2["y"])
+            total_cost += dist * flow["volume"]
+    return total_cost
+
+def python_optimize_layout(machines_list, flows_list, k_safe, c_safe, grid_size=20):
+    machines = [dict(m) for m in machines_list]
+    improved = True
+    iterations = 0
+    
+    machines_dict = {m["id"]: m for m in machines}
+    initial_cost = evaluate_layout(machines_dict, flows_list)
+    best_cost = initial_cost
+    
+    while improved and iterations < 100:
+        improved = False
+        iterations += 1
+        for i in range(len(machines)):
+            original_x = machines[i]["x"]
+            original_y = machines[i]["y"]
+            best_dx, best_dy = 0, 0
+            
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    if dx == 0 and dy == 0:
+                        continue
+                    
+                    nx = original_x + dx
+                    ny = original_y + dy
+                    
+                    if nx < 0 or nx > grid_size or ny < 0 or ny > grid_size:
+                        continue
+                    
+                    overlap = False
+                    for k in range(len(machines)):
+                        if k != i and machines[k]["x"] == nx and machines[k]["y"] == ny:
+                            overlap = True
+                            break
+                    if overlap:
+                        continue
+                    
+                    machines[i]["x"] = nx
+                    machines[i]["y"] = ny
+                    
+                    current_cost = evaluate_layout({m["id"]: m for m in machines}, flows_list)
+                    if current_cost < best_cost:
+                        best_cost = current_cost
+                        best_dx = dx
+                        best_dy = dy
+                        improved = True
+            
+            if improved:
+                machines[i]["x"] = original_x + best_dx
+                machines[i]["y"] = original_y + best_dy
+            else:
+                machines[i]["x"] = original_x
+                machines[i]["y"] = original_y
+                
+    for m in machines:
+        m["safety_dist_required"] = calculate_safety_dist(m["stopping_time"], k_safe, c_safe)
+        m["is_safe"] = True
+        for other in machines:
+            if m["id"] == other["id"]:
+                continue
+            act_dist = calculate_distance(m["x"], m["y"], other["x"], other["y"])
+            if act_dist < m["safety_dist_required"]:
+                m["is_safe"] = False
+
+    total_dwell = 0.0
+    bottleneck_time = -1.0
+    bottleneck_machine = ""
+    for m in machines:
+        dwell = m["process_time"] + (m["setup_time"] / 50.0)
+        total_dwell += dwell
+        m["dwell_time"] = dwell
+        m["capacity"] = 60.0 / m["process_time"] if m["process_time"] > 0 else 0
+        if dwell > bottleneck_time:
+            bottleneck_time = dwell
+            bottleneck_machine = m["name"]
+
+    return {
+        "initial_transport_cost": initial_cost,
+        "optimized_transport_cost": best_cost,
+        "iterations": iterations,
+        "dwell_time_analysis": {
+            "total_dwell_time": total_dwell,
+            "bottleneck_machine": bottleneck_machine,
+            "bottleneck_dwell_time": bottleneck_time
+        },
+        "machines": machines
+    }
+
+# --- C Code Generation ---
+def generate_c_code_template(machines, flows, k_safe, c_safe, grid_size):
+    machines_str = ""
+    for m in machines:
+        machines_str += f'    {{{m["id"]}, "{m["name"]}", {int(m["x"])}, {int(m["y"])}, {m["process_time"]}, {m["setup_time"]}, {m["stopping_time"]}, 0.0}},\n'
+    machines_str = machines_str.rstrip(",\n")
+
+    flows_str = ""
+    for f in flows:
+        flows_str += f'    {{{int(f["src_id"])}, {int(f["dest_id"])}, {f["volume"]}}},\n'
+    flows_str = flows_str.rstrip(",\n")
+
+    return f"""#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <stdbool.h>
+
+#define MAX_MACHINES 15
+#define GRID_SIZE {grid_size}
+#define K_SAFE {k_safe}
+#define C_SAFE {c_safe}
+
+typedef struct {{
+    int id;
+    char name[30];
+    int x;
+    int y;
+    double process_time;
+    double setup_time;
+    double stopping_time;
+    double safety_dist;
+}} Machine;
+
+typedef struct {{
+    int src_id;
+    int dest_id;
+    double volume;
+}} MaterialFlow;
+
+Machine machines[] = {{
+{machines_str}
+}};
+int num_machines = {len(machines)};
+
+MaterialFlow flows[] = {{
+{flows_str}
+}};
+int num_flows = {len(flows)};
+
+double calculate_distance(int x1, int y1, int x2, int y2) {{
+    return sqrt((double)((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)));
+}}
+
+double calculate_iso_safety_distance(double stop_time) {{
+    double total_response_time = stop_time + 0.1;
+    return (K_SAFE * total_response_time) + C_SAFE;
+}}
+
+double evaluate_layout(void) {{
+    double total_cost = 0.0;
+    int i, j;
+    for (i = 0; i < num_flows; i++) {{
+        int src = flows[i].src_id;
+        int dest = flows[i].dest_id;
+        int idx_src = -1, idx_dest = -1;
+        for (j = 0; j < num_machines; j++) {{
+            if (machines[j].id == src) idx_src = j;
+            if (machines[j].id == dest) idx_dest = j;
+        }}
+        if (idx_src != -1 && idx_dest != -1) {{
+            double dist = calculate_distance(machines[idx_src].x, machines[idx_src].y, 
+                                             machines[idx_dest].x, machines[idx_dest].y);
+            total_cost += dist * flows[i].volume;
+        }}
+    }}
+    return total_cost;
+}}
+
+void optimize_placement(void) {{
+    double best_cost = evaluate_layout();
+    bool improved = true;
+    int iterations = 0;
+    int i, dx, dy, k;
+    
+    while (improved && iterations < 100) {{
+        improved = false;
+        iterations++;
+        for (i = 0; i < num_machines; i++) {{
+            int original_x = machines[i].x;
+            int original_y = machines[i].y;
+            int best_dx = 0, best_dy = 0;
+            
+            for (dx = -2; dx <= 2; dx++) {{
+                for (dy = -2; dy <= 2; dy++) {{
+                    int nx, ny;
+                    bool overlap = false;
+                    double current_cost;
+                    if (dx == 0 && dy == 0) continue;
+                    
+                    nx = original_x + dx;
+                    ny = original_y + dy;
+                    if (nx < 0 || nx > GRID_SIZE || ny < 0 || ny > GRID_SIZE) continue;
+                    
+                    for (k = 0; k < num_machines; k++) {{
+                        if (k != i && machines[k].x == nx && machines[k].y == ny) {{
+                            overlap = true;
+                            break;
+                        }}
+                    }}
+                    if (overlap) continue;
+                    
+                    machines[i].x = nx;
+                    machines[i].y = ny;
+                    current_cost = evaluate_layout();
+                    
+                    if (current_cost < best_cost) {{
+                        best_cost = current_cost;
+                        best_dx = dx;
+                        best_dy = dy;
+                        improved = True;
+                    }}
+                }}
+            }}
+            if (improved) {{
+                machines[i].x = original_x + best_dx;
+                machines[i].y = original_y + best_dy;
+            }} else {{
+                machines[i].x = original_x;
+                machines[i].y = original_y;
+            }}
+        }}
+    }}
+}}
+
+int main(void) {{
+    double init_cost = evaluate_layout();
+    optimize_placement();
+    double opt_cost = evaluate_layout();
+    
+    FILE *fp = fopen("layout_output.json", "w");
+    if (!fp) return 1;
+    
+    fprintf(fp, "{{\n");
+    fprintf(fp, "  \\\"initial_transport_cost\\\": %.2f,\\n", init_cost);
+    fprintf(fp, "  \\\"optimized_transport_cost\\\": %.2f,\\n", opt_cost);
+    
+    double total_dwell = 0.0;
+    double bottleneck_time = -1.0;
+    char bottleneck_name[30] = "";
+    int i;
+    for(i=0; i<num_machines; i++) {{
+        double dwell = machines[i].process_time + (machines[i].setup_time / 50.0);
+        total_dwell += dwell;
+        if(dwell > bottleneck_time) {{
+            bottleneck_time = dwell;
+            strcpy(bottleneck_name, machines[i].name);
+        }}
+    }}
+    
+    fprintf(fp, "  \\\"dwell_time_analysis\\\": {{\\n");
+    fprintf(fp, "    \\\"total_dwell_time\\\": %.2f,\\n", total_dwell);
+    fprintf(fp, "    \\\"bottleneck_machine\\\": \\\"%s\\\",\\n", bottleneck_name);
+    fprintf(fp, "    \\\"bottleneck_dwell_time\\\": %.2f\\n", bottleneck_time);
+    fprintf(fp, "  }},\\n");
+    
+    fprintf(fp, "  \\\"machines\\\": [\\n");
+    for (i = 0; i < num_machines; i++) {{
+        double s_dist = calculate_iso_safety_distance(machines[i].stopping_time);
+        bool safe = true;
+        for (int j = 0; j < num_machines; j++) {{
+            if (i == j) continue;
+            double actual_dist = calculate_distance(machines[i].x, machines[i].y, machines[j].x, machines[j].y);
+            if (actual_dist < s_dist) safe = false;
+        }}
+        fprintf(fp, "    {{\\n");
+        fprintf(fp, "      \\\"id\\\": %d,\\n", machines[i].id);
+        fprintf(fp, "      \\\"name\\\": \\\"%s\\\",\\n", machines[i].name);
+        fprintf(fp, "      \\\"optimized_x\\\": %d,\\n", machines[i].x);
+        fprintf(fp, "      \\\"optimized_y\\\": %d,\\n", machines[i].y);
+        fprintf(fp, "      \\\"safety_dist_required\\\": %.2f,\\n", s_dist);
+        fprintf(fp, "      \\\"is_safe\\\": %s\\n", safe ? "true" : "false");
+        fprintf(fp, "    }}%s\\n", (i == num_machines - 1) ? "" : ",");
+    }}
+    fprintf(fp, "  ]\\n");
+    fprintf(fp, "}}\\n");
+    fclose(fp);
+    return 0;
+}}
+"""
+
+# --- App Header layout ---
+st.markdown("## 🏭 Industrial Optimization Web-GUI")
+st.markdown("Configure layouts, run optimization, and analyze ISO safety bounds with zero local setups required.")
+
+# --- SIDEBAR: Global Parameters ---
+st.sidebar.header("⚙️ Global Safety Constants")
+k_safe = st.sidebar.number_input("Approach speed (K) [m/s]", min_value=0.1, max_value=5.0, value=1.6, step=0.1)
+c_safe = st.sidebar.number_input("Intrusion constant (C) [meters]", min_value=0.0, max_value=2.0, value=0.25, step=0.05)
+grid_size = st.sidebar.slider("Floor Dimension (Meters)", min_value=10, max_value=100, value=20)
+
+engine_selection = st.sidebar.radio(
+    "🖥️ Optimizer Engine Mode",
+    ["Python Simulator (Highly Recommended / No Compiler Required)", "C Binary Subprocess (Requires GCC compiler in environment)"]
 )
 
-safety_expansion = st.sidebar.slider(
-    "Robotics Safety Clearance Expansion",
-    min_value=0.5,
-    max_value=3.0,
-    value=1.2,
-    step=0.05,
-    help="Scales the dynamic robotic reach-zone safety buffer to prevent human collisions."
-)
+# Initialize Session States
+if "machines_df" not in st.session_state:
+    st.session_state.machines_df = pd.DataFrame(DEFAULT_MACHINES)
+if "flows_df" not in st.session_state:
+    st.session_state.flows_df = pd.DataFrame(DEFAULT_FLOWS)
 
-iterations = st.sidebar.select_slider(
-    "Optimizer Iterations",
-    options=[5000, 10000, 50000, 100000, 200000, 500000],
-    value=100000,
-    help="Higher iterations result in highly optimized placement but take slightly longer."
-)
+# --- TABS Layout ---
+tab1, tab2, tab3 = st.tabs(["📋 Configure Parameters", "👁️ Generated C Source", "📊 Execution & Visual Analytics"])
 
-compile_backend = st.sidebar.checkbox("Re-compile C Backend on Run", value=True)
-
-# --- RUN OPTIMIZER LOGIC ---
-if st.button("🚀 Run Layout Placement Optimization", type="primary"):
-    
-    # 1. Compilation Step (Optional)
-    if compile_backend:
-        st.info("Compiling C-backend optimization engine...")
-        compile_process = subprocess.run(
-            ["gcc", "optimizer.c", "-o", "optimizer", "-lm"], 
-            capture_output=True, 
-            text=True
-        )
-        if compile_process.returncode != 0:
-            st.error(f"Compilation Failed:\n{compile_process.stderr}")
-            st.stop()
-        else:
-            st.success("Compilation successful!")
-
-    # Check if executable exists
-    executable = "./optimizer" if os.name != 'nt' else "optimizer.exe"
-    if not os.path.exists(executable):
-        st.error("Executable binary not found. Please compile the C file first.")
-        st.stop()
-
-    # 2. Execution Step
-    st.info("Executing Hill-Climbing Layout Optimization...")
-    with st.spinner("Processing coordinate configurations..."):
-        run_process = subprocess.run(
-            [executable, str(automation_factor), str(safety_expansion), str(iterations)],
-            capture_output=True,
-            text=True
-        )
-        
-        if run_process.returncode != 0:
-            st.error(f"Optimizer Execution Failed:\n{run_process.stderr}")
-            st.stop()
-        
-        output_text = run_process.stdout
-
-    # --- 3. POST-PROCESSING & REGEX PARSING ---
-    # Parse floor dimensions
-    dims = re.search(r"Floor Dimensions:\s+([\d.]+)m x ([\d.]+)m", output_text)
-    floor_w = float(dims.group(1)) if dims else 30.0
-    floor_h = float(dims.group(2)) if dims else 20.0
-
-    # Parse Flow Cost and Safety Penalty
-    flow_cost_match = re.search(r"Total Workflow Flow Cost:\s+([\d.]+)", output_text)
-    safety_penalty_match = re.search(r"Safety Violation Penalty Score:\s+([\d.]+)", output_text)
-    
-    flow_cost = float(flow_cost_match.group(1)) if flow_cost_match else 0.0
-    safety_penalty = float(safety_penalty_match.group(1)) if safety_penalty_match else 0.0
-
-    # Parse Machine Table
-    machine_pattern = re.compile(
-        r"^\s*(\d+)\s+([\w\s]+?)\s{2,}([\d.-]+)\s+([\d.-]+)\s+(\w+)\s+([\d.-]+)\s+([\d.-]+)", 
-        re.MULTILINE
-    )
-    machines = []
-    for match in machine_pattern.finditer(output_text):
-        machines.append({
-            "ID": int(match.group(1)),
-            "Name": match.group(2).strip(),
-            "X": float(match.group(3)),
-            "Y": float(match.group(4)),
-            "Type": match.group(5),
-            "Dwell Time (min)": float(match.group(6)),
-            "Safety Envelope (m)": float(match.group(7))
-        })
-    
-    df_machines = pd.DataFrame(machines)
-
-    # --- 4. PRESENT RESULTS IN GUI ---
-    st.success("Optimization Run Completed successfully!")
-    
-    # KPI Columns
-    col1, col2, col3 = st.columns(3)
+with tab1:
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Total Workflow Flow Cost", f"{flow_cost:,.2f} units", help="Lower is better.")
-    with col2:
-        st.metric(
-            "Safety Violation Penalty Score", 
-            f"{safety_penalty:,.2f}", 
-            delta="Safe Layout" if safety_penalty == 0 else "Violations Present",
-            delta_color="normal" if safety_penalty == 0 else "inverse"
+        st.subheader("🤖 Machine Layout & Assembly Line Speeds")
+        edited_machines = st.data_editor(
+            st.session_state.machines_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="machine_editor"
         )
-    with col3:
-        st.metric("Optimized Machinery Nodes", len(df_machines))
-
-    # Layout Visualizer Section (Matplotlib Post-Processing)
-    st.header("🗺️ Optimized Factory Layout Visualizer")
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
-    ax.set_xlim(0, floor_w)
-    ax.set_ylim(0, floor_h)
-    ax.set_aspect('equal')
-    ax.set_xlabel("Floor Width (meters)")
-    ax.set_ylabel("Floor Height (meters)")
-    ax.grid(True, linestyle="--", alpha=0.5)
-    ax.set_title(f"2D Factory Layout Plan ({floor_w}m x {floor_h}m)", fontsize=14, fontweight='bold')
-
-    # Draw sequential material flow lines
-    if len(df_machines) >= 4:
-        for idx in range(len(df_machines) - 1):
-            start_m = df_machines.iloc[idx]
-            end_m = df_machines.iloc[idx + 1]
-            ax.annotate(
-                "", 
-                xy=(end_m["X"], end_m["Y"]), 
-                xytext=(start_m["X"], start_m["Y"]),
-                arrowprops=dict(arrowstyle="->", color="gray", lw=2, ls="--", alpha=0.7)
-            )
-
-    # Draw individual machinery footprints and safety sweeps
-    for idx, row in df_machines.iterrows():
-        w, h = 2.0, 2.0
-        if "Welder" in row["Name"]:
-            w, h = 3.0, 3.0
-        elif "Assembly" in row["Name"]:
-            w, h = 4.0, 4.0
-
-        # Compute bottom-left coordinate of the machine rectangle
-        rect_x = row["X"] - w / 2.0
-        rect_y = row["Y"] - h / 2.0
-
-        is_robotic = row["Type"] == "Robotic"
-        color = "#1f77b4" if not is_robotic else "#ff7f0e"
-
-        # 1. Draw Physical Machine
-        rect = patches.Rectangle((rect_x, rect_y), w, h, linewidth=2, edgecolor=color, facecolor=color, alpha=0.6)
-        ax.add_patch(rect)
         
-        # 2. Post-Process Safety Clearance: Draw Dynamic Clearance Zone (Safety Envelope)
-        safety_r = row["Safety Envelope (m)"]
-        safety_circle = patches.Circle((row["X"], row["Y"]), safety_r, linewidth=1.5, edgecolor=color, facecolor=color, fill=True, alpha=0.15, linestyle=':')
-        ax.add_patch(safety_circle)
+    with col2:
+        st.subheader("🔄 Material Flow Densities")
+        edited_flows = st.data_editor(
+            st.session_state.flows_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="flow_editor"
+        )
 
-        # 3. Label Machine
-        ax.text(row["X"], row["Y"], f"{row['Name']}\n({row['X']:.1f}, {row['Y']:.1f})", 
-                color="black", ha="center", va="center", fontsize=9, fontweight='bold')
+st.session_state.machines_df = edited_machines
+st.session_state.flows_df = edited_flows
 
-    # Add legend
-    legend_elements = [
-        patches.Patch(facecolor='#1f77b4', edgecolor='#1f77b4', alpha=0.6, label='Standard Machine footprint'),
-        patches.Patch(facecolor='#ff7f0e', edgecolor='#ff7f0e', alpha=0.6, label='Robotic Machine footprint'),
-        patches.Patch(facecolor='grey', edgecolor='grey', alpha=0.15, linestyle=':', label='Robotic Safety clearance boundary')
-    ]
-    ax.legend(handles=legend_elements, loc='upper right')
-    
-    st.pyplot(fig)
+c_source_code = generate_c_code_template(
+    edited_machines.to_dict(orient="records"),
+    edited_flows.to_dict(orient="records"),
+    k_safe,
+    c_safe,
+    grid_size
+)
 
-    # --- 5. DATA TABLES & CSV EXPORT ---
-    st.header("📋 Machine Coordinates & Processing Metrics")
-    st.dataframe(df_machines, use_container_width=True)
-
-    # Allow downloading data as CSV
-    csv_data = df_machines.to_csv(index=False).encode('utf-8')
+with tab2:
+    st.subheader("📝 Live C Backend Code View")
+    st.code(c_source_code, language="c")
     st.download_button(
-        label="📥 Export Optimized Layout Configurations to CSV",
-        data=csv_data,
-        file_name="optimized_factory_layout.csv",
-        mime="text/csv"
+        "💾 Download Custom compiler.c",
+        c_source_code,
+        "factory_optimizer.c",
+        "text/plain"
     )
 
-    # Output log expander
-    with st.expander("📝 View Raw C Backend Optimizer Console Output"):
-        st.code(output_text, language="text")
+with tab3:
+    st.subheader("🎯 Optimizing and Post-Processing Predictions")
+    
+    if st.button("🚀 Run Layout Optimizer Heuristic"):
+        machines_data = edited_machines.to_dict(orient="records")
+        flows_data = edited_flows.to_dict(orient="records")
+        
+        results = None
+        execution_msg = ""
+        
+        if "C Binary" in engine_selection:
+            try:
+                with open("optimizer.c", "w") as f:
+                    f.write(c_source_code)
+                
+                compile_process = subprocess.run(
+                    ["gcc", "optimizer.c", "-o", "optimizer", "-lm"],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                
+                if compile_process.returncode != 0:
+                    st.error(f"Compilation Failed: {compile_process.stderr}")
+                    st.warning("Defaulting to high-fidelity Python Simulator fallback instead!")
+                    results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+                    execution_msg = "Python Simulation Fallback (Compiler Error)"
+                else:
+                    run_process = subprocess.run(
+                        ["./optimizer"],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                    )
+                    
+                    if os.path.exists("layout_output.json"):
+                        with open("layout_output.json", "r") as f:
+                            results = json.load(f)
+                        execution_msg = "Compiled C Binary Backend"
+                    else:
+                        st.error("C Binary did not output results JSON. Using Python Engine.")
+                        results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+                        execution_msg = "Python Simulation Fallback (Execution Failure)"
+            except Exception as e:
+                st.error(f"Could not execute C compiler subprocess: {e}")
+                st.warning("IT restricts execution. Defaulting to Python Simulation Fallback.")
+                results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+                execution_msg = "Python Simulation Fallback"
+        else:
+            results = python_optimize_layout(machines_data, flows_data, k_safe, c_safe, grid_size)
+            execution_msg = "Pure Python Simulator Engine (Instant Browser Runtime)"
+
+        # --- Display KPI Metric Cards ---
+        st.success(f"Execution Successful! Source Engine: **{execution_msg}**")
+        
+        col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+        
+        init_cost = results["initial_transport_cost"]
+        opt_cost = results["optimized_transport_cost"]
+        reduction = ((init_cost - opt_cost) / init_cost) * 100 if init_cost > 0 else 0
+        
+        with col_metric1:
+            st.metric("Initial Layout Cost", f"{init_cost:.2f} m·parts/hr")
+        with col_metric2:
+            st.metric("Optimized Layout Cost", f"{opt_cost:.2f} m·parts/hr", delta=f"-{reduction:.1f}% Layout Cost")
+        with col_metric3:
+            st.metric("Bottleneck Machine", results["dwell_time_analysis"]["bottleneck_machine"])
+        with col_metric4:
+            st.metric("Production Cycle Time", f"{results['dwell_time_analysis']['bottleneck_dwell_time']:.2f} mins/part")
+
+        # --- Visual Post-Processing Plots ---
+        col_plot1, col_plot2 = st.columns(2)
+        
+        # Plot 1: Floor Mapping & Safety Zones
+        with col_plot1:
+            st.markdown("### 🗺️ Floor Layout & Safety Clearance Map")
+            
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.set_xlim(-2, grid_size + 4)
+            ax.set_ylim(-2, grid_size + 4)
+            ax.set_aspect('equal')
+            ax.grid(True, which='both', linestyle='--', alpha=0.5)
+            
+            init_lookup = {m["id"]: m for m in machines_data}
+            opt_machines = results["machines"]
+            opt_lookup = {m["id"]: m for m in opt_machines}
+            
+            # Draw flow links between optimal coordinates
+            for flow in flows_data:
+                src = flow["src_id"]
+                dest = flow["dest_id"]
+                vol = flow["volume"]
+                if src in opt_lookup and dest in opt_lookup:
+                    m1 = opt_lookup[src]
+                    m2 = opt_lookup[dest]
+                    
+                    # Dynamically get keys
+                    m1_x = m1.get("optimized_x", m1.get("x"))
+                    m1_y = m1.get("optimized_y", m1.get("y"))
+                    m2_x = m2.get("optimized_x", m2.get("x"))
+                    m2_y = m2.get("optimized_y", m2.get("y"))
+                    
+                    width = max(1.0, min(5.0, vol / 30.0))
+                    ax.annotate(
+                        "",
+                        xy=(m2_x, m2_y),
+                        xytext=(m1_x, m1_y),
+                        arrowprops=dict(arrowstyle="->", color="teal", alpha=0.6, lw=width, shrinkA=5, shrinkB=5)
+                    )
+            
+            # Plot machine points
+            for m in opt_machines:
+                m_id = m["id"]
+                
+                # Dynamic key checking to prevent KeyErrors
+                opt_x = m.get("optimized_x", m.get("x"))
+                opt_y = m.get("optimized_y", m.get("y"))
+                
+                m_init = init_lookup.get(m_id, {"x": opt_x, "y": opt_y})
+                
+                # Initial Position
+                ax.scatter(m_init["x"], m_init["y"], color="gray", s=100, alpha=0.3, label="Initial" if m_id == 1 else "")
+                ax.text(m_init["x"], m_init["y"] + 0.5, f"Init-{m_id}", color="gray", fontsize=8, ha="center")
+                
+                # Optimized Position
+                marker_color = "green" if m["is_safe"] else "red"
+                ax.scatter(opt_x, opt_y, color=marker_color, s=200, zorder=5, label="Optimized" if m_id == 1 else "")
+                ax.text(opt_x, opt_y + 0.6, f"[{m_id}] {m['name']}", color="black", weight="bold", fontsize=9, ha="center", zorder=6)
+                
+                # Draw Movement Line
+                ax.plot([m_init["x"], opt_x], [m_init["y"], opt_y], "r:", alpha=0.4)
+                
+                # Safety Circle around Optimized machine position
+                circle = patches.Circle(
+                    (opt_x, opt_y),
+                    radius=m["safety_dist_required"],
+                    color="red" if not m["is_safe"] else "green",
+                    fill=True,
+                    alpha=0.1,
+                    linestyle="--",
+                    linewidth=1.5
+                )
+                ax.add_patch(circle)
+                
+            ax.set_title("Factory Layout Map (Grid: meters)\nCircles = ISO 13855 Hazard Zones", fontsize=12)
+            ax.set_xlabel("X coordinate (m)")
+            ax.set_ylabel("Y coordinate (m)")
+            st.pyplot(fig)
+            
+        # Plot 2: Manufacturing dwell time analysis & bottleneck
+        with col_plot2:
+            st.markdown("### ⏱️ Manufacturing Dwell Times & Throughput Cap")
+            
+            opt_machines = results["machines"]
+            names = [m["name"] for m in opt_machines]
+            
+            dwells = [m["process_time"] + (m["setup_time"] / 50.0) for m in opt_machines]
+            capacities = [60.0 / m["process_time"] if m["process_time"] > 0 else 0 for m in opt_machines]
+            
+            fig2, (ax_dwell, ax_cap) = plt.subplots(2, 1, figsize=(8, 8))
+            
+            colors = ["orange" if d == max(dwells) else "skyblue" for d in dwells]
+            ax_dwell.barh(names, dwells, color=colors)
+            ax_dwell.set_xlabel("Dwell Time per Part (minutes)")
+            ax_dwell.set_title("Station Cycle Dwell times (Setup Amortized on 50 Parts)")
+            ax_dwell.invert_yaxis()
+            ax_dwell.grid(axis='x', linestyle='--', alpha=0.5)
+            
+            ax_cap.barh(names, capacities, color="lightgreen")
+            ax_cap.set_xlabel("Maximum Processing Capacity (Parts / Hour)")
+            ax_cap.set_title("Machine Hourly Throughput Limits")
+            ax_cap.invert_yaxis()
+            ax_cap.grid(axis='x', linestyle='--', alpha=0.5)
+            
+            plt.tight_layout()
+            st.pyplot(fig2)
+
+        # Output Detailed Post-Optimization Report Table
+        st.markdown("### 📋 Station Safety Clearance & Compliance Detail Report")
+        detailed_report = []
+        for m in results["machines"]:
+            opt_x = m.get("optimized_x", m.get("x"))
+            opt_y = m.get("optimized_y", m.get("y"))
+            detailed_report.append({
+                "ID": m["id"],
+                "Machine Name": m["name"],
+                "Optimized Position": f"({opt_x}, {opt_y})",
+                "ISO Stopping Hazard radius": f"{m['safety_dist_required']:.2f} m",
+                "Status": "✅ SAFE" if m["is_safe"] else "❌ WARNING: HAZARD OVERLAP"
+            })
+        st.table(pd.DataFrame(detailed_report))
