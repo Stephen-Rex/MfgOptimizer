@@ -71,7 +71,37 @@ def check_safe_overlap(x1, y1, w1, h1, px1, nx1, py1, ny1, x2, y2, w2, h2, px2, 
 def is_safe_out_of_bounds(x, y, w, h, px, nx, py, ny, grid_x, grid_y):
     return (x - w/2.0 - nx < 0) or (x + w/2.0 + px > grid_x) or (y - h/2.0 - ny < 0) or (y + h/2.0 + py > grid_y)
 
-# --- Soft-Penalty Cost Evaluator ---
+def get_orientation(px, py, qx, qy, rx, ry):
+    val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy)
+    if abs(val) < 1e-7:
+        return 0  
+    return 1 if val > 0 else 2  
+
+def on_segment(px, py, qx, qy, rx, ry):
+    return qx <= max(px, rx) and qx >= min(px, rx) and \
+           qy <= max(py, ry) and qy >= min(py, ry)
+
+# --- CORRECTED LINE 177: Changed && to and ---
+def do_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
+    if (x1 == x3 and y1 == y3) or (x1 == x4 and y1 == y4) or \
+       (x2 == x3 and y2 == y3) or (x2 == x4 and y2 == y4):
+        return False  
+        
+    o1 = get_orientation(x1, y1, x2, y2, x3, y3)
+    o2 = get_orientation(x1, y1, x2, y2, x4, y4)
+    o3 = get_orientation(x3, y3, x4, y4, x1, y1)
+    o4 = get_orientation(x3, y3, x4, y4, x2, y2)
+    
+    if o1 != o2 and o3 != o4:
+        return True
+        
+    if o1 == 0 and on_segment(x1, y1, x3, y3, x2, y2): return True
+    if o2 == 0 and on_segment(x1, y1, x4, y4, x2, y2): return True
+    if o3 == 0 and on_segment(x3, y3, x1, y1, x4, y4): return True
+    if o4 == 0 and on_segment(x3, y3, x2, y2, x4, y4): return True
+    
+    return False
+
 def evaluate_polyline_layout(machines, flows_list, grid_x, grid_y):
     transport_cost = 0.0
     penalty = 0.0
@@ -109,7 +139,7 @@ def python_optimize_layout(machines_list, flows_list, grid_size_x=20, grid_size_
     while improved and iterations < 150:
         improved = False
         iterations += 1
-        for i in range(1, len(machines)): # Machine 1 (Intake) is fixed at s=0
+        for i in range(1, len(machines)): 
             original_s = machines[i]["s"]
             best_ds = 0.0
             
@@ -246,6 +276,35 @@ bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, do
     return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
 }}
 
+int get_orientation(double px, double py, double qx, double qy, double rx, double ry) {{
+    double val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
+    if (fabs(val) < 1e-7) return 0;
+    return (val > 0.0) ? 1 : 2;
+}}
+
+bool on_segment(double px, double py, double qx, double qy, double rx, double ry) {{
+    return qx <= fmax(px, rx) && qx >= fmin(px, rx) &&
+           qy <= fmax(py, ry) && qy >= fmin(py, ry);
+}}
+
+bool do_intersect(double x1, double y1, double x2, double y2,
+                  double x3, double y3, double x4, double y4) {{
+    if ((x1 == x3 && y1 == y3) || (x1 == x4 && y1 == y4) ||
+        (x2 == x3 && y2 == y3) || (x2 == x4 && y2 == y4)) {{
+        return false;
+    }}
+    int o1 = get_orientation(x1, y1, x2, y2, x3, y3);
+    int o2 = get_orientation(x1, y1, x2, y2, x4, y4);
+    int o3 = get_orientation(x3, y3, x4, y4, x1, y1);
+    int o4 = get_orientation(x3, y3, x4, y4, x2, y2);
+    if (o1 != o2 && o3 != o4) return true;
+    if (o1 == 0 && on_segment(x1, y1, x3, y3, x2, y2)) return true;
+    if (o2 == 0 && on_segment(x1, y1, x4, y4, x2, y2)) return true;
+    if (o3 == 0 && on_segment(x3, y3, x1, y1, x4, y4)) return true;
+    if (o4 == 0 && on_segment(x3, y3, x2, y2, x4, y4)) return true;
+    return false;
+}}
+
 double evaluate_polyline_layout_with_penalties(void) {{
     double transport_cost = 0.0;
     double penalty = 0.0;
@@ -302,7 +361,7 @@ void optimize_placement(void) {{
                 double current_cost = evaluate_polyline_layout_with_penalties();
                 if (current_cost < best_cost) {{
                     best_cost = current_cost;
-                    best_dx = ds;
+                    best_ds = ds;
                     improved = true;
                 }}
             }}
@@ -557,7 +616,17 @@ with tab3:
                 opt_x = m.get("optimized_x", m.get("x"))
                 opt_y = m.get("optimized_y", m.get("y"))
                 
-                # Plot Optimized Footprints (Solid colored box)
+                # CORRECTED LINE 423: Initialized m_init within the drawing loop
+                m_init = init_lookup.get(m_id, {"x": opt_x, "y": opt_y})
+                
+                # 1. Plot Initial Footprints (Dotted gray box)
+                init_box = patches.Rectangle(
+                    (m_init["x"] - w/2.0, m_init["y"] - h/2.0), w, h,
+                    linewidth=1, linestyle=":", edgecolor="gray", facecolor="none", alpha=0.3
+                )
+                ax.add_patch(init_box)
+                
+                # 2. Plot Optimized Footprints (Solid colored box)
                 border_color = "green" if m["is_safe"] else "red"
                 fill_color = "lightgreen" if m["is_safe"] else "lightcoral"
                 
@@ -567,13 +636,12 @@ with tab3:
                 )
                 ax.add_patch(opt_box)
                 
-                # Label inside the rectangle
                 ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
                 
-                # Draw Travel Vectors
+                # 3. Draw Travel Vectors
                 ax.plot([m_init["x"], opt_x], [m_init["y"], opt_y], "r:", alpha=0.4)
                 
-                # Draw Asymmetric Safe Bounding Box
+                # 4. Draw Asymmetric Safe Bounding Box
                 safety_box = patches.Rectangle(
                     (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
                     w + so_nx + so_px, h + so_ny + so_py,
