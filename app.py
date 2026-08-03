@@ -728,19 +728,18 @@ with tab3:
 
 
                 
-                # Label inside the rectangle
-                ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
+            # Label inside the rectangle
+            ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
+            # Draw Travel Vectors
+            ax.plot([m_init_x, opt_x], [m_init_y, opt_y], color="#FF4500", linestyle=":", alpha=0.5, zorder=4) # Orange dotted vector
                 
-                # Draw Travel Vectors
-                ax.plot([m_init_x, opt_x], [m_init_y, opt_y], color="#FF4500", linestyle=":", alpha=0.5, zorder=4) # Orange dotted vector
-                
-                # Draw Asymmetric Safe Bounding Box (Standoff boundaries)
-                safety_box = patches.Rectangle(
-                    (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
-                    w + so_nx + so_px, h + so_ny + so_py,
-                    linewidth=1.2, linestyle="--", edgecolor=border_color, facecolor="none", zorder=3, alpha=0.8
-                )
-                ax.add_patch(safety_box)
+            # Draw Asymmetric Safe Bounding Box (Standoff boundaries)
+            safety_box = patches.Rectangle(
+                (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
+                w + so_nx + so_px, h + so_ny + so_py,
+                linewidth=1.2, linestyle="--", edgecolor=border_color, facecolor="none", zorder=3, alpha=0.8
+            )
+            ax.add_patch(safety_box)
                 
             ax.set_title(f"Dynamic Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
             ax.set_xlabel("X coordinate (m)")
