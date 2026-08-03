@@ -48,35 +48,35 @@ MaterialFlow flows[] = {
 };
 int num_flows = 5;
 
+/* Global dynamic vertices array generated from user GUI inputs */
+double polyline_x[5] = {3.00, 3.00, 10.00, 17.00, 17.00};
+double polyline_y[5] = {3.00, 17.00, 17.00, 10.00, 3.00};
+
 double calculate_center_distance(double x1, double y1, double x2, double y2) {
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }
 
-void get_point_on_polyline(double s, double grid_x, double grid_y, double *out_x, double *out_y) {
-    double vx[4], vy[4];
-    vx[0] = 3.0; vy[0] = 3.0;
-    vx[1] = 3.0; vy[1] = grid_y - 3.0;
-    vx[2] = grid_x - 3.0; vy[2] = grid_y - 3.0;
-    vx[3] = grid_x - 3.0; vy[3] = 3.0;
-    
-    double seg_lens[3];
+/* Interpolate 2D Cartesian Coordinate from cumulative distance along Dynamic 5-Point Polyline */
+void get_point_on_polyline(double s, double *out_x, double *out_y) {
+    double seg_lens[4];
     int i;
-    for (i = 0; i < 3; i++) {
-        seg_lens[i] = sqrt((vx[i+1]-vx[i])*(vx[i+1]-vx[i]) + (vy[i+1]-vy[i])*(vy[i+1]-vy[i]));
+    for (i = 0; i < 4; i++) {
+        seg_lens[i] = sqrt((polyline_x[i+1]-polyline_x[i])*(polyline_x[i+1]-polyline_x[i]) + 
+                           (polyline_y[i+1]-polyline_y[i])*(polyline_y[i+1]-polyline_y[i]));
     }
     
     double current_s = 0.0;
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 4; i++) {
         if (s <= current_s + seg_lens[i]) {
             double ratio = (s - current_s) / seg_lens[i];
-            *out_x = vx[i] + ratio * (vx[i+1] - vx[i]);
-            *out_y = vy[i] + ratio * (vy[i+1] - vy[i]);
+            *out_x = polyline_x[i] + ratio * (polyline_x[i+1] - polyline_x[i]);
+            *out_y = polyline_y[i] + ratio * (polyline_y[i+1] - polyline_y[i]);
             return;
         }
         current_s += seg_lens[i];
     }
-    *out_x = vx[3];
-    *out_y = vy[3];
+    *out_x = polyline_x[4];
+    *out_y = polyline_y[4];
 }
 
 bool check_safe_overlap(double x1, double y1, double w1, double h1, double px1, double nx1, double py1, double ny1,
@@ -103,10 +103,12 @@ double evaluate_polyline_layout(void) {
     double penalty = 0.0;
     int i, j;
 
+    /* 1. Map dynamic spacings to 2D coordinates */
     for (i = 0; i < num_machines; i++) {
-        get_point_on_polyline(machines[i].s, GRID_SIZE_X, GRID_SIZE_Y, &machines[i].x, &machines[i].y);
+        get_point_on_polyline(machines[i].s, &machines[i].x, &machines[i].y);
     }
 
+    /* 2. Calculate material transport flow cost */
     for (i = 0; i < num_flows; i++) {
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
@@ -122,6 +124,7 @@ double evaluate_polyline_layout(void) {
         }
     }
 
+    /* 3. Safety Box containment and overlap checking */
     for (i = 0; i < num_machines; i++) {
         if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
@@ -150,7 +153,7 @@ void optimize_placement(void) {
     while (improved && iterations < 150) {
         improved = false;
         iterations++;
-        for (i = 1; i < num_machines; i++) { 
+        for (i = 1; i < num_machines; i++) { /* Machine 1 at s=0 is anchored */
             double original_s = machines[i].s;
             double best_ds = 0.0;
             
@@ -237,3 +240,4 @@ int main(void) {
     fclose(fp);
     return 0;
 }
+
