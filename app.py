@@ -453,4 +453,203 @@ with tab3:
                     f.write(c_source_code)
                 
                 compile_process = subprocess.run(
-  
+                    ["gcc", "optimizer.c", "-o", "optimizer", "-lm"],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                
+                if compile_process.returncode != 0:
+                    st.error(f"Compilation Failed: {compile_process.stderr}")
+                    st.warning("Defaulting to high-fidelity Python Simulator fallback instead!")
+                    results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+                    execution_msg = "Python Simulation Fallback (Compiler Error)"
+                else:
+                    run_process = subprocess.run(
+                        ["./optimizer"],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                    )
+                    
+                    if os.path.exists("layout_output.json"):
+                        with open("layout_output.json", "r") as f:
+                            results = json.load(f)
+                        execution_msg = "Compiled C Binary Backend"
+                    else:
+                        st.error("C Binary did not output results JSON. Using Python Engine.")
+                        results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+                        execution_msg = "Python Simulation Fallback (Execution Failure)"
+            except Exception as e:
+                st.error(f"Could not execute C compiler subprocess: {e}")
+                st.warning("IT restricts execution. Defaulting to Python Simulation Fallback.")
+                results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+                execution_msg = "Python Simulation Fallback"
+        else:
+            results = python_optimize_layout(machines_data, flows_data, grid_size_x, grid_size_y)
+            execution_msg = "Pure Python Simulator Engine (Instant Browser Runtime)"
+
+        # --- Display KPI Metric Cards ---
+        st.success(f"Execution Successful! Source Engine: **{execution_msg}**")
+        
+        opt_machines = results["machines"]
+        opt_lookup = {m["id"]: m for m in opt_machines}
+        init_lookup = {m["id"]: m for m in machines_data}
+
+        # Calculate final safety overlaps
+        overlaps_count = 0
+        for i in range(len(machines_data)):
+            for j in range(i + 1, len(machines_data)):
+                m1 = opt_lookup[machines_data[i]["id"]]
+                m2 = opt_lookup[machines_data[j]["id"]]
+                x1, y1 = m1.get("optimized_x", m1.get("x")), m1.get("optimized_y", m1.get("y"))
+                x2, y2 = m2.get("optimized_x", m2.get("x")), m2.get("optimized_y", m2.get("y"))
+                if check_safe_overlap(x1, y1, m1["dim_x"], m1["dim_y"], m1["so_px"], m1["so_nx"], m1["so_py"], m1["so_ny"],
+                                   x2, y2, m2["dim_x"], m2["dim_y"], m2["so_px"], m2["so_nx"], m2["so_py"], m2["so_ny"]):
+                    overlaps_count += 1
+
+        col_metric1, col_metric2, col_metric3 = st.columns(3)
+        
+        opt_cost = results["optimized_transport_cost"]
+        
+        with col_metric1:
+            st.metric("Packed Layout Movement Cost", f"{opt_cost:.2f} m·parts/hr")
+        with col_metric2:
+            st.metric("Bottleneck Cycle Time", f"{results['dwell_time_analysis']['bottleneck_dwell_time']:.2f} mins/part")
+        with col_metric3:
+            st.metric("Safety Envelope Overlaps", f"{overlaps_count}", delta=f"{overlaps_count} Violations", delta_color="inverse")
+
+        # --- Visual Post-Processing Plots ---
+        col_plot1, col_plot2 = st.columns(2)
+        
+        # Plot 1: Floor Mapping & Safety Zones
+        with col_plot1:
+            st.markdown("### 🗺️ Floor Layout, Footprints & Flow Clearances")
+            
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.set_xlim(-2, grid_size_x + 4)
+            ax.set_ylim(-2, grid_size_y + 4)
+            ax.set_aspect('equal')
+            ax.grid(True, which='both', linestyle='--', alpha=0.5)
+            
+            # Draw Dynamic Polyline Flow Path
+            vx = [3.0, 3.0, grid_size_x - 3.0, grid_size_x - 3.0]
+            vy = [3.0, grid_size_y - 3.0, grid_size_y - 3.0, 3.0]
+            ax.plot(vx, vy, color="grey", linewidth=4, zorder=1, label="Conveyor Backbone")
+            
+            # Draw Parallel Forklift Lanes & Safety boundaries centered along the Polyline
+            # Segment 1: Left vertical
+            ax.plot([3.0 - path_buffer, 3.0 - path_buffer], [3.0 - path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6, label="Standoff Lane Marking")
+            ax.plot([3.0 + path_buffer, 3.0 + path_buffer], [3.0 + path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
+            # Segment 2: Top horizontal
+            ax.plot([3.0 - path_buffer, grid_size_x - 3.0 + path_buffer], [grid_size_y - 3.0 + path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6)
+            ax.plot([3.0 + path_buffer, grid_size_x - 3.0 - path_buffer], [grid_size_y - 3.0 - path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
+            # Segment 3: Right vertical
+            ax.plot([grid_size_x - 3.0 - path_buffer, grid_size_x - 3.0 - path_buffer], [3.0 + path_buffer, grid_size_y - 3.0 - path_buffer], "y--", alpha=0.6)
+            ax.plot([grid_size_x - 3.0 + path_buffer, grid_size_x - 3.0 + path_buffer], [3.0 - path_buffer, grid_size_y - 3.0 + path_buffer], "y--", alpha=0.6)
+
+            # Draw each Machine Footprint and its safety boundaries along the path
+            for m in opt_machines:
+                m_id = m["id"]
+                w = m.get("dim_x", init_lookup[m_id].get("dim_x", 1.0))
+                h = m.get("dim_y", init_lookup[m_id].get("dim_y", 1.0))
+                so_px = m.get("so_px", init_lookup[m_id].get("so_px", 0.0))
+                so_nx = m.get("so_nx", init_lookup[m_id].get("so_nx", 0.0))
+                so_py = m.get("so_py", init_lookup[m_id].get("so_py", 0.0))
+                so_ny = m.get("so_ny", init_lookup[m_id].get("so_ny", 0.0))
+                
+                opt_x = m.get("optimized_x", m.get("x"))
+                opt_y = m.get("optimized_y", m.get("y"))
+                
+                # Plot Optimized Footprints (Solid colored box)
+                border_color = "green" if m["is_safe"] else "red"
+                fill_color = "lightgreen" if m["is_safe"] else "lightcoral"
+                
+                opt_box = patches.Rectangle(
+                    (opt_x - w/2.0, opt_y - h/2.0), w, h,
+                    linewidth=2, edgecolor=border_color, facecolor=fill_color, zorder=5, alpha=0.9
+                )
+                ax.add_patch(opt_box)
+                
+                # Label inside the rectangle
+                ax.text(opt_x, opt_y, f"[{m_id}]\n{m['name']}", color="black", weight="bold", fontsize=8, ha="center", va="center", zorder=6)
+                
+                # Draw Travel Vectors
+                ax.plot([m_init["x"], opt_x], [m_init["y"], opt_y], "r:", alpha=0.4)
+                
+                # Draw Asymmetric Safe Bounding Box
+                safety_box = patches.Rectangle(
+                    (opt_x - w/2.0 - so_nx, opt_y - h/2.0 - so_ny),
+                    w + so_nx + so_px, h + so_ny + so_py,
+                    linewidth=1.2, linestyle="--", edgecolor=border_color, facecolor="none", zorder=3, alpha=0.8
+                )
+                ax.add_patch(safety_box)
+                
+            ax.set_title(f"Polyline Layout Map ({grid_size_x}m x {grid_size_y}m)\nDashed Yellow = Manned Corridor ({path_buffer}m)", fontsize=11)
+            ax.set_xlabel("X coordinate (m)")
+            ax.set_ylabel("Y coordinate (m)")
+            st.pyplot(fig)
+            
+        # Plot 2: Manufacturing dwell time analysis & bottleneck
+        with col_plot2:
+            st.markdown("### ⏱️ Manufacturing Dwell Times & Throughput Cap")
+            
+            names = [m["name"] for m in opt_machines]
+            dwells = [m["process_time"] + (m["setup_time"] / 50.0) for m in opt_machines]
+            capacities = [60.0 / m["process_time"] if m["process_time"] > 0 else 0 for m in opt_machines]
+            
+            fig2, (ax_dwell, ax_cap) = plt.subplots(2, 1, figsize=(8, 8))
+            
+            colors = ["orange" if d == max(dwells) else "skyblue" for d in dwells]
+            ax_dwell.barh(names, dwells, color=colors)
+            ax_dwell.set_xlabel("Dwell Time per Part (minutes)")
+            ax_dwell.set_title("Station Cycle Dwell times (Setup Amortized on 50 Parts)")
+            ax_dwell.invert_yaxis()
+            ax_dwell.grid(axis='x', linestyle='--', alpha=0.5)
+            
+            ax_cap.barh(names, capacities, color="lightgreen")
+            ax_cap.set_xlabel("Maximum Processing Capacity (Parts / Hour)")
+            ax_cap.set_title("Machine Hourly Throughput Limits")
+            ax_cap.invert_yaxis()
+            ax_cap.grid(axis='x', linestyle='--', alpha=0.5)
+            
+            plt.tight_layout()
+            st.pyplot(fig2)
+
+        # Output Detailed Post-Optimization Report Table
+        st.markdown("### 📋 Station Safety Clearance & Compliance Detail Report")
+        detailed_report = []
+        for m in opt_machines:
+            opt_x = m.get("optimized_x", m.get("x"))
+            opt_y = m.get("optimized_y", m.get("y"))
+            w = m.get("dim_x", init_lookup[m["id"]].get("dim_x", 1.0))
+            h = m.get("dim_y", init_lookup[m["id"]].get("dim_y", 1.0))
+            so_px = m.get("so_px", init_lookup[m["id"]].get("so_px", 0.0))
+            so_nx = m.get("so_nx", init_lookup[m["id"]].get("so_nx", 0.0))
+            so_py = m.get("so_py", init_lookup[m["id"]].get("so_py", 0.0))
+            so_ny = m.get("so_ny", init_lookup[m["id"]].get("so_ny", 0.0))
+            
+            # Recalculate overlaps
+            is_overlapping = False
+            for other in opt_machines:
+                if m["id"] != other["id"]:
+                    ox = other.get("optimized_x", other.get("x"))
+                    oy = other.get("optimized_y", other.get("y"))
+                    if check_safe_overlap(opt_x, opt_y, w, h, so_px, so_nx, so_py, so_ny,
+                                       ox, oy, other["dim_x"], other["dim_y"],
+                                       other["so_px"], other["so_nx"], other["so_py"], other["so_ny"]):
+                        is_overlapping = True
+                        break
+                        
+            status = "✅ COMPLIANT"
+            if is_overlapping:
+                status = "❌ FAIL: STANDOFF ZONE OVERLAP"
+            elif is_safe_out_of_bounds(opt_x, opt_y, w, h, so_px, so_nx, so_py, so_ny, grid_size_x, grid_size_y):
+                status = "❌ FAIL: OUT-OF-BOUNDS PROTRUSION"
+                
+            detailed_report.append({
+                "ID": m["id"],
+                "Machine Name": m["name"],
+                "Polyline Spacing (s)": f"{m['s']:.1f} m",
+                "Center Coord": f"({opt_x:.2f}, {opt_y:.2f})",
+                "Standoffs (NX, PX, NY, PY)": f"({so_nx}m, {so_px}m, {so_ny}m, {so_py}m)",
+                "Safe Footprint Envelope": f"({w + so_nx + so_px:.2f}m x {h + so_ny + so_py:.2f}m)",
+                "Compliance Status": status
+            })
+        st.table(pd.DataFrame(detailed_report))
