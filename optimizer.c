@@ -52,7 +52,6 @@ double calculate_center_distance(double x1, double y1, double x2, double y2) {
     return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }
 
-/* Interpolate 2D Cartesian Coordinate from cumulative distance along Dynamic U-Shape Polyline */
 void get_point_on_polyline(double s, double grid_x, double grid_y, double *out_x, double *out_y) {
     double vx[4], vy[4];
     vx[0] = 3.0; vy[0] = 3.0;
@@ -99,18 +98,15 @@ bool is_safe_out_of_bounds(double x, double y, double w, double h, double px, do
     return (x - w/2.0 - nx < 0.0) || (x + w/2.0 + px > GRID_SIZE_X) || (y - h/2.0 - ny < 0.0) || (y + h/2.0 + py > GRID_SIZE_Y);
 }
 
-/* Cost evaluator utilizing dynamic coordinates calculated from sequential line packaging values */
 double evaluate_polyline_layout(void) {
     double transport_cost = 0.0;
     double penalty = 0.0;
     int i, j;
 
-    /* 1. Map 1D spacings to 2D coordinates */
     for (i = 0; i < num_machines; i++) {
         get_point_on_polyline(machines[i].s, GRID_SIZE_X, GRID_SIZE_Y, &machines[i].x, &machines[i].y);
     }
 
-    /* 2. Calculate sequential flow cost along path */
     for (i = 0; i < num_flows; i++) {
         int src = flows[i].src_id;
         int dest = flows[i].dest_id;
@@ -120,23 +116,17 @@ double evaluate_polyline_layout(void) {
             if (machines[j].id == dest) idx_dest = j;
         }
         if (idx_src != -1 && idx_dest != -1) {
-            double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, 
-                                                    machines[idx_dest].x, machines[idx_dest].y);
+            double dist = calculate_center_distance(machines[idx_src].x, machines[idx_src].y, \n                                                    machines[idx_dest].x, machines[idx_dest].y);
             transport_cost += dist * flows[i].volume;
         }
     }
 
-    /* 3. Safety Box overlap penalty values */
     for (i = 0; i < num_machines; i++) {
-        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
-                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
+        if (is_safe_out_of_bounds(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,\n                                  machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny)) {
             penalty += 10000.0;
         }
         for (j = i + 1; j < num_machines; j++) {
-            if (check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,
-                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,
-                                   machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,
-                                   machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {
+            if (check_safe_overlap(machines[i].x, machines[i].y, machines[i].dim_x, machines[i].dim_y,\n                                   machines[i].so_px, machines[i].so_nx, machines[i].so_py, machines[i].so_ny,\n                                   machines[j].x, machines[j].y, machines[j].dim_x, machines[j].dim_y,\n                                   machines[j].so_px, machines[j].so_nx, machines[j].so_py, machines[j].so_ny)) {
                 penalty += 20000.0;
             }
         }
@@ -155,7 +145,7 @@ void optimize_placement(void) {
     while (improved && iterations < 150) {
         improved = false;
         iterations++;
-        for (i = 1; i < num_machines; i++) { /* Machine 1 at s=0 is anchored */
+        for (i = 1; i < num_machines; i++) { 
             double original_s = machines[i].s;
             double best_ds = 0.0;
             
@@ -163,8 +153,6 @@ void optimize_placement(void) {
                 if (ds == 0.0) continue;
                 
                 double candidate_s = original_s + ds;
-                
-                /* Keep sequential orders intact and prevent physical spacing overlap */
                 double min_s = machines[i-1].s + (machines[i-1].dim_x + machines[i].dim_x)/2.0;
                 if (candidate_s < min_s) continue;
                 
