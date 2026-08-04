@@ -1,11 +1,32 @@
 import sys
 import os
 
-# --- PATH-RESOLUTION PATCH ---
-root_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(root_dir)
-sys.path.append(os.path.join(root_dir, "factory_floor_optimizer"))
-# -----------------------------
+# =====================================================================
+# --- RECURSIVE PATH-RESOLUTION PATCH ( Samantha's Robust Module Finder) ---
+# =====================================================================
+found_backend = False
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 1. Search recursively downwards for 'backend'
+for root, dirs, files in os.walk(current_dir):
+    if "backend" in dirs:
+        sys.path.insert(0, root)
+        found_backend = True
+        break
+
+# 2. Search upwards if nested (up to 3 levels)
+if not found_backend:
+    temp_dir = current_dir
+    for _ in range(3):
+        temp_dir = os.path.dirname(temp_dir)
+        for root, dirs, files in os.walk(temp_dir):
+            if "backend" in dirs:
+                sys.path.insert(0, root)
+                found_backend = True
+                break
+        if found_backend:
+            break
+# =====================================================================
 
 import http.server
 import socketserver
@@ -21,11 +42,16 @@ from reportlab.lib import colors
 from reportlab.graphics.shapes import Drawing, Rect, Line, String
 
 PORT = 8000
-LIBRARY_PATH = "data/machinery_library.csv"
 
-# Resolve library path dynamically in case nested
-if not os.path.exists(LIBRARY_PATH):
-    LIBRARY_PATH = os.path.join("factory_floor_optimizer", "data", "machinery_library.csv")
+# Locate machinery database dynamically
+LIBRARY_PATH = None
+for root, dirs, files in os.walk(current_dir):
+    if "machinery_library.csv" in files:
+        LIBRARY_PATH = os.path.join(root, "machinery_library.csv")
+        break
+
+if not LIBRARY_PATH:
+    LIBRARY_PATH = os.path.join(current_dir, "data", "machinery_library.csv")
 
 def generate_pdf_report(machines, paths, cranes, violations, bottleneck_idx):
     pdf_buffer = io.BytesIO()
@@ -188,7 +214,15 @@ class FactoryOptimizerHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html")
             self.end_headers()
             try:
-                with open("frontend/templates/index.html", "r") as f:
+                # Find templates index.html dynamically
+                html_path = None
+                for root, dirs, files in os.walk(current_dir):
+                    if "index.html" in files:
+                        html_path = os.path.join(root, "index.html")
+                        break
+                if not html_path:
+                    html_path = "frontend/templates/index.html"
+                with open(html_path, "r") as f:
                     self.wfile.write(f.read().encode("utf-8"))
             except Exception as e:
                 self.wfile.write(f"Error loading index.html: {e}".encode("utf-8"))
