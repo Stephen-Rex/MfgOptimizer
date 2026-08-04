@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Factory Floor Optimizer - Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-color: #ecf0f1;
+            --sidebar-width: 320px;
+            --panel-width: 380px;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+        #sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #34495e;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        #sidebar h2 {
+            padding: 20px;
+            margin: 0;
+            background-color: #1a252f;
+            font-size: 1.2rem;
+            text-align: center;
+            border-bottom: 2px solid var(--accent-color);
+        }
+        .section-title {
+            padding: 10px 20px;
+            background-color: #34495e;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #library-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        .machine-card {
+            background-color: #34495e;
+            border: 1px solid #465866;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        .machine-card:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+        .machine-card h4 {
+            margin: 0 0 5px 0;
+            color: #ecf0f1;
+        }
+        .machine-card p {
+            margin: 3px 0;
+            font-size: 0.8rem;
+            color: #bdc3c7;
+        }
+        #workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background-color: #f5f7f8;
+        }
+        #toolbar {
+            height: 60px;
+            background-color: white;
+            border-bottom: 1px solid #dcdde1;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background-color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            border: 1px solid #bdc3c7;
+        }
+        #control-panel {
+            width: var(--panel-width);
+            background-color: white;
+            border-left: 1px solid #dcdde1;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.05);
+        }
+        #control-panel h3 {
+            padding: 20px;
+            margin: 0;
+            border-bottom: 1px solid #dcdde1;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+        }
+        .panel-content {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .btn-success {
+            background-color: #2ecc71;
+        }
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+        .tool-btn {
+            background: none;
+            border: 1px solid #bdc3c7;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tool-btn.active {
+            background-color: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #7f8c8d;
+            margin-bottom: 4px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .violation-card {
+            border-left: 4px solid #e74c3c;
+            background-color: #fdf2f2;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.85rem;
+        }
+        .bottleneck-card {
+            border-left: 4px solid #f1c40f;
+            background-color: #fef9e7;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.85rem;
+        }
+        .results-box {
+            margin-top: 15px;
+        }
+        #import-export {
+            padding: 15px;
+            background-color: #1a252f;
+            border-top: 1px solid #34495e;
+        }
+    </style>
+</head>
+<body>
+    <!-- Left Sidebar: Machinery Presets -->
+    <div id="sidebar">
+        <h2>Factory Floor Optimizer</h2>
+        <div class="section-title">Machine Presets</div>
+        <div id="library-list"></div>
+        <div id="import-export">
+            <h4 style="margin:0 0 10px 0; color: #bdc3c7; font-size:0.9rem;">Upload CSV Specs</h4>
+            <form id="csv-upload-form" action="/api/library" method="POST" enctype="multipart/form-data" target="dummyframe">
+                <input type="file" name="file" accept=".csv" style="color:white; font-size:0.8rem; margin-bottom:10px;">
+                <button type="submit" class="btn btn-success" style="width:100%; font-size:0.8rem;">Upload CSV</button>
+            </form>
+            <iframe name="dummyframe" id="dummyframe" style="display:none;"></iframe>
+        </div>
+    </div>
+
+    <!-- Main Active Workspace -->
+    <div id="workspace">
+        <div id="toolbar">
+            <button id="btn-select" class="tool-btn active">Select / Move</button>
+            <button id="btn-flow" class="tool-btn">Draw Flow Path</button>
+            <button id="btn-utility" class="tool-btn">Route Utility Line</button>
+            <button id="btn-crane" class="tool-btn">Draw Crane Zone</button>
+            <div style="flex:1;"></div>
+            <button id="btn-analyze" class="btn btn-success">Run Optimization</button>
+            <button id="btn-export-pdf" class="btn">Export Engineering Report (PDF)</button>
+        </div>
+        <div id="canvas-container">
+            <canvas id="factory-canvas" width="800" height="500"></canvas>
+        </div>
+    </div>
+
+    <!-- Control & Live Properties Panel -->
+    <div id="control-panel">
+        <h3>Properties & Analysis</h3>
+        <div class="panel-content">
+            <div id="properties-section" style="display: none; border-bottom: 1px solid #dcdde1; padding-bottom:15px; margin-bottom:15px;">
+                <h4 style="margin-top:0;">Selected Asset</h4>
+                <div class="form-group">
+                    <label>ID</label>
+                    <input type="text" id="prop-id" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="prop-name">
+                </div>
+                <div class="form-group">
+                    <label>Position X (meters)</label>
+                    <input type="number" id="prop-x" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>Position Y (meters)</label>
+                    <input type="number" id="prop-y" step="0.1">
+                </div>
+                <div id="machine-only-props" style="display:none;">
+                    <div class="form-group">
+                        <label>Safety Standoff (meters)</label>
+                        <input type="number" id="prop-standoff" step="0.1">
+                    </div>
+                </div>
+                <div id="path-only-props" style="display:none;">
+                    <div class="form-group">
+                        <label>Path Type</label>
+                        <select id="prop-path-type">
+                            <option value="human">Human</option>
+                            <option value="robot">Robot / Autonomous</option>
+                            <option value="forklift">Forklift</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Travel Speed (m/s)</label>
+                        <input type="number" id="prop-path-speed" step="0.1">
+                    </div>
+                </div>
+                <button id="btn-delete-asset" class="btn btn-danger" style="width:100%;">Delete Asset</button>
+            </div>
+            <div>
+                <h4 style="margin-top:0;">Optimization Results</h4>
+                <div id="analysis-summary" style="font-size:0.9rem; color:#555;">
+                    Click <strong>Run Optimization</strong> above to simulate and analyze layout.
+                </div>
+                <div class="results-box" id="bottleneck-results"></div>
+                <div class="results-box" id="safety-results"></div>
+            </div>
+        </div>
+    </div>
+    <a id="download-helper" style="display:none;"></a>
+
+    <!-- Frontend Interactive Script -->
+    <script>
+        const canvas = document.getElementById('factory-canvas');
+        const ctx = canvas.getContext('2d');
+        const SCALE = 16; // Grid Scale: 1 meter = 16 pixels
+        const GRID_SIZE = 1;
+
+        let currentMode = 'select';
+        let machinesLibrary = [];
+        let placedMachines = [];
+        let flowPaths = [];
+        let utilityLines = [];
+        let craneZones = [];
+        let selectedAsset = null;
+        let selectedAssetType = null;
+        let drawPoints = [];
+        let isDrawing = false;
+        let dragMachine = null;
+        let dragOffset = { x: 0, y: 0 };
+
+        async function loadLibrary() {
+            try {
+                const res = await fetch('/api/library');
+                machinesLibrary = await res.json();
+                renderLibrary();
+            } catch (err) {
+                console.error("Failed to load library:", err);
+            }
+        }
+
+        function renderLibrary() {
+            const list = document.getElementById('library-list');
+            list.innerHTML = '';
+            machinesLibrary.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'machine-card';
+                card.draggable = true;
+                card.innerHTML = `
+                    <h4>${m.name}</h4>
+                    <p>Dim: ${m.width}m x ${m.height}m</p>
+                    <p>Standoff: ${m.safety_standoff}m</p>
+                    <p>Throughput: ${m.volume_per_hour} parts/hr</p>
+                    <p>Power: ${m.wattage/1000} kW | Crane: ${m.crane_required ? 'Yes' : 'No'}</p>
+                `;
+                card.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('application/json', JSON.stringify(m));
+                });
+                list.appendChild(card);
+            });
+        }
+
+        canvas.addEventListener('dragover', (e) => { e.preventDefault(); });
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            const x = canvasX / SCALE;
+            const y = canvasY / SCALE;
+
+            try {
+                const machineData = JSON.parse(e.dataTransfer.getData('application/json'));
+                const newInstance = {
+                    id: 'M' + Date.now().toString().slice(-6),
+                    type_id: machineData.id,
+                    name: machineData.name,
+                    x: Math.round(x * 10) / 10,
+                    y: Math.round(y * 10) / 10,
+                    width: parseFloat(machineData.width),
+                    height: parseFloat(machineData.height),
+                    safety_standoff: parseFloat(machineData.safety_standoff),
+                    water_required: parseInt(machineData.water_required),
+                    amperage: parseInt(machineData.amperage),
+                    wattage: parseInt(machineData.wattage),
+                    volume_per_hour: parseFloat(machineData.volume_per_hour),
+                    yield_percentage: parseFloat(machineData.yield_percentage),
+                    crane_required: parseInt(machineData.crane_required),
+                    is_bottleneck: false,
+                    safety_violation: false
+                };
+
+                // BDD Rule Enforcement
+                if (newInstance.crane_required) {
+                    let in_crane = false;
+                    craneZones.forEach(c => {
+                        const cx1 = Math.min(c.x1, c.x2);
+                        const cx2 = Math.max(c.x1, c.x2);
+                        const cy1 = Math.min(c.y1, c.y2);
+                        const cy2 = Math.max(c.y1, c.y2);
+                        if (newInstance.x >= cx1 && newInstance.x <= cx2 && newInstance.y >= cy1 && newInstance.y <= cy2) {
+                            in_crane = true;
+                        }
+                    });
+                    if (!in_crane) {
+                        alert("BDD Enforcement Warning: Placing this '" + newInstance.name + "' triggers overhead crane warning. Draw a Crane Zone bounding box to encompass this machine.");
+                    }
+                }
+
+                placedMachines.push(newInstance);
+                selectedAsset = newInstance;
+                selectedAssetType = 'machine';
+                showPropertiesForm();
+                draw();
+            } catch (err) {
+                console.error("Drop error:", err);
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / SCALE;
+            const my = (e.clientY - rect.top) / SCALE;
+
+            if (currentMode === 'select') {
+                let clickedMachine = null;
+                for (let i = placedMachines.length - 1; i >= 0; i--) {
+                    const m = placedMachines[i];
+                    if (mx >= (m.x - m.width/2) && mx <= (m.x + m.width/2) &&
+                        my >= (m.y - m.height/2) && my <= (m.y + m.height/2)) {
+                        clickedMachine = m;
+                        break;
+                    }
+                }
+
+                if (clickedMachine) {
+                    selectedAsset = clickedMachine;
+                    selectedAssetType = 'machine';
+                    dragMachine = clickedMachine;
+                    dragOffset.x = mx - clickedMachine.x;
+                    dragOffset.y = my - clickedMachine.y;
+                    showPropertiesForm();
+                } else {
+                    selectedAsset = null;
+                    selectedAssetType = null;
+                    hidePropertiesForm();
+                }
+                draw();
+            } else if (currentMode === 'flow' || currentMode === 'utility') {
+                isDrawing = true;
+                drawPoints.push({ x: mx, y: my });
+                draw();
+            } else if (currentMode === 'crane') {
+                isDrawing = true;
+                drawPoints = [{ x: mx, y: my }, { x: mx, y: my }];
+                draw();
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / SCALE;
+            const my = (e.clientY - rect.top) / SCALE;
+
+            if (currentMode === 'select' && dragMachine) {
+                dragMachine.x = Math.round((mx - dragOffset.x) * 10) / 10;
+                dragMachine.y = Math.round((my - dragOffset.y) * 10) / 10;
+                updatePropertiesForm();
+                draw();
+            } else if (isDrawing && currentMode === 'crane') {
+                drawPoints[1] = { x: mx, y: my };
+                draw();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (dragMachine) { dragMachine = null; }
+            if (currentMode === 'crane' && isDrawing) {
+                isDrawing = false;
+                const cz = {
+                    id: 'C' + Date.now().toString().slice(-6),
+                    x1: Math.round(drawPoints[0].x * 10) / 10,
+                    y1: Math.round(drawPoints[0].y * 10) / 10,
+                    x2: Math.round(drawPoints[1].x * 10) / 10,
+                    y2: Math.round(drawPoints[1].y * 10) / 10,
+                    speed: 1.5,
+                    weight_rating: 5.0
+                };
+                craneZones.push(cz);
+                selectedAsset = cz;
+                selectedAssetType = 'crane';
+                showPropertiesForm();
+                drawPoints = [];
+                setMode('select');
+                draw();
+            }
+        });
+
+        canvas.addEventListener('dblclick', () => {
+            if (isDrawing && (currentMode === 'flow' || currentMode === 'utility')) {
+                isDrawing = false;
+                if (drawPoints.length > 1) {
+                    if (currentMode === 'flow') {
+                        const path = {
+                            id: 'FP' + Date.now().toString().slice(-6),
+                            type: 'human',
+                            points: drawPoints.map(p => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })),
+                            width: 1.2,
+                            speed: 1.0
+                        };
+                        flowPaths.push(path);
+                        selectedAsset = path;
+                        selectedAssetType = 'path';
+                    } else {
+                        const ut = {
+                            id: 'UT' + Date.now().toString().slice(-6),
+                            type: 'electrical',
+                            points: drawPoints.map(p => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }))
+                        };
+                        utilityLines.push(ut);
+                        selectedAsset = ut;
+                        selectedAssetType = 'utility';
+                    }
+                    showPropertiesForm();
+                }
+                drawPoints = [];
+                setMode('select');
+                draw();
+            }
+        });
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            if (mode === 'select') document.getElementById('btn-select').classList.add('active');
+            else if (mode === 'flow') document.getElementById('btn-flow').classList.add('active');
+            else if (mode === 'utility') document.getElementById('btn-utility').classList.add('active');
+            else if (mode === 'crane') document.getElementById('btn-crane').classList.add('active');
+        }
+
+        document.getElementById('btn-select').addEventListener('click', () => setMode('select'));
+        document.getElementById('btn-flow').addEventListener('click', () => setMode('flow'));
+        document.getElementById('btn-utility').addEventListener('click', () => setMode('utility'));
+        document.getElementById('btn-crane').addEventListener('click', () => setMode('crane'));
+
+        document.getElementById('btn-delete-asset').addEventListener('click', () => {
+            if (!selectedAsset) return;
+            if (selectedAssetType === 'machine') placedMachines = placedMachines.filter(m => m.id !== selectedAsset.id);
+            else if (selectedAssetType === 'path') flowPaths = flowPaths.filter(p => p.id !== selectedAsset.id);
+            else if (selectedAssetType === 'utility') utilityLines = utilityLines.filter(u => u.id !== selectedAsset.id);
+            else if (selectedAssetType === 'crane') craneZones = craneZones.filter(c => c.id !== selectedAsset.id);
+            selectedAsset = null;
+            selectedAssetType = null;
+            hidePropertiesForm();
+            draw();
+        });
+
+        function showPropertiesForm() {
+            if (!selectedAsset) return;
+            document.getElementById('properties-section').style.display = 'block';
+            document.getElementById('prop-id').value = selectedAsset.id;
+            document.getElementById('prop-name').value = selectedAsset.name || selectedAsset.id;
+            
+            if (selectedAssetType === 'machine') {
+                document.getElementById('prop-x').value = selectedAsset.x;
+                document.getElementById('prop-y').value = selectedAsset.y;
+                document.getElementById('machine-only-props').style.display = 'block';
+                document.getElementById('path-only-props').style.display = 'none';
+                document.getElementById('prop-standoff').value = selectedAsset.safety_standoff;
+            } else if (selectedAssetType === 'path') {
+                document.getElementById('prop-x').value = selectedAsset.points[0].x;
+                document.getElementById('prop-y').value = selectedAsset.points[0].y;
+                document.getElementById('machine-only-props').style.display = 'none';
+                document.getElementById('path-only-props').style.display = 'block';
+                document.getElementById('prop-path-type').value = selectedAsset.type;
+                document.getElementById('prop-path-speed').value = selectedAsset.speed;
+            } else {
+                document.getElementById('prop-x').value = selectedAsset.x1 || 0;
+                document.getElementById('prop-y').value = selectedAsset.y1 || 0;
+                document.getElementById('machine-only-props').style.display = 'none';
+                document.getElementById('path-only-props').style.display = 'none';
+            }
+        }
+
+        function updatePropertiesForm() {
+            if (!selectedAsset) return;
+            if (selectedAssetType === 'machine') {
+                document.getElementById('prop-x').value = selectedAsset.x;
+                document.getElementById('prop-y').value = selectedAsset.y;
+            }
+        }
+
+        function hidePropertiesForm() { document.getElementById('properties-section').style.display = 'none'; }
+
+        document.getElementById('prop-name').addEventListener('change', (e) => { if (selectedAsset) { selectedAsset.name = e.target.value; draw(); } });
+        document.getElementById('prop-x').addEventListener('change', (e) => { if (selectedAsset && selectedAssetType === 'machine') { selectedAsset.x = parseFloat(e.target.value); draw(); } });
+        document.getElementById('prop-y').addEventListener('change', (e) => { if (selectedAsset && selectedAssetType === 'machine') { selectedAsset.y = parseFloat(e.target.value); draw(); } });
+        document.getElementById('prop-standoff').addEventListener('change', (e) => { if (selectedAsset && selectedAssetType === 'machine') { selectedAsset.safety_standoff = parseFloat(e.target.value); draw(); } });
+        document.getElementById('prop-path-type').addEventListener('change', (e) => { if (selectedAsset && selectedAssetType === 'path') { selectedAsset.type = e.target.value; draw(); } });
+        document.getElementById('prop-path-speed').addEventListener('change', (e) => { if (selectedAsset && selectedAssetType === 'path') { selectedAsset.speed = parseFloat(e.target.value); draw(); } });
+
+        // Redraw Canvas Context
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            for (let x = 0; x < canvas.width; x += GRID_SIZE * SCALE) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += GRID_SIZE * SCALE) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            craneZones.forEach(c => {
+                ctx.strokeStyle = '#9b59b6';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                const cx = Math.min(c.x1, c.x2) * SCALE;
+                const cy = Math.min(c.y1, c.y2) * SCALE;
+                const cw = Math.abs(c.x1 - c.x2) * SCALE;
+                const ch = Math.abs(c.y1 - c.y2) * SCALE;
+                ctx.strokeRect(cx, cy, cw, ch);
+                ctx.fillStyle = 'rgba(155, 89, 182, 0.08)';
+                ctx.fillRect(cx, cy, cw, ch);
+                ctx.fillStyle = '#9b59b6';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(`Crane Zone: ${c.id} (${c.weight_rating} tons)`, cx + 5, cy + 15);
+            });
+            ctx.setLineDash([]);
+
+            flowPaths.forEach(p => {
+                ctx.lineWidth = p.width * SCALE;
+                ctx.strokeStyle = p.type === 'human' ? 'rgba(52, 152, 219, 0.4)' : 'rgba(231, 76, 60, 0.4)';
+                ctx.beginPath();
+                ctx.moveTo(p.points[0].x * SCALE, p.points[0].y * SCALE);
+                for (let i = 1; i < p.points.length; i++) { ctx.lineTo(p.points[i].x * SCALE, p.points[i].y * SCALE); }
+                ctx.stroke();
+
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = p.type === 'human' ? '#3498db' : '#e74c3c';
+                ctx.beginPath();
+                ctx.moveTo(p.points[0].x * SCALE, p.points[0].y * SCALE);
+                for (let i = 1; i < p.points.length; i++) { ctx.lineTo(p.points[i].x * SCALE, p.points[i].y * SCALE); }
+                ctx.stroke();
+            });
+
+            utilityLines.forEach(u => {
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = u.type === 'electrical' ? '#f1c40f' : u.type === 'water' ? '#1abc9c' : '#e67e22';
+                ctx.setLineDash([5, 3]);
+                ctx.beginPath();
+                ctx.moveTo(u.points[0].x * SCALE, u.points[0].y * SCALE);
+                for (let i = 1; i < u.points.length; i++) { ctx.lineTo(u.points[i].x * SCALE, u.points[i].y * SCALE); }
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+
+            placedMachines.forEach(m => {
+                const mx = (m.x - m.width / 2) * SCALE;
+                const my = (m.y - m.height / 2) * SCALE;
+                const mw = m.width * SCALE;
+                const mh = m.height * SCALE;
+
+                ctx.strokeStyle = m.safety_violation ? 'rgba(231, 76, 60, 0.6)' : 'rgba(46, 204, 113, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.fillStyle = m.safety_violation ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.05)';
+                const standoff_p = m.safety_standoff * SCALE;
+                ctx.beginPath();
+                ctx.rect(mx - standoff_p, my - standoff_p, mw + 2*standoff_p, mh + 2*standoff_p);
+                ctx.fill(); ctx.stroke();
+
+                ctx.fillStyle = m.is_bottleneck ? '#f1c40f' : '#2c3e50';
+                ctx.fillRect(mx, my, mw, mh);
+                ctx.strokeStyle = selectedAsset && selectedAsset.id === m.id ? '#3498db' : '#34495e';
+                ctx.lineWidth = selectedAsset && selectedAsset.id === m.id ? 3 : 2;
+                ctx.strokeRect(mx, my, mw, mh);
+
+                ctx.fillStyle = 'white';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(m.name, m.x * SCALE, m.y * SCALE);
+                ctx.fillStyle = '#bdc3c7';
+                ctx.font = '9px sans-serif';
+                ctx.fillText(`${m.width}x${m.height}m`, m.x * SCALE, (m.y + m.height/4) * SCALE);
+                
+                if (m.is_bottleneck) {
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect((m.x - m.width/2 + 0.1) * SCALE, (m.y - m.height/2 + 0.1) * SCALE, 15, 12);
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.fillText('⚡', (m.x - m.width/2 + 0.5) * SCALE, (m.y - m.height/2 + 0.5) * SCALE);
+                }
+            });
+
+            if (isDrawing && drawPoints.length > 0) {
+                ctx.strokeStyle = '#27ae60';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(drawPoints[0].x * SCALE, drawPoints[0].y * SCALE);
+                for (let i = 1; i < drawPoints.length; i++) { ctx.lineTo(drawPoints[i].x * SCALE, drawPoints[i].y * SCALE); }
+                ctx.stroke();
+                
+                drawPoints.forEach(p => {
+                    ctx.fillStyle = '#27ae60';
+                    ctx.beginPath(); ctx.arc(p.x * SCALE, p.y * SCALE, 4, 0, Math.PI * 2); ctx.fill();
+                });
+            }
+        }
+
+        // POST Request to backend C Optimizer API
+        document.getElementById('btn-analyze').addEventListener('click', async () => {
+            const statusSummary = document.getElementById('analysis-summary');
+            statusSummary.innerHTML = "Processing simulation...";
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ machines: placedMachines, paths: flowPaths, cranes: craneZones })
+                });
+                const resData = await response.json();
+                placedMachines = resData.machines;
+                statusSummary.innerHTML = `<strong>Complete!</strong> Found <strong>${resData.violations.length}</strong> violations.`;
+                
+                const bottleneckBox = document.getElementById('bottleneck-results');
+                bottleneckBox.innerHTML = '';
+                const bottleneckMachine = placedMachines.find(m => m.is_bottleneck);
+                if (bottleneckMachine) {
+                    bottleneckBox.innerHTML = `
+                        <div class="bottleneck-card">
+                            <strong>System Bottleneck Highlighted:</strong><br>
+                            ${bottleneckMachine.name} with throughput of ${(bottleneckMachine.volume_per_hour * bottleneckMachine.yield_percentage).toFixed(1)} assemblies/hr.
+                        </div>
+                    `;
+                }
+
+                const safetyBox = document.getElementById('safety-results');
+                safetyBox.innerHTML = '';
+                if (resData.violations.length > 0) {
+                    resData.violations.forEach(v => {
+                        const div = document.createElement('div');
+                        div.className = 'violation-card';
+                        div.innerHTML = `<strong>Violation Warning:</strong> ${v.description}`;
+                        safetyBox.appendChild(div);
+                    });
+                } else {
+                    safetyBox.innerHTML = '<div style="color:#27ae60; font-size:0.85rem;">✔ No safety violations found!</div>';
+                }
+                draw();
+            } catch (err) {
+                statusSummary.innerHTML = "Failed simulation.";
+            }
+        });
+
+        // Enforce Business Rule and POST Request to Exporter
+        document.getElementById('btn-export-pdf').addEventListener('click', async () => {
+            const hasSafetyViolations = placedMachines.some(m => m.safety_violation);
+            if (hasSafetyViolations) {
+                alert("Restriction: You cannot export PDF reports until all red safety violations are resolved!");
+                return;
+            }
+            try {
+                const response = await fetch('/api/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ machines: placedMachines, paths: flowPaths, cranes: craneZones })
+                });
+                const blob = await response.blob();
+                const downloadUrl = URL.createObjectURL(blob);
+                const dlHelper = document.getElementById('download-helper');
+                dlHelper.href = downloadUrl;
+                dlHelper.download = "FactoryFloor_Report.pdf";
+                dlHelper.click();
+            } catch (err) {
+                alert("Failed to export PDF report.");
+            }
+        });
+
+        loadLibrary();
+        draw();
+    </script>
+</body>
+</html>

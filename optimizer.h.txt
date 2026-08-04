@@ -1,0 +1,64 @@
+#ifndef OPTIMIZER_H
+#define OPTIMIZER_H
+
+#define MAX_POINTS 100
+#define MAX_MACHINES 100
+#define MAX_PATHS 50
+#define MAX_CRANES 20
+
+typedef struct {
+    double x;
+    double y;
+} Point;
+
+typedef struct {
+    char id[16];
+    char name[64];
+    double x;
+    double y;
+    double width;
+    double height;
+    double safety_standoff;
+    int water_required;
+    int amperage;
+    int wattage;
+    double volume_per_hour;
+    double yield_percentage;
+    int crane_required;
+    int is_bottleneck;
+    int safety_violation;
+} MachineInstance;
+
+typedef struct {
+    char id[16];
+    char type[32]; // "human", "robot", "forklift", etc.
+    Point points[MAX_POINTS];
+    int point_count;
+    double width;
+    double speed;
+} FlowPath;
+
+typedef struct {
+    char id[16];
+    double x1;
+    double y1;
+    double x2;
+    double y2;
+    double speed;
+    double weight_rating;
+} CraneZone;
+
+typedef struct {
+    char machine_id_1[16];
+    char machine_id_2[16];
+    double overlap_distance;
+    char description[128];
+} SafetyViolation;
+
+// C Geometry Solver Engine APIs
+int check_safety_overlaps(MachineInstance* machines, int machine_count, SafetyViolation* violations, int max_violations);
+int check_flow_intersections(FlowPath* paths, int path_count, SafetyViolation* violations, int max_violations);
+int calculate_bottlenecks(MachineInstance* machines, int machine_count, FlowPath* paths, int path_count);
+int check_crane_requirements(MachineInstance* machines, int machine_count, CraneZone* cranes, int crane_count, SafetyViolation* violations, int max_violations);
+
+#endif // OPTIMIZER_H
