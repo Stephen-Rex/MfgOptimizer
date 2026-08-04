@@ -1,12 +1,32 @@
 import sys
 import os
 
-# --- PATH-RESOLUTION PATCH ---
-# Force Python to find directories nested inside sub-folders
-root_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(root_dir)
-sys.path.append(os.path.join(root_dir, "factory_floor_optimizer"))
-# -----------------------------
+# =====================================================================
+# --- RECURSIVE PATH-RESOLUTION PATCH (Samantha's Robust Module Finder) ---
+# =====================================================================
+found_backend = False
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 1. Search recursively downwards for 'backend'
+for root, dirs, files in os.walk(current_dir):
+    if "backend" in dirs:
+        sys.path.insert(0, root)
+        found_backend = True
+        break
+
+# 2. Search upwards if nested (up to 3 levels)
+if not found_backend:
+    temp_dir = current_dir
+    for _ in range(3):
+        temp_dir = os.path.dirname(temp_dir)
+        for root, dirs, files in os.walk(temp_dir):
+            if "backend" in dirs:
+                sys.path.insert(0, root)
+                found_backend = True
+                break
+        if found_backend:
+            break
+# =====================================================================
 
 import streamlit as st
 import pandas as pd
@@ -22,11 +42,13 @@ from app import generate_pdf_report  # Reuses ReportLab PDF Exporter
 # ==========================================
 def compile_backend():
     # Find backend path dynamically
-    backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
-    if not os.path.exists(backend_dir):
-        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "factory_floor_optimizer", "backend")
-        
-    if os.path.exists(backend_dir):
+    backend_dir = None
+    for root, dirs, files in os.walk(current_dir):
+        if root.endswith("backend") or root.endswith("backend/"):
+            backend_dir = root
+            break
+            
+    if backend_dir and os.path.exists(backend_dir):
         try:
             # Check if GCC is installed in the Streamlit container
             res = subprocess.run(["gcc", "--version"], capture_output=True, text=True)
@@ -43,12 +65,15 @@ compile_backend()
 st.set_page_config(layout="wide", page_title="Factory Floor Optimizer")
 st.title("Factory Floor Optimizer — Streamlit Console")
 
-# Dynamic CSV path resolution
-LIBRARY_PATH = "data/machinery_library.csv"
-if not os.path.exists("data"):
-    os.makedirs("data", exist_ok=True)
-if not os.path.exists(LIBRARY_PATH):
-    LIBRARY_PATH = os.path.join("factory_floor_optimizer", "data", "machinery_library.csv")
+# Find CSV dynamically
+LIBRARY_PATH = None
+for root, dirs, files in os.walk(current_dir):
+    if "machinery_library.csv" in files:
+        LIBRARY_PATH = os.path.join(root, "machinery_library.csv")
+        break
+
+if not LIBRARY_PATH:
+    LIBRARY_PATH = os.path.join(current_dir, "data", "machinery_library.csv")
 
 # Ensure preset CSV file exists
 if not os.path.exists(LIBRARY_PATH):
