@@ -1,313 +1,287 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+import sys
 import os
+
+# --- PATH-RESOLUTION PATCH ---
+root_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(root_dir)
+sys.path.append(os.path.join(root_dir, "factory_floor_optimizer"))
+# -----------------------------
+
+import http.server
+import socketserver
+import json
 import csv
 import io
-import subprocess
+import urllib.parse
 from backend.c_backend_bridge import run_analysis
-from app import generate_pdf_report  # Reuse Samantha's ReportLab PDF Exporter
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.graphics.shapes import Drawing, Rect, Line, String
 
-# ==========================================
-# 1. Start-up: Auto-Compile Robert's C Engine
-# ==========================================
-def compile_backend():
-    backend_dir = os.path.join(os.path.dirname(__file__), "backend")
-    if os.path.exists(backend_dir):
-        try:
-            # Check if GCC is installed in the Streamlit container
-            res = subprocess.run(["gcc", "--version"], capture_output=True, text=True)
-            if res.returncode == 0:
-                # Compile native shared library
-                subprocess.run(["make", "-C", backend_dir], capture_output=True, text=True)
-        except Exception:
-            pass  # Bridge will automatically use the Python emulation fallback
-
-compile_backend()
-
-# ==========================================
-# 2. Page Configuration & Presets Loader
-# ==========================================
-st.set_page_config(layout="wide", page_title="Factory Floor Optimizer")
-st.title("Factory Floor Optimizer — Streamlit Console")
-
+PORT = 8000
 LIBRARY_PATH = "data/machinery_library.csv"
 
-# Ensure preset CSV file exists
+# Resolve library path dynamically in case nested
 if not os.path.exists(LIBRARY_PATH):
-    os.makedirs("data", exist_ok=True)
-    default_csv = (
-        "id,name,width,height,safety_standoff,vent_diameter,vent_flow_rate,"
-        "water_required,amperage,wattage,tool_heads,volume_per_hour,human_intervention,"
-        "decibel_rating,yield_percentage,crane_required\\n"
-        "M01,CNC Milling Center,3.0,2.5,1.5,0.15,300,1,30,15000,3,120,1,85,0.98,1\\n"
-        "M02,Laser Cutter,2.5,2.0,1.0,0.20,500,0,20,8000,1,200,0,70,0.95,0\\n"
-        "M03,Plastic Injection Molder,4.0,2.0,2.0,0.10,150,1,50,25000,1,80,1,90,0.99,1\\n"
-        "M04,Robotic Pick-and-Place,1.8,1.8,1.2,0.0,0,0,15,5000,2,300,0,65,0.995,0\\n"
-        "M05,Industrial Paint Booth,5.0,4.0,3.0,0.40,1200,0,40,18000,4,50,1,75,0.92,0\\n"
+    LIBRARY_PATH = os.path.join("factory_floor_optimizer", "data", "machinery_library.csv")
+
+def generate_pdf_report(machines, paths, cranes, violations, bottleneck_idx):
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    
+    primary_color = colors.HexColor("#2c3e50")
+    secondary_color = colors.HexColor("#3498db")
+    accent_color = colors.HexColor("#e74c3c")
+    bg_light = colors.HexColor("#f8f9fa")
+    
+    story = []
+    
+    title_style = ParagraphStyle(
+        'CoverTitle', parent=styles['Heading1'], fontSize=22, leading=26, textColor=primary_color, alignment=1, spaceAfter=15
     )
-    with open(LIBRARY_PATH, "w") as f:
-        f.write(default_csv)
-
-@st.cache_data
-def load_library():
-    return pd.read_csv(LIBRARY_PATH)
-
-lib_df = load_library()
-
-# ==========================================
-# 3. Streamlit Session State Management
-# ==========================================
-if "placed_machines" not in st.session_state:
-    st.session_state.placed_machines = []
-if "flow_paths" not in st.session_state:
-    st.session_state.flow_paths = []
-if "crane_zones" not in st.session_state:
-    st.session_state.crane_zones = []
-
-# ==========================================
-# 4. User Workspace Interface (Sidebar Controls)
-# ==========================================
-st.sidebar.header("Factory Design Controls")
-
-# 4.1 Preset Library CSV Uploader
-uploaded_file = st.sidebar.file_uploader("Upload CSV Presets Library", type="csv")
-if uploaded_file is not None:
-    with open(LIBRARY_PATH, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    st.cache_data.clear()
-    st.sidebar.success("Library updated successfully!")
-
-# 4.2 Asset Placement Wizards
-with st.sidebar.expander("➕ Add Machine to Floor Layout"):
-    selected_preset = st.selectbox("Select Machine Preset", lib_df["name"].tolist())
-    preset_row = lib_df[lib_df["name"] == selected_preset].iloc[0]
-    
-    pos_x = st.number_input("Position X (meters)", min_value=0.0, max_value=50.0, value=10.0, step=0.5)
-    pos_y = st.number_input("Position Y (meters)", min_value=0.0, max_value=30.0, value=10.0, step=0.5)
-    custom_standoff = st.number_input("Standoff Distance (m)", value=float(preset_row["safety_standoff"]), step=0.1)
-    
-    if st.button("Place Machine"):
-        m_id = f"M{len(st.session_state.placed_machines) + 1:02d}"
-        new_machine = {
-            "id": m_id,
-            "name": preset_row["name"],
-            "x": pos_x,
-            "y": pos_y,
-            "width": float(preset_row["width"]),
-            "height": float(preset_row["height"]),
-            "safety_standoff": custom_standoff,
-            "water_required": int(preset_row["water_required"]),
-            "amperage": int(preset_row["amperage"]),
-            "wattage": int(preset_row["wattage"]),
-            "volume_per_hour": float(preset_row["volume_per_hour"]),
-            "yield_percentage": float(preset_row["yield_percentage"]),
-            "crane_required": int(preset_row["crane_required"]),
-            "is_bottleneck": False,
-            "safety_violation": False
-        }
-        st.session_state.placed_machines.append(new_machine)
-        st.success(f"Placed {preset_row['name']} at coordinates ({pos_x}, {pos_y})")
-
-with st.sidebar.expander("➕ Add Flow Corridor Path"):
-    p_type = st.selectbox("Flow Corridor Type", ["human", "robot"])
-    p_speed = st.number_input("Travel Speed (m/s)", value=1.0 if p_type == "human" else 2.5, step=0.1)
-    p_width = st.number_input("Path Width (meters)", value=1.2, step=0.1)
-    
-    st.write("Path Segment Coordinates:")
-    coord_col1, coord_col2 = st.columns(2)
-    x1 = coord_col1.number_input("Start X (m)", min_value=0.0, value=5.0, step=1.0)
-    y1 = coord_col2.number_input("Start Y (m)", min_value=0.0, value=15.0, step=1.0)
-    x2 = coord_col1.number_input("End X (m)", min_value=0.0, value=45.0, step=1.0)
-    y2 = coord_col2.number_input("End Y (m)", min_value=0.0, value=15.0, step=1.0)
-    
-    if st.button("Create Flow Path"):
-        p_id = f"FP{len(st.session_state.flow_paths) + 1:02d}"
-        new_path = {
-            "id": p_id,
-            "type": p_type,
-            "width": p_width,
-            "speed": p_speed,
-            "points": [{"x": x1, "y": y1}, {"x": x2, "y": y2}]
-        }
-        st.session_state.flow_paths.append(new_path)
-        st.success(f"Created {p_type} flow corridor path successfully!")
-
-with st.sidebar.expander("➕ Draw Overhead Crane Zone"):
-    cx1 = st.number_input("Bounding Box Start X (m)", min_value=0.0, value=5.0, step=1.0)
-    cy1 = st.number_input("Bounding Box Start Y (m)", min_value=0.0, value=5.0, step=1.0)
-    cx2 = st.number_input("Bounding Box End X (m)", min_value=0.0, value=25.0, step=1.0)
-    cy2 = st.number_input("Bounding Box End Y (m)", min_value=0.0, value=25.0, step=1.0)
-    
-    if st.button("Define Crane Zone"):
-        c_id = f"CZ{len(st.session_state.crane_zones) + 1:02d}"
-        new_crane = {
-            "id": c_id, "x1": cx1, "y1": cy1, "x2": cx2, "y2": cy2, "speed": 1.5, "weight_rating": 5.0
-        }
-        st.session_state.crane_zones.append(new_crane)
-        st.success("Defined overhead crane zone boundaries!")
-
-if st.sidebar.button("🧹 Clear Layout Workspace", type="primary"):
-    st.session_state.placed_machines = []
-    st.session_state.flow_paths = []
-    st.session_state.crane_zones = []
-    st.rerun()
-
-# ==========================================
-# 5. Core Simulation & Analysis Engine
-# ==========================================
-violations = []
-bottleneck_idx = -1
-
-# Trigger solvers through our ctypes bridge middleware
-if st.session_state.placed_machines:
-    violations, bottleneck_idx = run_analysis(
-        st.session_state.placed_machines,
-        st.session_state.flow_paths,
-        st.session_state.crane_zones
+    subtitle_style = ParagraphStyle(
+        'CoverSubtitle', parent=styles['Normal'], fontSize=11, leading=13, textColor=colors.HexColor("#7f8c8d"), alignment=1, spaceAfter=25
     )
-
-# ==========================================
-# 6. Data Visualization (Matplotlib Layout Engine)
-# ==========================================
-col_workspace, col_results = st.columns([3, 2])
-
-with col_workspace:
-    st.subheader("Interactive 2D Factory Scale Canvas")
     
-    # Setup plotting figure
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_xlim(0, 50)
-    ax.set_ylim(0, 30)
-    ax.set_aspect('equal')
-    ax.grid(True, which='both', color='#e0e0e0', linestyle='--', linewidth=0.5)
-    ax.set_xlabel("Factory Width (meters)")
-    ax.set_ylabel("Factory Length (meters)")
+    story.append(Paragraph("FACTORY FLOOR OPTIMIZATION REPORT", title_style))
+    story.append(Paragraph("Automated Engineering & Safety Verification Layout Report", subtitle_style))
+    story.append(Spacer(1, 10))
     
-    # 6.1 Render Crane Boundaries (Background)
-    for c in st.session_state.crane_zones:
-        cx_min, cy_min = min(c['x1'], c['x2']), min(c['y1'], c['y2'])
-        cw, ch = abs(c['x2'] - c['x1']), abs(c['y2'] - c['y1'])
-        rect = patches.Rectangle((cx_min, cy_min), cw, ch, fill=True, color='#f3e5f5', alpha=0.5, edgecolor='#9b59b6', linestyle='--', linewidth=1.5)
-        ax.add_patch(rect)
-        ax.text(cx_min + 0.5, cy_min + 0.5, f"Crane {c['id']}", color='#9b59b6', fontsize=8, fontweight='bold')
-
-    # 6.2 Render Flow Corridor Paths
-    for p in st.session_state.flow_paths:
-        pts = p['points']
-        px = [pt['x'] for pt in pts]
-        py = [pt['y'] for pt in pts]
-        p_col = "#3498db" if p['type'] == "human" else "#e74c3c"
-        # Draw path area buffer
-        ax.plot(px, py, color=p_col, linewidth=p['width'] * 5, alpha=0.25)
-        # Draw center alignment line
-        ax.plot(px, py, color=p_col, linewidth=1.5, linestyle='-')
-        ax.text(px[0] + 0.5, py[0] + 0.5, f"Path {p['id']}", color=p_col, fontsize=7)
-
-    # 6.3 Render Placing Machines & Safety Buffer Circles
-    for m in st.session_state.placed_machines:
-        mx = m['x'] - m['width']/2
-        my = m['y'] - m['height']/2
-        
-        # 6.3.1 Draw safety standoff rings
-        soff = m['safety_standoff']
-        standoff_color = 'rgba(231, 76, 60, 0.15)' if m.get('safety_violation', False) else 'rgba(46, 204, 113, 0.1)'
-        standoff_edge = '#e74c3c' if m.get('safety_violation', False) else '#2ecc71'
-        
-        buffer_rect = patches.Rectangle(
-            (mx - soff, my - soff), m['width'] + 2*soff, m['height'] + 2*soff,
-            fill=True, color=standoff_color, alpha=0.2, edgecolor=standoff_edge, linestyle=':', linewidth=1
-        )
-        ax.add_patch(buffer_rect)
-        
-        # 6.3.2 Draw physical machine chassis
-        m_color = "#f1c40f" if m.get('is_bottleneck', False) else "#2c3e50"
-        m_edge = "#f39c12" if m.get('is_bottleneck', False) else "#34495e"
-        
-        machine_rect = patches.Rectangle((mx, my), m['width'], m['height'], fill=True, color=m_color, edgecolor=m_edge, linewidth=2)
-        ax.add_patch(machine_rect)
-        
-        # Labels
-        ax.text(m['x'], m['y'], m['name'][:14], color='white' if not m.get('is_bottleneck', False) else 'black', 
-                fontsize=8, fontweight='bold', ha='center', va='center')
-        ax.text(m['x'], m['y'] - m['height']/2 - 0.4, f"ID: {m['id']}", color='#7f8c8d', fontsize=7, ha='center')
-
-    # Display vector diagram inside the console
-    st.pyplot(fig)
-    plt.show()  # Strictly obey the platform plot visualization directive
-
-# ==========================================
-# 7. Metrics & Analytics Outputs
-# ==========================================
-with col_results:
-    st.subheader("Process & Compliance Metrics")
+    draw_width, draw_height = 500, 250
+    d = Drawing(draw_width, draw_height)
+    d.add(Rect(0, 0, draw_width, draw_height, fillColor=colors.HexColor("#fcfcfc"), strokeColor=colors.HexColor("#bdc3c7"), strokeWidth=1))
     
-    # Output machinery inventory listing
-    if st.session_state.placed_machines:
-        st.write("Placed Workstations Configuration:")
-        layout_grid = []
-        for m in st.session_state.placed_machines:
-            layout_grid.append({
-                "ID": m["id"],
-                "Machine Presets": m["name"],
-                "Location (X,Y)": f"({m['x']}, {m['y']})",
-                "Load (Watts)": f"{m['wattage']/1000:.1f} kW",
-                "Rate (Units/hr)": m["volume_per_hour"],
-                "Yield": f"{m['yield_percentage']*100:.1f}%",
-                "Safety": "🔴 OVERLAP" if m.get("safety_violation") else "🟢 OK",
-                "Status": "⚡ BOTTLENECK" if m.get("is_bottleneck") else "Active"
-            })
-        st.table(pd.DataFrame(layout_grid))
+    for x in range(0, draw_width, 25): d.add(Line(x, 0, x, draw_height, strokeColor=colors.HexColor("#f0f0f0"), strokeWidth=0.5))
+    for y in range(0, draw_height, 25): d.add(Line(0, y, draw_width, y, strokeColor=colors.HexColor("#f0f0f0"), strokeWidth=0.5))
         
-        # Calculate utility total demands
-        total_p = sum(m["wattage"] for m in st.session_state.placed_machines)
-        total_w = sum(1 for m in st.session_state.placed_machines if m["water_required"])
-        st.metric("Aggregate Facility Electrical Load", f"{total_p/1000:.1f} kW")
-        st.metric("Total Water Service Drops Required", f"{total_w} Connections")
+    scale = 8.0
+    for c in cranes:
+        cx1, cy1 = c['x1'] * scale, c['y1'] * scale
+        cx2, cy2 = c['x2'] * scale, c['y2'] * scale
+        cw, ch = abs(cx2 - cx1), abs(cy2 - cy1)
+        d.add(Rect(min(cx1, cx2), min(cy1, cy2), cw, ch, fillColor=colors.HexColor("#f3e5f5"), strokeColor=colors.HexColor("#9b59b6"), strokeWidth=1, strokeDashArray=[2,2]))
+        d.add(String(min(cx1, cx2) + 5, min(cy1, cy2) + 5, f"Crane {c['id']}", fontSize=7, fillColor=colors.HexColor("#9b59b6")))
+        
+    for p in paths:
+        if len(p['points']) > 1:
+            pts = p['points']
+            stroke_col = colors.HexColor("#3498db") if p['type'].lower() == 'human' else colors.HexColor("#e74c3c")
+            for i in range(len(pts) - 1):
+                d.add(Line(pts[i]['x']*scale, pts[i]['y']*scale, pts[i+1]['x']*scale, pts[i+1]['y']*scale, strokeColor=stroke_col, strokeWidth=1.5))
+
+    for idx, m in enumerate(machines):
+        mx = (m['x'] - m['width']/2) * scale
+        my = (m['y'] - m['height']/2) * scale
+        mw = m['width'] * scale
+        mh = m['height'] * scale
+        
+        soff = m['safety_standoff'] * scale
+        standoff_col = colors.HexColor("#f5b7b1") if m.get('safety_violation', False) else colors.HexColor("#d5f5e3")
+        d.add(Rect(mx - soff, my - soff, mw + 2*soff, mh + 2*soff, fillColor=standoff_col, strokeColor=colors.transparent, strokeWidth=0))
+        
+        m_col = colors.HexColor("#f1c40f") if m.get('is_bottleneck', False) else colors.HexColor("#2c3e50")
+        d.add(Rect(mx, my, mw, mh, fillColor=m_col, strokeColor=colors.HexColor("#34495e"), strokeWidth=1))
+        d.add(String(mx + 3, my + mh/2 - 2, m['name'][:12], fontSize=6, fillColor=colors.white))
+        
+    story.append(d)
+    story.append(Spacer(1, 10))
+    
+    legend_data = [
+        [
+            Paragraph("<b>LEGEND:</b>", styles['Normal']),
+            Paragraph("<font color='#2c3e50'>■</font> Standard Machine", styles['Normal']),
+            Paragraph("<font color='#f1c40f'>■</font> Bottleneck Workstation", styles['Normal']),
+            Paragraph("<font color='#9b59b6'>- -</font> Crane Zone", styles['Normal']),
+            Paragraph("<font color='#3498db'>━</font> Human Path", styles['Normal']),
+            Paragraph("<font color='#e74c3c'>━</font> Robot Path", styles['Normal'])
+        ]
+    ]
+    legend_table = Table(legend_data, colWidths=[60, 90, 100, 80, 85, 85])
+    legend_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), bg_light),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(legend_table)
+    story.append(Spacer(1, 15))
+    
+    story.append(Paragraph("1. System Performance & Capacity Analysis", styles['Heading2']))
+    total_power = sum(m.get('wattage', 0) for m in machines)
+    total_water = sum(1 for m in machines if m.get('water_required', 0))
+    total_volume = sum(m.get('volume_per_hour', 0) for m in machines)
+    
+    bottleneck_machine = next((m for m in machines if m.get('is_bottleneck', False)), None)
+    eff_output = 0.0
+    if bottleneck_machine:
+        eff_output = bottleneck_machine['volume_per_hour'] * bottleneck_machine['yield_percentage']
+    
+    metrics_data = [
+        ["Metric Description", "Value", "Facility Impact"],
+        ["Total Installed Power Load", f"{total_power/1000:.1f} kW", "Requires industrial electrical service"],
+        ["Water Utility Connections", f"{total_water} Drop Points", "Plumbing service drops required"],
+        ["Gross Theoretical Volume", f"{total_volume:.1f} parts/hr", "Aggregate maximum across all units"],
+        ["Effective System Output (Bottleneck-limited)", f"{eff_output:.1f} assemblies/hr", "Max finished rate based on bottleneck flow"]
+    ]
+    metrics_table = Table(metrics_data, colWidths=[180, 120, 200])
+    metrics_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), primary_color),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, bg_light]),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#dcdde1")),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(metrics_table)
+    story.append(Spacer(1, 10))
+    
+    if bottleneck_machine:
+        story.append(Paragraph(f"<b>Bottleneck Verification:</b> The production system is throttled by <b>{bottleneck_machine['name']}</b> (ID: {bottleneck_machine['id']}). "
+                               f"Plant cannot exceed <b>{eff_output:.1f} assemblies per hour</b>. "
+                               f"To optimize, focus cycle-time reduction efforts at this workstation.", styles['Normal']))
+    story.append(Spacer(1, 15))
+    
+    story.append(Paragraph("2. Safety & Compliance Audit", styles['Heading2']))
+    if len(violations) > 0:
+        story.append(Paragraph("<font color='red'><b>CRITICAL WARNING: SAFETY VIOLATIONS IDENTIFIED</b></font><br/>"
+                               "The layout contains critical safety overlaps or utility layout issues. These must be resolved "
+                               "prior to construction funding approval.", styles['Normal']))
+        story.append(Spacer(1, 8))
+        
+        violation_data = [["ID", "Violation Description", "Resolution Action Required"]]
+        for idx, v in enumerate(violations):
+            violation_data.append([f"V{idx+1:02d}", v['description'], "Reposition asset or adjust standoff distance."])
+            
+        violation_table = Table(violation_data, colWidths=[40, 260, 200])
+        violation_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#c0392b")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#f5b7b1")),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor("#fdf2f2"), colors.white]),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(violation_table)
     else:
-        st.info("No machines have been placed on the layout. Configure workstations using the sidebar presets panel.")
-
-    # 7.2 Safety Violation Logs
-    st.subheader("Safety Compliance Log")
-    if violations:
-        for v in violations:
-            st.error(f"⚠️ {v['description']}")
-    elif st.session_state.placed_machines:
-        st.success("✔ Layout has passed all clearance check rules. Ready for PDF Engineering sign-off.")
-    else:
-        st.write("Log is empty. Place machinery to trigger automated safety check validation.")
-
-# ==========================================
-# 8. Report Export & Business Rules Enforcement
-# ==========================================
-st.markdown("---")
-st.subheader("Document Control & CAD Blueprint Exports")
-
-if st.session_state.placed_machines:
-    # Business rule validation: Disallow exporter if there are active overlaps
-    has_violations = any(m.get("safety_violation", False) for m in st.session_state.placed_machines)
-    
-    if has_violations:
-        st.warning("🔒 Exporter Disabled: You must reposition workstations to resolve all red safety stand-off overlaps before exporting blueprints.")
-        st.button("Export Engineering Blueprint (PDF)", disabled=True)
-    else:
-        # Generate compiled ReportLab PDF bytes
-        pdf_bytes = generate_pdf_report(
-            st.session_state.placed_machines,
-            st.session_state.flow_paths,
-            st.session_state.crane_zones,
-            violations,
-            bottleneck_idx
-        )
+        story.append(Paragraph("<font color='green'><b>✔ SAFETY COMPLIANCE PASSED:</b></font><br/>"
+                               "No layout overlaps or intersection errors were detected. This design meets baseline OSHA clearance safety guidelines.", styles['Normal']))
         
-        st.success("✔ Engineering Document Release Approved.")
-        st.download_button(
-            label="📥 Download Engineering Blueprint Report (PDF)",
-            data=pdf_bytes,
-            file_name="FactoryFloor_Optimization_Report.pdf",
-            mime="application/pdf"
-        )
-else:
-    st.info("Release pipeline inactive. Design a layout workspace to generate deliverables.")
+    story.append(Spacer(1, 15))
+    story.append(Paragraph("<b>Legal Disclaimer:</b> This report is an engineering simulation output based on theoretical inputs. "
+                           "Safety zones, venting configurations, and utility loadings must be verified by a licensed professional engineer (PE) "
+                           "before final physical installation.", ParagraphStyle('Disclaimer', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor("#7f8c8d"))))
+    
+    doc.build(story)
+    pdf_buffer.seek(0)
+    return pdf_buffer.getvalue()
+
+class FactoryOptimizerHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/" or self.path == "/index.html":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            try:
+                with open("frontend/templates/index.html", "r") as f:
+                    self.wfile.write(f.read().encode("utf-8"))
+            except Exception as e:
+                self.wfile.write(f"Error loading index.html: {e}".encode("utf-8"))
+                
+        elif self.path == "/api/library":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            machines = []
+            if os.path.exists(LIBRARY_PATH):
+                with open(LIBRARY_PATH, "r") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        row["width"] = float(row["width"])
+                        row["height"] = float(row["height"])
+                        row["safety_standoff"] = float(row["safety_standoff"])
+                        row["water_required"] = int(row["water_required"])
+                        row["amperage"] = int(row["amperage"])
+                        row["wattage"] = int(row["wattage"])
+                        row["volume_per_hour"] = float(row["volume_per_hour"])
+                        row["yield_percentage"] = float(row["yield_percentage"])
+                        row["crane_required"] = int(row["crane_required"])
+                        machines.append(row)
+            self.wfile.write(json.dumps(machines).encode("utf-8"))
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        if self.path == "/api/library":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            boundary = self.headers.get_boundary()
+            if boundary:
+                parts = body.split(f"--{boundary}".encode())
+                for part in parts:
+                    if b'filename="' in part:
+                        head, csv_data = part.split(b'\r\n\r\n', 1)
+                        csv_text = csv_data.rsplit(b'\r\n', 1)[0].decode('utf-8')
+                        lines = csv_text.strip().split('\n')
+                        if len(lines) > 1:
+                            with open(LIBRARY_PATH, "w") as f:
+                                f.write(csv_text)
+                            self.send_response(200)
+                            self.send_header("Content-Type", "text/html")
+                            self.end_headers()
+                            self.wfile.write("<h3>Successfully updated machinery library! Reload page.</h3>".encode("utf-8"))
+                            return
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write("Failed to parse CSV upload".encode("utf-8"))
+
+        elif self.path == "/api/analyze":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            req_json = json.loads(post_data.decode('utf-8'))
+            machines = req_json.get("machines", [])
+            paths = req_json.get("paths", [])
+            cranes = req_json.get("cranes", [])
+            
+            violations, bottleneck_idx = run_analysis(machines, paths, cranes)
+            resp_data = {"machines": machines, "violations": violations, "bottleneck_idx": bottleneck_idx}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(resp_data).encode("utf-8"))
+
+        elif self.path == "/api/export":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            req_json = json.loads(post_data.decode('utf-8'))
+            machines = req_json.get("machines", [])
+            paths = req_json.get("paths", [])
+            cranes = req_json.get("cranes", [])
+            
+            violations, bottleneck_idx = run_analysis(machines, paths, cranes)
+            pdf_bytes = generate_pdf_report(machines, paths, cranes, violations, bottleneck_idx)
+            
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", 'attachment; filename="FactoryFloor_Report.pdf"')
+            self.end_headers()
+            self.wfile.write(pdf_bytes)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    pass
+
+if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    print(f"Starting server on http://localhost:{PORT}")
+    with ThreadingHTTPServer(("", PORT), FactoryOptimizerHandler) as server:
+        try: server.serve_forever()
+        except KeyboardInterrupt: server.shutdown()
