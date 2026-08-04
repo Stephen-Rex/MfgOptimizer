@@ -279,7 +279,7 @@ def run_analysis(machines, paths, cranes):
         except Exception:
             pass
 
-    # Pure Python Emulation (Fallback Solver Executions)
+    # Pure Python Emulation
     py_violations = []
     py_violations.extend(py_check_safety_overlaps(machines))
     py_violations.extend(py_check_flow_intersections(paths))
@@ -445,9 +445,6 @@ def generate_pdf_report(machines, paths, cranes, violations, bottleneck_idx):
 # =====================================================================
 # 5. UI Layout Interface (Streamlit Presentation Layer)
 # =====================================================================
-st.set_page_config(layout="wide", page_title="Factory Floor Optimizer")
-st.title("Factory Floor Optimizer — Streamlit Console")
-
 # Resolve machinery library CSV path dynamically
 current_dir = os.path.dirname(os.path.abspath(__file__))
 LIBRARY_PATH = None
@@ -621,12 +618,13 @@ with col_workspace:
         my = m['y'] - m['height']/2
         
         soff = m['safety_standoff']
-        standoff_color = 'rgba(231, 76, 60, 0.15)' if m.get('safety_violation', False) else 'rgba(46, 204, 113, 0.1)'
+        standoff_color = '#e74c3c' if m.get('safety_violation', False) else '#2ecc71'
         standoff_edge = '#e74c3c' if m.get('safety_violation', False) else '#2ecc71'
         
         buffer_rect = patches.Rectangle(
             (mx - soff, my - soff), m['width'] + 2*soff, m['height'] + 2*soff,
-            fill=True, color=standoff_color, alpha=0.2, edgecolor=standoff_edge, linestyle=':', linewidth=1
+            fill=True, color=standoff_color, alpha=0.15 if m.get('safety_violation', False) else 0.1, 
+            edgecolor=standoff_edge, linestyle=':', linewidth=1
         )
         ax.add_patch(buffer_rect)
         
