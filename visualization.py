@@ -5,25 +5,48 @@ import numpy as np
 def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0, machines=[], conduits=[], lighting=[], show_safety=False, show_contour=False):
     """
     Renders factory layout inside standardized ASME Y14.1 margins, title block,
-    scaling the custom-sized factory floor to fit inside the drawing sheet.
+    scaling the custom-sized factory floor to fit inside the drawing sheet without overlapping the title box.
     Formatted as a classic blueprint with dark blue background and yellow lines.
     """
     # Standard sheet sizes in inches (ASME Y14.1 Table 4-1)
     sizes = {'A': (8.5, 11.0), 'B': (11.0, 17.0), 'C': (17.0, 22.0), 'D': (22.0, 34.0)}
     height_in, width_in = sizes.get(size_char.upper(), (11.0, 17.0))
     
-    # 1. Compute dynamic scale factor (inches per foot) to fit within margins (0.50 in all around)
+    # margin and title block sizes
     margin = 0.50
-    W_avail = width_in - 2 * margin
-    H_avail = height_in - 2 * margin
+    tb_w, tb_h = 6.25, 2.0
     
-    S = min(W_avail / floor_width_ft, H_avail / floor_height_ft)
-    W_drawn = floor_width_ft * S
-    H_drawn = floor_height_ft * S
+    # 1. Compute dynamic scale factor (inches per foot) under two fit scenarios to prevent Title Block overlap
+    # Scenario 1: The floor fits strictly to the left of the Title Block
+    W1 = width_in - 2 * margin - tb_w
+    H1 = height_in - 2 * margin
+    S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
     
-    # Offsets to center the floor inside margins
-    O_x = margin + (W_avail - W_drawn) / 2
-    O_y = margin + (H_avail - H_drawn) / 2
+    # Scenario 2: The floor fits strictly above the Title Block
+    W2 = width_in - 2 * margin
+    H2 = height_in - 2 * margin - tb_h
+    S2 = min(W2 / floor_width_ft, H2 / floor_height_ft) if H2 > 0 else 0
+    
+    # Choose the fitting region that maximizes our scale factor (gives the largest layout)
+    if S1 >= S2 and S1 > 0:
+        S = S1
+        W_drawn = floor_width_ft * S
+        H_drawn = floor_height_ft * S
+        O_x = margin + (W1 - W_drawn) / 2
+        O_y = margin + (H1 - H_drawn) / 2
+    elif S2 > S1 and S2 > 0:
+        S = S2
+        W_drawn = floor_width_ft * S
+        H_drawn = floor_height_ft * S
+        O_x = margin + (W2 - W_drawn) / 2
+        O_y = margin + tb_h + (H2 - H_drawn) / 2
+    else:
+        # Fallback to standard sheet margins centering
+        S = min(W_avail / floor_width_ft, H_avail / floor_height_ft)
+        W_drawn = floor_width_ft * S
+        H_drawn = floor_height_ft * S
+        O_x = margin + (width_in - 2 * margin - W_drawn) / 2
+        O_y = margin + (height_in - 2 * margin - H_drawn) / 2
     
     fig, ax = plt.subplots(figsize=(10, 6.5))
     
@@ -39,7 +62,6 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
             [margin, margin, height_in - margin, height_in - margin, margin], color=yellow_color, linestyle='--', lw=1)
             
     # Draw standard ASME Title Block (lower right of sheet in yellow/gold)
-    tb_w, tb_h = 6.25, 2.0
     tb_x, tb_y = width_in - margin - tb_w, margin
     ax.plot([tb_x, tb_x, width_in - margin, width_in - margin, tb_x], [tb_y, tb_y + tb_h, tb_y + tb_h, tb_y, tb_y], color=yellow_color, lw=1.5)
     
@@ -129,4 +151,3 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
     ax.set_aspect('equal')
     ax.axis('off')
     return fig
-
