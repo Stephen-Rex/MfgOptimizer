@@ -91,11 +91,11 @@ if "machine_flows" not in st.session_state:
 
 if "path_points" not in st.session_state:
   st.session_state.path_points = pd.DataFrame({
-      "Point": [1, 2],
-      "X Coordinate": [40.00, 100.00],
-      "Y Coordinate": [60.00, 45.00],
-      "Safety Standoff (ft)": [5.00, 4.00],
-      "Movement Speed": [5.00, 5.00],
+      "Point": [1, 2, 3],
+      "X Coordinate": [20.00, 70.00, 150.00],
+      "Y Coordinate": [80.00, 50.00, 25.00],
+      "Safety Standoff (ft)": [5.00, 5.00, 5.00],
+      "Movement Speed": [5.00, 5.00, 5.00],
   })
 
 # Main Layout split into tabs for clarity and usability
@@ -132,7 +132,15 @@ with tab_layout:
         step=10.0,
     )
 
-    show_safety = st.checkbox("Show Safety Heatmap underlay", value=True)
+    path_width_ft = st.number_input(
+        "Workflow Path Width (feet)",
+        min_value=1.0,
+        max_value=20.0,
+        value=6.0,
+        step=0.5,
+    )
+
+    show_safety = st.checkbox("Show Safety Heatmap underlay", value=False)
     show_contour = st.checkbox("Show Part Volume Contour plots")
 
     # 3. Machinery Placement Form
@@ -403,37 +411,41 @@ with tab_layout:
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
   with col1:
-    # Combine conduit runs and workflow path points for complete ASME drawing visualization
-    combined_conduits = list(st.session_state.placed_conduits)
+    # Extract workflow path points from session state for ASME Drawing
+    active_workflow_paths = []
     if len(st.session_state.path_points) > 0:
       try:
-        path_x = [
-            float(val)
-            for val in st.session_state.path_points["X Coordinate"].tolist()
+        px = [
+            float(v)
+            for v in st.session_state.path_points["X Coordinate"].tolist()
         ]
-        path_y = [
-            float(val)
-            for val in st.session_state.path_points["Y Coordinate"].tolist()
+        py = [
+            float(v)
+            for v in st.session_state.path_points["Y Coordinate"].tolist()
         ]
-        if len(path_x) > 1:
-          combined_conduits.append({
-              "label": "Workflow Path",
-              "x": path_x,
-              "y": path_y,
-              "depth_in": 36,
-              "warning_tape": True,
+        p_so = [
+            float(v)
+            for v in st.session_state.path_points["Safety Standoff (ft)"].tolist()
+        ]
+        if len(px) >= 2:
+          active_workflow_paths.append({
+              "x": px,
+              "y": py,
+              "standoffs": p_so,
+              "width_ft": float(path_width_ft),
           })
       except Exception:
         pass
 
-    # Render ASME Drawing Sheet with updated configurations
+    # Render ASME Drawing Sheet with updated workflow path rendering
     fig = draw_asme_drawing(
         size_char=sheet_size,
         floor_width_ft=floor_w,
         floor_height_ft=floor_h,
         machines=st.session_state.placed_machines,
-        conduits=combined_conduits,
+        conduits=st.session_state.placed_conduits,
         lighting=st.session_state.placed_lighting,
+        workflow_paths=active_workflow_paths,
         show_safety=show_safety,
         show_contour=show_contour,
     )
