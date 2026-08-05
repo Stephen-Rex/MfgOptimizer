@@ -63,8 +63,40 @@ with col2:
         st.session_state.placed_machines.append(spec)
         st.success(f"Placed {spec['Make']} {spec['Model']} at ({mx_coord}, {my_coord})!")
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    # 2. Modify or Delete Placed Machinery
+    if len(st.session_state.placed_machines) > 0:
+        st.subheader("🛠️ Modify or Delete Placed Machinery")
+        placed_options = [
+            f"{i+1}: {m['Make']} {m['Model']} at ({m['x']:.1f} ft, {m['y']:.1f} ft)" 
+            for i, m in enumerate(st.session_state.placed_machines)
+        ]
+        selected_placed_idx = st.selectbox(
+            "Select Machine on Floor to Edit", 
+            range(len(placed_options)), 
+            format_func=lambda x: placed_options[x]
+        )
         
-    # 2. Lighting Placement Form
+        mach = st.session_state.placed_machines[selected_placed_idx]
+        
+        # Position modification fields populated with active machine's coordinates
+        edit_x = st.number_input("Adjust Coordinate X (ft)", min_value=0.0, max_value=200.0, value=float(mach["x"]), key=f"edit_x_{selected_placed_idx}")
+        edit_y = st.number_input("Adjust Coordinate Y (ft)", min_value=0.0, max_value=200.0, value=float(mach["y"]), key=f"edit_y_{selected_placed_idx}")
+        
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button("Update Position", key=f"update_btn_{selected_placed_idx}"):
+                st.session_state.placed_machines[selected_placed_idx]["x"] = edit_x
+                st.session_state.placed_machines[selected_placed_idx]["y"] = edit_y
+                st.success("Machine moved successfully!")
+                st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        with btn_col2:
+            if st.button("Delete Machine", key=f"delete_btn_{selected_placed_idx}"):
+                removed = st.session_state.placed_machines.pop(selected_placed_idx)
+                st.warning(f"Removed {removed['Make']} {removed['Model']} from layout.")
+                st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        
+    # 3. Lighting Placement Form
     st.subheader("💡 Place Light from Library")
     light_options = [f"{l['Make']} {l['Brand']} ({l['Type']})" for l in lighting_lib]
     selected_l_idx = st.selectbox("Choose Lighting Fixture", range(len(light_options)), format_func=lambda x: light_options[x])
@@ -79,7 +111,7 @@ with col2:
         st.success(f"Placed Lighting Fixture at ({lx_coord}, {ly_coord})!")
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 3. Conduit Routing
+    # 4. Conduit Routing
     st.subheader("🔌 Add Conduit Run")
     cx_lbl = st.text_input("Conduit Label", "Main Power Drop")
     cx_depth = st.number_input("Trench Burial Depth (inches)", min_value=12, max_value=60, value=36)
@@ -96,7 +128,7 @@ with col2:
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
 with col1:
-    # Render ASME Drawing Sheet with updated lighting overlays
+    # Render ASME Drawing Sheet with updated configurations
     fig = draw_asme_drawing(
         size_char=sheet_size,
         machines=st.session_state.placed_machines,
