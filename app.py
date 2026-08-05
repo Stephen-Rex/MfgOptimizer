@@ -31,7 +31,7 @@ lighting_lib = get_default_lighting()
 df_machinery = pd.DataFrame(machinery_lib)
 df_lighting = pd.DataFrame(lighting_lib)
 
-# Setup Session State for Blueprint Controls & Placed Items
+# Setup Session State
 if "sheet_size" not in st.session_state:
   st.session_state.sheet_size = "B"
 if "floor_w" not in st.session_state:
@@ -44,6 +44,8 @@ if "show_safety" not in st.session_state:
   st.session_state.show_safety = False
 if "show_contour" not in st.session_state:
   st.session_state.show_contour = False
+if "show_decibel" not in st.session_state:
+  st.session_state.show_decibel = False
 
 if "designer_name" not in st.session_state:
   st.session_state.designer_name = "Facility Architects Inc."
@@ -64,6 +66,7 @@ if "placed_machines" not in st.session_state:
           "Yield": 98.0,
           "x": 40.0,
           "y": 60.0,
+          "Decibel": 75.0,
       },
       {
           "Make": "Arburg",
@@ -75,6 +78,7 @@ if "placed_machines" not in st.session_state:
           "Yield": 95.0,
           "x": 100.0,
           "y": 45.0,
+          "Decibel": 65.0,
       },
   ]
 if "placed_lighting" not in st.session_state:
@@ -110,7 +114,6 @@ if "path_points" not in st.session_state:
 # Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
-# Extract workflow path points from session state for ASME Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
   try:
@@ -146,6 +149,7 @@ fig = draw_asme_drawing(
     workflow_paths=active_workflow_paths,
     show_safety=st.session_state.show_safety,
     show_contour=st.session_state.show_contour,
+    show_decibel=st.session_state.show_decibel,
     designer_name=st.session_state.designer_name,
     dwg_title=st.session_state.dwg_title,
     dwg_num=st.session_state.dwg_num,
@@ -187,9 +191,19 @@ st.divider()
 # TABBED NAVIGATION FOR ALL CONFIGURATION MENUS
 st.header("⚙️ Layout Configuration & Component Menus")
 
-tab_proj, tab_dims, tab_mach, tab_cond, tab_light, tab_flow, tab_lib = st.tabs([
+(
+    tab_proj,
+    tab_dims,
+    tab_plots,
+    tab_mach,
+    tab_cond,
+    tab_light,
+    tab_flow,
+    tab_lib,
+) = st.tabs([
     "📋 Project Info",
     "📏 Floor & Sheet Dimensions",
+    "📊 Plots",
     "🤖 Machinery Placement & Edits",
     "🔌 Conduit Routing & Edits",
     "💡 Lighting Fixtures & Edits",
@@ -197,7 +211,7 @@ tab_proj, tab_dims, tab_mach, tab_cond, tab_light, tab_flow, tab_lib = st.tabs([
     "📚 Default Libraries",
 ])
 
-# TAB 0: PROJECT INFO (TITLE BLOCK EDITING)
+# TAB 0: PROJECT INFO
 with tab_proj:
   st.subheader("📋 Blueprint Title Block Parameters")
   st.markdown(
@@ -212,7 +226,7 @@ with tab_proj:
   with p_col2:
     st.text_input("Drawing Number (DWG NO)", key="dwg_num")
 
-# TAB 1: PHYSICAL FLOOR & SHEET DIMENSIONS
+# TAB 1: FLOOR & SHEET DIMENSIONS
 with tab_dims:
   st.subheader("📐 Factory Floor & ASME Drawing Sheet Configuration")
   dim_col1, dim_col2 = st.columns(2)
@@ -227,6 +241,7 @@ with tab_dims:
         step=10.0,
         key="floor_w",
     )
+  with dim_col2:
     st.number_input(
         "Factory Floor Height (feet)",
         min_value=10.0,
@@ -234,7 +249,6 @@ with tab_dims:
         step=10.0,
         key="floor_h",
     )
-  with dim_col2:
     st.number_input(
         "Workflow Path Width (feet)",
         min_value=0.5,
@@ -242,10 +256,27 @@ with tab_dims:
         step=0.5,
         key="path_width_ft",
     )
-    st.checkbox("Show Safety Heatmap underlay", key="show_safety")
-    st.checkbox("Show Part Volume Contour plots", key="show_contour")
 
-# TAB 2: MACHINERY PLACEMENT & EDITS
+# TAB 2: PLOTS
+with tab_plots:
+  st.subheader("📊 Blueprint Overlay & Contour Plots")
+  st.markdown(
+      "Select plot underlay visualizations to display on the 2D ASME blueprint"
+      " drawing."
+  )
+
+  plt_col1, plt_col2, plt_col3 = st.columns(3)
+  with plt_col1:
+    st.checkbox("Show Safety Heatmap underlay", key="show_safety")
+  with plt_col2:
+    st.checkbox("Show Part Volume Contour plots", key="show_contour")
+  with plt_col3:
+    st.checkbox(
+        "Show Machine Decibel Contour plot (Inverse Square Law)",
+        key="show_decibel",
+    )
+
+# TAB 3: MACHINERY PLACEMENT & EDITS
 with tab_mach:
   m_col1, m_col2 = st.columns(2)
   with m_col1:
@@ -335,7 +366,7 @@ with tab_mach:
     else:
       st.info("No machines currently placed on the layout.")
 
-# TAB 3: CONDUIT ROUTING & EDITS
+# TAB 4: CONDUIT ROUTING & EDITS
 with tab_cond:
   c_col1, c_col2 = st.columns(2)
   with c_col1:
@@ -453,7 +484,7 @@ with tab_cond:
     else:
       st.info("No conduits currently routed.")
 
-# TAB 4: LIGHTING FIXTURES & EDITS
+# TAB 5: LIGHTING FIXTURES & EDITS
 with tab_light:
   l_col1, l_col2 = st.columns(2)
   with l_col1:
@@ -543,7 +574,7 @@ with tab_light:
     else:
       st.info("No lighting fixtures currently placed.")
 
-# TAB 5: MACHINE FLOWS & WORKFLOW PATHS
+# TAB 6: MACHINE FLOWS & WORKFLOW PATHS
 with tab_flow:
   st.header("🔄 Machine Part Flow Configuration")
   st.markdown(
@@ -648,7 +679,7 @@ with tab_flow:
         " execution."
     )
 
-# TAB 6: DEFAULT LIBRARIES
+# TAB 7: DEFAULT LIBRARIES
 with tab_lib:
   st.header("📚 Default Machinery & Material Libraries")
   st.markdown(
@@ -665,3 +696,4 @@ with tab_lib:
   with lib_col2:
     st.subheader("💡 Default Lighting Library")
     st.dataframe(df_lighting, use_container_width=True)
+
