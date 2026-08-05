@@ -18,7 +18,8 @@ def draw_asme_drawing(
 
   Renders workflow paths as a solid grey bar with dotted yellow lines
   representing the safety standoff envelope. Labels machines as M1, M2... and
-  lights as L1, L2...
+  lights as L1, L2... Adds 20ft dotted grey grid lines inside the factory floor
+  boundary.
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -130,6 +131,36 @@ def draw_asme_drawing(
       label='Factory Floor Boundary',
   )
 
+  # --- Dotted Grey Grid Lines Every 20 ft Inside Factory Floor Boundary ---
+  grid_color = '#808080'
+  # Vertical grid lines
+  x_ticks = np.arange(20.0, floor_width_ft, 20.0)
+  for x_ft in x_ticks:
+    gx_in = O_x + x_ft * S
+    ax.plot(
+        [gx_in, gx_in],
+        [O_y, O_y + H_drawn],
+        color=grid_color,
+        linestyle=':',
+        lw=0.8,
+        zorder=1,
+        alpha=0.6,
+    )
+
+  # Horizontal grid lines
+  y_ticks = np.arange(20.0, floor_height_ft, 20.0)
+  for y_ft in y_ticks:
+    gy_in = O_y + y_ft * S
+    ax.plot(
+        [O_x, O_x + W_drawn],
+        [gy_in, gy_in],
+        color=grid_color,
+        linestyle=':',
+        lw=0.8,
+        zorder=1,
+        alpha=0.6,
+    )
+
   # Draw heatmaps or contour underlays
   if (show_safety or show_contour) and len(machines) > 0:
     grid_x = np.linspace(0, floor_width_ft, 100)
@@ -187,7 +218,6 @@ def draw_asme_drawing(
       x_in = O_x + x_pts * S
       y_in = O_y + y_pts * S
 
-      # Draw main grey bar
       bar_width_ft = path.get('width_ft', 4.0)
       bar_lw_in = bar_width_ft * S * 72
       ax.plot(
@@ -202,7 +232,6 @@ def draw_asme_drawing(
           label='Workflow Path',
       )
 
-      # Offset vectors for safety standoff envelope
       dx = np.diff(x_in)
       dy = np.diff(y_in)
       lengths = np.sqrt(dx**2 + dy**2)
@@ -230,7 +259,6 @@ def draw_asme_drawing(
       right_x = x_in - vx_n * st_in
       right_y = y_in - vy_n * st_in
 
-      # Dotted yellow safety envelope
       ax.plot(
           left_x,
           left_y,
@@ -249,7 +277,6 @@ def draw_asme_drawing(
           zorder=3,
       )
 
-      # Waypoint Markers
       ax.scatter(
           x_in, y_in, color='#FFD700', s=35, zorder=4, edgecolor='black'
       )
@@ -265,13 +292,13 @@ def draw_asme_drawing(
             zorder=5,
         )
 
-  # Draw conduits
+  # Draw electrical conduits
   for cond in conduits:
     cx_in = [O_x + val * S for val in cond['x']]
     cy_in = [O_y + val * S for val in cond['y']]
     ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
 
-  # Draw machines with M1, M2... labels
+  # Draw machines with ONLY M1, M2... labels
   for idx, m in enumerate(machines):
     mx_in = O_x + m['x'] * S
     my_in = O_y + m['y'] * S
@@ -290,12 +317,12 @@ def draw_asme_drawing(
         zorder=4,
     )
     ax.add_patch(rect)
-    m_label = f"M{idx+1}\n{m['Make']} {m['Model']}"
+    m_label = f'M{idx+1}'
     ax.text(
         mx_in,
         my_in,
         m_label,
-        fontsize=5.5,
+        fontsize=7,
         weight='bold',
         ha='center',
         va='center',
@@ -315,7 +342,7 @@ def draw_asme_drawing(
     )
     ax.add_patch(so_circ)
 
-  # Draw lighting with L1, L2... labels
+  # Draw lighting with ONLY L1, L2... labels
   for idx, l in enumerate(lighting):
     lx_in = O_x + l['x'] * S
     ly_in = O_y + l['y'] * S
@@ -330,12 +357,12 @@ def draw_asme_drawing(
         zorder=5,
     )
     ax.plot(lx_in, ly_in, marker='*', color='white', markersize=4, zorder=6)
-    l_label = f"L{idx+1}: {l['Make']} {l['Brand']}"
+    l_label = f'L{idx+1}'
     ax.text(
         lx_in + 0.1,
         ly_in + 0.1,
         l_label,
-        fontsize=5.5,
+        fontsize=6.5,
         weight='bold',
         color='#FFD700',
         zorder=7,
@@ -346,4 +373,3 @@ def draw_asme_drawing(
   ax.set_aspect('equal')
   ax.axis('off')
   return fig
-
