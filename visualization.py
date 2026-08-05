@@ -6,6 +6,7 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
     """
     Renders factory layout inside standardized ASME Y14.1 margins, title block,
     scaling the custom-sized factory floor to fit inside the drawing sheet.
+    Formatted as a classic blueprint with dark blue background and yellow lines.
     """
     # Standard sheet sizes in inches (ASME Y14.1 Table 4-1)
     sizes = {'A': (8.5, 11.0), 'B': (11.0, 17.0), 'C': (17.0, 22.0), 'D': (22.0, 34.0)}
@@ -17,7 +18,6 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
     H_avail = height_in - 2 * margin
     
     S = min(W_avail / floor_width_ft, H_avail / floor_height_ft)
-    
     W_drawn = floor_width_ft * S
     H_drawn = floor_height_ft * S
     
@@ -27,23 +27,32 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
     
     fig, ax = plt.subplots(figsize=(10, 6.5))
     
-    # Draw physical sheet border & format margin (in inches)
-    ax.plot([0, width_in, width_in, 0, 0], [0, 0, height_in, height_in, 0], 'k-', lw=2)
+    # Set classic dark blueprint background colors
+    blueprint_blue = '#002B49'
+    fig.patch.set_facecolor(blueprint_blue)
+    ax.set_facecolor(blueprint_blue)
+    
+    # Draw physical sheet border & format margin (in yellow/gold)
+    yellow_color = '#FFD700'
+    ax.plot([0, width_in, width_in, 0, 0], [0, 0, height_in, height_in, 0], color=yellow_color, lw=2)
     ax.plot([margin, width_in - margin, width_in - margin, margin, margin],
-            [margin, margin, height_in - margin, height_in - margin, margin], 'k--', lw=1)
+            [margin, margin, height_in - margin, height_in - margin, margin], color=yellow_color, linestyle='--', lw=1)
             
-    # Draw standard ASME Title Block (lower right of sheet)
+    # Draw standard ASME Title Block (lower right of sheet in yellow/gold)
     tb_w, tb_h = 6.25, 2.0
     tb_x, tb_y = width_in - margin - tb_w, margin
-    ax.plot([tb_x, tb_x, width_in - margin, width_in - margin, tb_x], [tb_y, tb_y + tb_h, tb_y + tb_h, tb_y, tb_y], 'r-', lw=1.5)
+    ax.plot([tb_x, tb_x, width_in - margin, width_in - margin, tb_x], [tb_y, tb_y + tb_h, tb_y + tb_h, tb_y, tb_y], color=yellow_color, lw=1.5)
     
-    ax.text(tb_x + 0.2, tb_y + tb_h - 0.4, 'FACILITY ARCHITECTS INC.', fontsize=7, weight='bold')
-    ax.text(tb_x + 0.2, tb_y + tb_h - 0.8, 'TITLE: Factory Layout Blueprint', fontsize=7)
-    ax.text(tb_x + 0.2, tb_y + tb_h - 1.2, f'DWG NO: FFO-001  SIZE: {size_char}', fontsize=7)
-    ax.text(tb_x + 0.2, tb_y + tb_h - 1.6, f'Floor Scale: 1 in = {1.0/S:.1f} ft', fontsize=6, color='gray')
+    # Title Block text in high contrast white
+    text_color = '#FFFFFF'
+    ax.text(tb_x + 0.2, tb_y + tb_h - 0.4, 'FACILITY ARCHITECTS INC.', fontsize=7, weight='bold', color=text_color)
+    ax.text(tb_x + 0.2, tb_y + tb_h - 0.8, 'TITLE: Factory Layout Blueprint', fontsize=7, color=text_color)
+    ax.text(tb_x + 0.2, tb_y + tb_h - 1.2, f'DWG NO: FFO-001  SIZE: {size_char}', fontsize=7, color=text_color)
+    ax.text(tb_x + 0.2, tb_y + tb_h - 1.6, f'Floor Scale: 1 in = {1.0/S:.1f} ft', fontsize=6, color='#A0A0A0')
     
-    # Draw green Factory Floor Boundary box (in inches)
-    ax.plot([O_x, O_x + W_drawn, O_x + W_drawn, O_x, O_x], [O_y, O_y, O_y + H_drawn, O_y + H_drawn, O_y], 'g-', lw=2, label='Factory Floor Boundary')
+    # Draw neon green Factory Floor Boundary box (in inches)
+    floor_green = '#39FF14'
+    ax.plot([O_x, O_x + W_drawn, O_x + W_drawn, O_x, O_x], [O_y, O_y, O_y + H_drawn, O_y + H_drawn, O_y], color=floor_green, lw=2, label='Factory Floor Boundary')
     
     # Draw heatmaps or contour underlays (in plot inches)
     if (show_safety or show_contour) and len(machines) > 0:
@@ -91,20 +100,21 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
         mw_in = m['Width'] * S
         mh_in = m['Height'] * S
         
-        rect = plt.Rectangle((mx_in - mw_in/2, my_in - mh_in/2), mw_in, mh_in, fill=True, color='skyblue', alpha=0.8, edgecolor='blue', lw=1.5)
+        # Skyblue with white edge contrasts beautifully with dark blue
+        rect = plt.Rectangle((mx_in - mw_in/2, my_in - mh_in/2), mw_in, mh_in, fill=True, color='skyblue', alpha=0.8, edgecolor='white', lw=1.5)
         ax.add_patch(rect)
-        ax.text(mx_in, my_in, f'{m["Make"]}\n{m["Model"]}', fontsize=5, ha='center', va='center')
+        ax.text(mx_in, my_in, f"{m['Make']}\n{m['Model']}", fontsize=5, ha='center', va='center', color='#FFFFFF')
         
-        # Red standoff circle
+        # Bright red standoff circle
         so_in = m['Standoff'] * S
-        so_circ = plt.Circle((mx_in, my_in), (max(mw_in, mh_in)/2.0) + so_in, fill=False, color='red', linestyle=':', lw=1)
+        so_circ = plt.Circle((mx_in, my_in), (max(mw_in, mh_in)/2.0) + so_in, fill=False, color='#FF3333', linestyle=':', lw=1)
         ax.add_patch(so_circ)
         
     # Draw conduits (mapped from feet to inches)
     for cond in conduits:
         cx_in = [O_x + val * S for val in cond['x']]
         cy_in = [O_y + val * S for val in cond['y']]
-        ax.plot(cx_in, cy_in, color='orange', linestyle='-', lw=2)
+        ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2) # Bright Orange
         
     # Draw lighting fixtures (mapped from feet to inches)
     for l in lighting:
@@ -112,10 +122,11 @@ def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0
         ly_in = O_y + l['y'] * S
         ax.plot(lx_in, ly_in, marker='o', color='gold', markersize=10, markeredgecolor='black', markeredgewidth=1)
         ax.plot(lx_in, ly_in, marker='*', color='white', markersize=5)
-        ax.text(lx_in + 0.1, ly_in + 0.1, f'{l["Make"]}\n{l["Brand"]}', fontsize=5, color='darkgoldenrod', weight='bold')
+        ax.text(lx_in + 0.1, ly_in + 0.1, f"{l['Make']}\n{l['Brand']}", fontsize=5, color='#FFD700', weight='bold')
         
     ax.set_xlim(-1, width_in + 1)
     ax.set_ylim(-1, height_in + 1)
     ax.set_aspect('equal')
     ax.axis('off')
     return fig
+
