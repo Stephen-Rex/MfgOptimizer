@@ -16,19 +16,24 @@ st.sidebar.header("📁 Material & Machinery Library")
 machinery_lib = get_default_machinery()
 lighting_lib = get_default_lighting()
 
-# Display Machinery Library
+# Display Libraries in Sidebar
 st.sidebar.subheader("Default Machinery Specifications")
-st.sidebar.dataframe(pd.DataFrame(machinery_lib)[["Make", "Model", "Type", "Volume", "Yield"]])
+df_machinery = pd.DataFrame(machinery_lib)
+st.sidebar.dataframe(df_machinery[["Make", "Model", "Type", "Volume", "Yield"]])
 
-# Display Lighting Library
 st.sidebar.subheader("Default Lighting Specifications")
-st.sidebar.dataframe(pd.DataFrame(lighting_lib)[["Make", "Brand", "Type", "Wattage", "Lumens", "Lux"]])
+df_lighting = pd.DataFrame(lighting_lib)
+st.sidebar.dataframe(df_lighting[["Make", "Brand", "Type", "Wattage", "Lumens", "Lux"]])
 
-# Setup Layout State
+# Setup Session State for Placed Items
 if "placed_machines" not in st.session_state:
     st.session_state.placed_machines = [
-        {"Make": "Mazak", "Model": "Integrex i-200", "Width": 12, "Height": 10, "Standoff": 5.0, "Volume": 45, "Yield": 98.0, "x": 40.0, "y": 60.0},
-        {"Make": "Arburg", "Model": "Allrounder 370", "Width": 15, "Height": 8, "Standoff": 4.0, "Volume": 60, "Yield": 95.0, "x": 100.0, "y": 45.0}
+        {"Make": "Mazak", "Model": "Integrex i-200", "Width": 12.0, "Height": 10.0, "Standoff": 5.0, "Volume": 45, "Yield": 98.0, "x": 40.0, "y": 60.0},
+        {"Make": "Arburg", "Model": "Allrounder 370", "Width": 15.0, "Height": 8.0, "Standoff": 4.0, "Volume": 60, "Yield": 95.0, "x": 100.0, "y": 45.0}
+    ]
+if "placed_lighting" not in st.session_state:
+    st.session_state.placed_lighting = [
+        {"Make": "Lithonia", "Brand": "I-Beam", "Type": "LED", "Wattage": 150.0, "x": 50.0, "y": 80.0, "Lumens": 18000}
     ]
 if "placed_conduits" not in st.session_state:
     st.session_state.placed_conduits = [
@@ -39,17 +44,48 @@ if "placed_conduits" not in st.session_state:
 col1, col2 = st.columns([2, 1])
 
 with col2:
-    st.header("⚙️ Layout Configuration")
+    st.header("⚙️ Interactive Floor Layout Designer")
     sheet_size = st.selectbox("Select ASME Sheet Boundary Size", ["A", "B", "C", "D"])
     show_safety = st.checkbox("Show Safety Heatmap underlay", value=True)
     show_contour = st.checkbox("Show Part Volume Contour plots")
     
-    st.subheader("Add Conduit Routing")
+    # 1. Machinery Placement form
+    st.subheader("🤖 Place Machine from Library")
+    machine_options = [f"{m['Make']} {m['Model']} ({m['Type']})" for m in machinery_lib]
+    selected_m_idx = st.selectbox("Choose Machine", range(len(machine_options)), format_func=lambda x: machine_options[x])
+    mx_coord = st.number_input("Target Placement X (ft)", min_value=0.0, max_value=200.0, value=70.0, key="mx")
+    my_coord = st.number_input("Target Placement Y (ft)", min_value=0.0, max_value=200.0, value=50.0, key="my")
+    
+    if st.button("Drop Machine onto Floor"):
+        spec = machinery_lib[selected_m_idx].copy()
+        spec["x"] = mx_coord
+        spec["y"] = my_coord
+        st.session_state.placed_machines.append(spec)
+        st.success(f"Placed {spec['Make']} {spec['Model']} at ({mx_coord}, {my_coord})!")
+        st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        
+    # 2. Lighting Placement Form
+    st.subheader("💡 Place Light from Library")
+    light_options = [f"{l['Make']} {l['Brand']} ({l['Type']})" for l in lighting_lib]
+    selected_l_idx = st.selectbox("Choose Lighting Fixture", range(len(light_options)), format_func=lambda x: light_options[x])
+    lx_coord = st.number_input("Placement X (ft)", min_value=0.0, max_value=200.0, value=50.0, key="lx")
+    ly_coord = st.number_input("Placement Y (ft)", min_value=0.0, max_value=200.0, value=80.0, key="ly")
+    
+    if st.button("Drop Light onto Floor"):
+        spec_l = lighting_lib[selected_l_idx].copy()
+        spec_l["x"] = lx_coord
+        spec_l["y"] = ly_coord
+        st.session_state.placed_lighting.append(spec_l)
+        st.success(f"Placed Lighting Fixture at ({lx_coord}, {ly_coord})!")
+        st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    # 3. Conduit Routing
+    st.subheader("🔌 Add Conduit Run")
     cx_lbl = st.text_input("Conduit Label", "Main Power Drop")
     cx_depth = st.number_input("Trench Burial Depth (inches)", min_value=12, max_value=60, value=36)
     cx_tape = st.checkbox("Contains Orange 4 mil Warning Tape", value=True)
     
-    if st.button("Add Conduit"):
+    if st.button("Route Conduit Path"):
         st.session_state.placed_conduits.append({
             "label": cx_lbl, 
             "x": [30.0, 80.0], 
@@ -57,14 +93,10 @@ with col2:
             "depth_in": cx_depth, 
             "warning_tape": cx_tape
         })
-        # Version-safe rerun call
-        if hasattr(st, "rerun"):
-            st.rerun()
-        else:
-            st.experimental_rerun()
+        st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
 with col1:
-    # Render Drawing
+    # Render ASME Drawing Sheet with updated lighting overlays
     fig = draw_asme_drawing(
         size_char=sheet_size,
         machines=st.session_state.placed_machines,
@@ -74,7 +106,7 @@ with col1:
     )
     st.pyplot(fig)
 
-# Analysis Panels
+# Analysis & Compliance Reporting
 st.header("📈 Layout Analytics & OSHA / NJ-UCC Verification")
 
 warnings = run_layout_analysis(st.session_state.placed_machines, st.session_state.placed_conduits)
@@ -96,4 +128,3 @@ else:
     st.success("✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical Standards!")
 
 st.info(f"⚡ Estimated Throughput (MPDI Bucket Brigade Dynamic Model): {metrics.get('Bucket Brigade Throughput', '0')}")
-
