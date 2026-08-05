@@ -52,16 +52,24 @@ col1, col2 = st.columns([2, 1])
 
 with col2:
     st.header("⚙️ Interactive Floor Layout Designer")
+    
+    # 1. Sheet configurations
     sheet_size = st.selectbox("Select ASME Sheet Boundary Size", ["A", "B", "C", "D"])
+    
+    # 2. Independent Factory Floor physical dimensions
+    st.subheader("📐 Physical Floor Dimensions")
+    floor_w = st.number_input("Factory Floor Width (feet)", min_value=10.0, max_value=1000.0, value=200.0, step=10.0)
+    floor_h = st.number_input("Factory Floor Height (feet)", min_value=10.0, max_value=1000.0, value=100.0, step=10.0)
+    
     show_safety = st.checkbox("Show Safety Heatmap underlay", value=True)
     show_contour = st.checkbox("Show Part Volume Contour plots")
     
-    # 1. Machinery Placement Form
+    # 3. Machinery Placement Form
     st.subheader("🤖 Place Machine from Library")
     machine_options = [f"{m['Make']} {m['Model']} ({m['Type']})" for m in machinery_lib]
     selected_m_idx = st.selectbox("Choose Machine", range(len(machine_options)), format_func=lambda x: machine_options[x])
-    mx_coord = st.number_input("Target Placement X (ft)", min_value=0.0, max_value=200.0, value=70.0, key="mx")
-    my_coord = st.number_input("Target Placement Y (ft)", min_value=0.0, max_value=200.0, value=50.0, key="my")
+    mx_coord = st.number_input("Target Placement X (ft)", min_value=0.0, max_value=float(floor_w), value=70.0, key="mx")
+    my_coord = st.number_input("Target Placement Y (ft)", min_value=0.0, max_value=float(floor_h), value=50.0, key="my")
     
     if st.button("Drop Machine onto Floor"):
         spec = machinery_lib[selected_m_idx].copy()
@@ -71,7 +79,7 @@ with col2:
         st.success(f"Placed {spec['Make']} {spec['Model']} at ({mx_coord}, {my_coord})!")
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 2. Modify or Delete Placed Machinery
+    # 4. Modify or Delete Placed Machinery
     if len(st.session_state.placed_machines) > 0:
         st.subheader("🛠️ Modify or Delete Placed Machinery")
         placed_options = [
@@ -85,8 +93,8 @@ with col2:
         )
         
         mach = st.session_state.placed_machines[selected_placed_idx]
-        edit_x = st.number_input("Adjust Coordinate X (ft)", min_value=0.0, max_value=200.0, value=float(mach["x"]), key=f"edit_x_{selected_placed_idx}")
-        edit_y = st.number_input("Adjust Coordinate Y (ft)", min_value=0.0, max_value=200.0, value=float(mach["y"]), key=f"edit_y_{selected_placed_idx}")
+        edit_x = st.number_input("Adjust Coordinate X (ft)", min_value=0.0, max_value=float(floor_w), value=float(mach["x"]), key=f"edit_x_{selected_placed_idx}")
+        edit_y = st.number_input("Adjust Coordinate Y (ft)", min_value=0.0, max_value=float(floor_h), value=float(mach["y"]), key=f"edit_y_{selected_placed_idx}")
         
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
@@ -101,7 +109,7 @@ with col2:
                 st.warning(f"Removed {removed['Make']} {removed['Model']} from layout.")
                 st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 3. Custom Conduit Creation Form
+    # 5. Custom Conduit Creation Form
     st.subheader("🔌 Route Conduit Run (Polyline)")
     cx_lbl = st.text_input("Conduit Run Label", "Sub-Station Hookup")
     cx_x_str = st.text_input("X Coordinates (comma separated)", "40.0, 120.0")
@@ -126,7 +134,7 @@ with col2:
             st.success(f"Successfully routed conduit '{cx_lbl}'!")
             st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 4. Modify or Delete Placed Conduits
+    # 6. Modify or Delete Placed Conduits
     if len(st.session_state.placed_conduits) > 0:
         st.subheader("🛠️ Modify or Delete Placed Conduits")
         conduit_options = [
@@ -169,12 +177,12 @@ with col2:
                 st.warning(f"Removed conduit run '{removed_c['label']}'.")
                 st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 5. Lighting Placement Form
+    # 7. Lighting Placement Form
     st.subheader("💡 Place Light from Library")
     light_options = [f"{l['Make']} {l['Brand']} ({l['Type']})" for l in lighting_lib]
     selected_l_idx = st.selectbox("Choose Lighting Fixture", range(len(light_options)), format_func=lambda x: light_options[x])
-    lx_coord = st.number_input("Placement X (ft)", min_value=0.0, max_value=200.0, value=50.0, key="lx")
-    ly_coord = st.number_input("Placement Y (ft)", min_value=0.0, max_value=200.0, value=80.0, key="ly")
+    lx_coord = st.number_input("Placement X (ft)", min_value=0.0, max_value=float(floor_w), value=50.0, key="lx")
+    ly_coord = st.number_input("Placement Y (ft)", min_value=0.0, max_value=float(floor_h), value=80.0, key="ly")
     
     if st.button("Drop Light onto Floor"):
         spec_l = lighting_lib[selected_l_idx].copy()
@@ -184,7 +192,7 @@ with col2:
         st.success(f"Placed Lighting Fixture at ({lx_coord}, {ly_coord})!")
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 6. Modify or Delete Placed Lighting
+    # 8. Modify or Delete Placed Lighting
     if len(st.session_state.placed_lighting) > 0:
         st.subheader("🛠️ Modify or Delete Placed Lighting")
         placed_l_opts = [
@@ -197,8 +205,8 @@ with col2:
             format_func=lambda x: placed_l_opts[x]
         )
         active_light = st.session_state.placed_lighting[selected_placed_l_idx]
-        edit_lx = st.number_input("Adjust Light Coordinate X (ft)", min_value=0.0, max_value=200.0, value=float(active_light["x"]), key=f"elx_{selected_placed_l_idx}")
-        edit_ly = st.number_input("Adjust Light Coordinate Y (ft)", min_value=0.0, max_value=200.0, value=float(active_light["y"]), key=f"ely_{selected_placed_l_idx}")
+        edit_lx = st.number_input("Adjust Light Coordinate X (ft)", min_value=0.0, max_value=float(floor_w), value=float(active_light["x"]), key=f"elx_{selected_placed_l_idx}")
+        edit_ly = st.number_input("Adjust Light Coordinate Y (ft)", min_value=0.0, max_value=float(floor_h), value=float(active_light["y"]), key=f"ely_{selected_placed_l_idx}")
         
         l_btn_col1, l_btn_col2 = st.columns(2)
         with l_btn_col1:
@@ -217,6 +225,8 @@ with col1:
     # Render ASME Drawing Sheet with updated configurations
     fig = draw_asme_drawing(
         size_char=sheet_size,
+        floor_width_ft=floor_w,
+        floor_height_ft=floor_h,
         machines=st.session_state.placed_machines,
         conduits=st.session_state.placed_conduits,
         lighting=st.session_state.placed_lighting,
@@ -247,4 +257,3 @@ else:
     st.success("✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical Standards!")
 
 st.info(f"⚡ Estimated Throughput (MPDI Bucket Brigade Dynamic Model): {metrics.get('Bucket Brigade Throughput', '0')}")
-
