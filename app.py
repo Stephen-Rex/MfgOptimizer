@@ -212,7 +212,9 @@ st.header("⚙️ Layout Configuration & Component Menus")
     "📚 Default Libraries",
 ])
 
+# -------------------------------------------------------------
 # TAB 0: PROJECT INFO
+# -------------------------------------------------------------
 with tab_proj:
   st.subheader("📋 Blueprint Title Block Parameters")
   st.markdown(
@@ -227,7 +229,9 @@ with tab_proj:
   with p_col2:
     st.text_input("Drawing Number (DWG NO)", key="dwg_num")
 
+# -------------------------------------------------------------
 # TAB 1: FLOOR & SHEET DIMENSIONS
+# -------------------------------------------------------------
 with tab_dims:
   st.subheader("📐 Factory Floor & ASME Drawing Sheet Configuration")
   dim_col1, dim_col2 = st.columns(2)
@@ -258,7 +262,9 @@ with tab_dims:
         key="path_width_ft",
     )
 
+# -------------------------------------------------------------
 # TAB 2: PLOTS
+# -------------------------------------------------------------
 with tab_plots:
   st.subheader("📊 Blueprint Overlay & Contour Plots")
   st.markdown(
@@ -277,7 +283,9 @@ with tab_plots:
         key="show_decibel",
     )
 
+# -------------------------------------------------------------
 # TAB 3: MACHINERY PLACEMENT & EDITS
+# -------------------------------------------------------------
 with tab_mach:
   m_col1, m_col2 = st.columns(2)
   with m_col1:
@@ -367,7 +375,9 @@ with tab_mach:
     else:
       st.info("No machines currently placed on the layout.")
 
+# -------------------------------------------------------------
 # TAB 4: CONDUIT ROUTING & EDITS
+# -------------------------------------------------------------
 with tab_cond:
   c_col1, c_col2 = st.columns(2)
   with c_col1:
@@ -485,7 +495,9 @@ with tab_cond:
     else:
       st.info("No conduits currently routed.")
 
+# -------------------------------------------------------------
 # TAB 5: LIGHTING FIXTURES & EDITS
+# -------------------------------------------------------------
 with tab_light:
   l_col1, l_col2 = st.columns(2)
   with l_col1:
@@ -575,7 +587,9 @@ with tab_light:
     else:
       st.info("No lighting fixtures currently placed.")
 
+# -------------------------------------------------------------
 # TAB 6: MACHINE FLOWS & WORKFLOW PATHS
+# -------------------------------------------------------------
 with tab_flow:
   st.header("🔄 Machine Part Flow Configuration")
   st.markdown(
@@ -680,7 +694,9 @@ with tab_flow:
         " execution."
     )
 
+# -------------------------------------------------------------
 # TAB 7: DEFAULT LIBRARIES
+# -------------------------------------------------------------
 with tab_lib:
   st.header("📚 Default Machinery & Material Libraries")
   st.markdown(
@@ -697,3 +713,4 @@ with tab_lib:
   with lib_col2:
     st.subheader("💡 Default Lighting Library")
     st.dataframe(df_lighting, use_container_width=True)
+
