@@ -13,8 +13,7 @@ st.set_page_config(
 st.title("🏭 Factory Floor Optimizer & Compliance Suite")
 st.markdown(
     "Designed strictly to comply with **ASME Y14.1 Drawing Sheets** and **NJ"
-    " Uniform Construction Code** Standards, integrated with backend"
-    " optimization engine parameters."
+    " Uniform Construction Code** Standards."
 )
 
 
@@ -31,7 +30,6 @@ st.sidebar.header("📁 Material & Machinery Library")
 machinery_lib = get_default_machinery()
 lighting_lib = get_default_lighting()
 
-# Display Libraries in Sidebar
 st.sidebar.subheader("Default Machinery Specifications")
 df_machinery = pd.DataFrame(machinery_lib)
 st.sidebar.dataframe(df_machinery[["Make", "Model", "Type", "Volume", "Yield"]])
@@ -42,7 +40,7 @@ st.sidebar.dataframe(
     df_lighting[["Make", "Brand", "Type", "Wattage", "Lumens", "Lux"]]
 )
 
-# Setup Session State for Placed Items & Workflow Routes
+# Setup Session State
 if "placed_machines" not in st.session_state:
   st.session_state.placed_machines = [
       {
@@ -98,52 +96,142 @@ if "path_points" not in st.session_state:
       "Movement Speed": [5.00, 5.00, 5.00],
   })
 
-# Main Layout split into tabs for clarity and usability
-tab_layout, tab_flow = st.tabs([
-    "📐 2D Layout & Blueprint Designer",
+if "sheet_size" not in st.session_state:
+  st.session_state.sheet_size = "B"
+if "floor_w" not in st.session_state:
+  st.session_state.floor_w = 200.0
+if "floor_h" not in st.session_state:
+  st.session_state.floor_h = 100.0
+if "path_width_ft" not in st.session_state:
+  st.session_state.path_width_ft = 6.0
+if "show_safety" not in st.session_state:
+  st.session_state.show_safety = False
+if "show_contour" not in st.session_state:
+  st.session_state.show_contour = False
+
+# Render Top Main ASME Blueprint Drawing View
+st.header("📐 Live ASME Y14.1 Blueprint View")
+
+active_workflow_paths = []
+if len(st.session_state.path_points) > 0:
+  try:
+    px = [
+        float(v)
+        for v in st.session_state.path_points["X Coordinate"].tolist()
+    ]
+    py = [
+        float(v)
+        for v in st.session_state.path_points["Y Coordinate"].tolist()
+    ]
+    p_so = [
+        float(v)
+        for v in st.session_state.path_points["Safety Standoff (ft)"].tolist()
+    ]
+    if len(px) >= 2:
+      active_workflow_paths.append({
+          "x": px,
+          "y": py,
+          "standoffs": p_so,
+          "width_ft": float(st.session_state.path_width_ft),
+      })
+  except Exception:
+    pass
+
+fig = draw_asme_drawing(
+    size_char=st.session_state.sheet_size,
+    floor_width_ft=st.session_state.floor_w,
+    floor_height_ft=st.session_state.floor_h,
+    machines=st.session_state.placed_machines,
+    conduits=st.session_state.placed_conduits,
+    lighting=st.session_state.placed_lighting,
+    workflow_paths=active_workflow_paths,
+    show_safety=st.session_state.show_safety,
+    show_contour=st.session_state.show_contour,
+)
+st.pyplot(fig)
+
+# Analytics Summary
+metrics = calculate_production_metrics(st.session_state.placed_machines)
+warnings = run_layout_analysis(
+    st.session_state.placed_machines, st.session_state.placed_conduits
+)
+
+stat1, stat2, stat3 = st.columns(3)
+with stat1:
+  st.metric("Line Bottleneck", metrics.get("Bottleneck Machine", "N/A"))
+with stat2:
+  st.metric("Line Balance Index", metrics.get("Line Balance Efficiency", "N/A"))
+with stat3:
+  st.metric(
+      "UDP Power Sleep Savings", metrics.get("UDP Switch-Off Savings", "N/A")
+  )
+
+if warnings:
+  st.error("⚠️ Spatial & Regulatory Warnings Found:")
+  for warn in warnings:
+    st.warning(warn)
+else:
+  st.success(
+      "✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical"
+      " Standards!"
+  )
+
+st.divider()
+
+# TABBED NAVIGATION FOR ALL CONFIGURATION MENUS
+st.header("⚙️ Layout Configuration & Component Menus")
+
+tab_dims, tab_mach, tab_cond, tab_light, tab_flow = st.tabs([
+    "📏 Floor & Sheet Dimensions",
+    "🤖 Machinery Placement & Edits",
+    "🔌 Conduit Routing & Edits",
+    "💡 Lighting Fixtures & Edits",
     "🔄 Machine Flows & Workflow Paths",
 ])
 
-with tab_layout:
-  col1, col2 = st.columns([2, 1])
-
-  with col2:
-    st.header("⚙️ Interactive Floor Layout Designer")
-
-    # 1. Sheet configurations
-    sheet_size = st.selectbox(
-        "Select ASME Sheet Boundary Size", ["A", "B", "C", "D"], index=1
+# TAB 1: PHYSICAL FLOOR & SHEET DIMENSIONS
+with tab_dims:
+  st.subheader("📐 Factory Floor & ASME Drawing Sheet Configuration")
+  dim_col1, dim_col2 = st.columns(2)
+  with dim_col1:
+    st.session_state.sheet_size = st.selectbox(
+        "Select ASME Sheet Boundary Size",
+        ["A", "B", "C", "D"],
+        index=["A", "B", "C", "D"].index(st.session_state.sheet_size),
     )
-
-    # 2. Independent Factory Floor physical dimensions
-    st.subheader("📐 Physical Floor Dimensions")
-    floor_w = st.number_input(
+    st.session_state.floor_w = st.number_input(
         "Factory Floor Width (feet)",
         min_value=10.0,
         max_value=1000.0,
-        value=200.0,
+        value=float(st.session_state.floor_w),
         step=10.0,
     )
-    floor_h = st.number_input(
+    st.session_state.floor_h = st.number_input(
         "Factory Floor Height (feet)",
         min_value=10.0,
         max_value=1000.0,
-        value=100.0,
+        value=float(st.session_state.floor_h),
         step=10.0,
     )
-
-    path_width_ft = st.number_input(
+  with dim_col2:
+    st.session_state.path_width_ft = st.number_input(
         "Workflow Path Width (feet)",
         min_value=1.0,
         max_value=20.0,
-        value=6.0,
+        value=float(st.session_state.path_width_ft),
         step=0.5,
     )
+    st.session_state.show_safety = st.checkbox(
+        "Show Safety Heatmap underlay", value=st.session_state.show_safety
+    )
+    st.session_state.show_contour = st.checkbox(
+        "Show Part Volume Contour plots", value=st.session_state.show_contour
+    )
 
-    show_safety = st.checkbox("Show Safety Heatmap underlay", value=False)
-    show_contour = st.checkbox("Show Part Volume Contour plots")
-
-    # 3. Machinery Placement Form
+# TAB 2: MACHINERY PLACEMENT & EDITS
+with tab_mach:
+  m_col1, m_col2 = st.columns(2)
+  with m_col1:
     st.subheader("🤖 Place Machine from Library")
     machine_options = [
         f"{m['Make']} {m['Model']} ({m['Type']})" for m in machinery_lib
@@ -156,19 +244,19 @@ with tab_layout:
     mx_coord = st.number_input(
         "Target Placement X (ft)",
         min_value=0.0,
-        max_value=float(floor_w),
+        max_value=float(st.session_state.floor_w),
         value=70.0,
-        key="mx",
+        key="mx_tab",
     )
     my_coord = st.number_input(
         "Target Placement Y (ft)",
         min_value=0.0,
-        max_value=float(floor_h),
+        max_value=float(st.session_state.floor_h),
         value=50.0,
-        key="my",
+        key="my_tab",
     )
 
-    if st.button("Drop Machine onto Floor"):
+    if st.button("Drop Machine onto Floor", type="primary"):
       spec = machinery_lib[selected_m_idx].copy()
       spec["x"] = mx_coord
       spec["y"] = my_coord
@@ -178,7 +266,7 @@ with tab_layout:
       )
       st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 4. Modify or Delete Placed Machinery
+  with m_col2:
     if len(st.session_state.placed_machines) > 0:
       st.subheader("🛠️ Modify or Delete Placed Machinery")
       placed_options = [
@@ -196,50 +284,65 @@ with tab_layout:
       edit_x = st.number_input(
           "Adjust Coordinate X (ft)",
           min_value=0.0,
-          max_value=float(floor_w),
+          max_value=float(st.session_state.floor_w),
           value=float(mach["x"]),
-          key=f"edit_x_{selected_placed_idx}",
+          key=f"edit_x_tab_{selected_placed_idx}",
       )
       edit_y = st.number_input(
           "Adjust Coordinate Y (ft)",
           min_value=0.0,
-          max_value=float(floor_h),
+          max_value=float(st.session_state.floor_h),
           value=float(mach["y"]),
-          key=f"edit_y_{selected_placed_idx}",
+          key=f"edit_y_tab_{selected_placed_idx}",
       )
 
       btn_col1, btn_col2 = st.columns(2)
       with btn_col1:
-        if st.button("Update Position", key=f"update_btn_{selected_placed_idx}"):
+        if st.button(
+            "Update Position", key=f"update_m_btn_{selected_placed_idx}"
+        ):
           st.session_state.placed_machines[selected_placed_idx]["x"] = edit_x
           st.session_state.placed_machines[selected_placed_idx]["y"] = edit_y
           st.success("Machine moved successfully!")
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
       with btn_col2:
-        if st.button("Delete Machine", key=f"delete_btn_{selected_placed_idx}"):
+        if st.button(
+            "Delete Machine", key=f"delete_m_btn_{selected_placed_idx}"
+        ):
           removed = st.session_state.placed_machines.pop(selected_placed_idx)
           st.warning(
               f"Removed {removed['Make']} {removed['Model']} from layout."
           )
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    else:
+      st.info("No machines currently placed on the layout.")
 
-    # 5. Custom Conduit Creation Form
+# TAB 3: CONDUIT ROUTING & EDITS
+with tab_cond:
+  c_col1, c_col2 = st.columns(2)
+  with c_col1:
     st.subheader("🔌 Route Conduit Run (Polyline)")
-    cx_lbl = st.text_input("Conduit Run Label", "Sub-Station Hookup")
-    cx_x_str = st.text_input("X Coordinates (comma separated)", "40.0, 120.0")
-    cx_y_str = st.text_input("Y Coordinates (comma separated)", "80.0, 35.0")
+    cx_lbl = st.text_input(
+        "Conduit Run Label", "Sub-Station Hookup", key="cx_lbl_tab"
+    )
+    cx_x_str = st.text_input(
+        "X Coordinates (comma separated)", "40.0, 120.0", key="cx_x_tab"
+    )
+    cx_y_str = st.text_input(
+        "Y Coordinates (comma separated)", "80.0, 35.0", key="cx_y_tab"
+    )
     cx_depth = st.number_input(
         "Trench Burial Depth (inches)",
         min_value=12,
         max_value=60,
         value=36,
-        key="cx_depth",
+        key="cx_depth_tab",
     )
     cx_tape = st.checkbox(
-        "Contains Orange 4 mil Warning Tape", value=True, key="cx_tape"
+        "Contains Orange 4 mil Warning Tape", value=True, key="cx_tape_tab"
     )
 
-    if st.button("Route Conduit Path"):
+    if st.button("Route Conduit Path", type="primary"):
       parsed_x = parse_coords(cx_x_str)
       parsed_y = parse_coords(cx_y_str)
 
@@ -263,7 +366,7 @@ with tab_layout:
         st.success(f"Successfully routed conduit '{cx_lbl}'!")
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 6. Modify or Delete Placed Conduits
+  with c_col2:
     if len(st.session_state.placed_conduits) > 0:
       st.subheader("🛠️ Modify or Delete Placed Conduits")
       conduit_options = [
@@ -278,34 +381,36 @@ with tab_layout:
 
       cond = st.session_state.placed_conduits[selected_cond_idx]
       edit_cx_lbl = st.text_input(
-          "Edit Conduit Label", cond["label"], key=f"lbl_{selected_cond_idx}"
+          "Edit Conduit Label", cond["label"], key=f"lbl_tab_{selected_cond_idx}"
       )
       edit_cx_x_str = st.text_input(
           "Edit X Coordinates",
           ", ".join(map(str, cond["x"])),
-          key=f"cx_{selected_cond_idx}",
+          key=f"cx_tab_{selected_cond_idx}",
       )
       edit_cx_y_str = st.text_input(
           "Edit Y Coordinates",
           ", ".join(map(str, cond["y"])),
-          key=f"cy_{selected_cond_idx}",
+          key=f"cy_tab_{selected_cond_idx}",
       )
       edit_cx_depth = st.number_input(
           "Edit Burial Depth (inches)",
           min_value=12,
           max_value=60,
           value=int(cond["depth_in"]),
-          key=f"dp_{selected_cond_idx}",
+          key=f"dp_tab_{selected_cond_idx}",
       )
       edit_cx_tape = st.checkbox(
           "Edit Warning Tape Status",
           value=cond["warning_tape"],
-          key=f"tp_{selected_cond_idx}",
+          key=f"tp_tab_{selected_cond_idx}",
       )
 
       c_btn_col1, c_btn_col2 = st.columns(2)
       with c_btn_col1:
-        if st.button("Update Conduit Run", key=f"up_c_{selected_cond_idx}"):
+        if st.button(
+            "Update Conduit Run", key=f"up_c_tab_{selected_cond_idx}"
+        ):
           up_x = parse_coords(edit_cx_x_str)
           up_y = parse_coords(edit_cx_y_str)
           if up_x is None or up_y is None or len(up_x) != len(up_y):
@@ -321,12 +426,19 @@ with tab_layout:
             st.success("Conduit run updated successfully!")
             st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
       with c_btn_col2:
-        if st.button("Delete Conduit Run", key=f"del_c_{selected_cond_idx}"):
+        if st.button(
+            "Delete Conduit Run", key=f"del_c_tab_{selected_cond_idx}"
+        ):
           removed_c = st.session_state.placed_conduits.pop(selected_cond_idx)
           st.warning(f"Removed conduit run '{removed_c['label']}'.")
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    else:
+      st.info("No conduits currently routed.")
 
-    # 7. Lighting Placement Form
+# TAB 4: LIGHTING FIXTURES & EDITS
+with tab_light:
+  l_col1, l_col2 = st.columns(2)
+  with l_col1:
     st.subheader("💡 Place Light from Library")
     light_options = [
         f"{l['Make']} {l['Brand']} ({l['Type']})" for l in lighting_lib
@@ -335,23 +447,24 @@ with tab_layout:
         "Choose Lighting Fixture",
         range(len(light_options)),
         format_func=lambda x: light_options[x],
+        key="l_sel_tab",
     )
     lx_coord = st.number_input(
         "Placement X (ft)",
         min_value=0.0,
-        max_value=float(floor_w),
+        max_value=float(st.session_state.floor_w),
         value=50.0,
-        key="lx",
+        key="lx_tab",
     )
     ly_coord = st.number_input(
         "Placement Y (ft)",
         min_value=0.0,
-        max_value=float(floor_h),
+        max_value=float(st.session_state.floor_h),
         value=80.0,
-        key="ly",
+        key="ly_tab",
     )
 
-    if st.button("Drop Light onto Floor"):
+    if st.button("Drop Light onto Floor", type="primary"):
       spec_l = lighting_lib[selected_l_idx].copy()
       spec_l["x"] = lx_coord
       spec_l["y"] = ly_coord
@@ -359,7 +472,7 @@ with tab_layout:
       st.success(f"Placed Lighting Fixture at ({lx_coord}, {ly_coord})!")
       st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    # 8. Modify or Delete Placed Lighting
+  with l_col2:
     if len(st.session_state.placed_lighting) > 0:
       st.subheader("🛠️ Modify or Delete Placed Lighting")
       placed_l_opts = [
@@ -376,22 +489,22 @@ with tab_layout:
       edit_lx = st.number_input(
           "Adjust Light Coordinate X (ft)",
           min_value=0.0,
-          max_value=float(floor_w),
+          max_value=float(st.session_state.floor_w),
           value=float(active_light["x"]),
-          key=f"elx_{selected_placed_l_idx}",
+          key=f"elx_tab_{selected_placed_l_idx}",
       )
       edit_ly = st.number_input(
           "Adjust Light Coordinate Y (ft)",
           min_value=0.0,
-          max_value=float(floor_h),
+          max_value=float(st.session_state.floor_h),
           value=float(active_light["y"]),
-          key=f"ely_{selected_placed_l_idx}",
+          key=f"ely_tab_{selected_placed_l_idx}",
       )
 
       l_btn_col1, l_btn_col2 = st.columns(2)
       with l_btn_col1:
         if st.button(
-            "Update Light Position", key=f"up_l_{selected_placed_l_idx}"
+            "Update Light Position", key=f"up_l_tab_{selected_placed_l_idx}"
         ):
           st.session_state.placed_lighting[selected_placed_l_idx]["x"] = edit_lx
           st.session_state.placed_lighting[selected_placed_l_idx]["y"] = edit_ly
@@ -399,7 +512,7 @@ with tab_layout:
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
       with l_btn_col2:
         if st.button(
-            "Delete Light Fixture", key=f"del_l_{selected_placed_l_idx}"
+            "Delete Light Fixture", key=f"del_l_tab_{selected_placed_l_idx}"
         ):
           removed_light = st.session_state.placed_lighting.pop(
               selected_placed_l_idx
@@ -409,83 +522,10 @@ with tab_layout:
               f" '{removed_light['Make']} {removed_light['Brand']}'."
           )
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    else:
+      st.info("No lighting fixtures currently placed.")
 
-  with col1:
-    # Extract workflow path points from session state for ASME Drawing
-    active_workflow_paths = []
-    if len(st.session_state.path_points) > 0:
-      try:
-        px = [
-            float(v)
-            for v in st.session_state.path_points["X Coordinate"].tolist()
-        ]
-        py = [
-            float(v)
-            for v in st.session_state.path_points["Y Coordinate"].tolist()
-        ]
-        p_so = [
-            float(v)
-            for v in st.session_state.path_points["Safety Standoff (ft)"].tolist()
-        ]
-        if len(px) >= 2:
-          active_workflow_paths.append({
-              "x": px,
-              "y": py,
-              "standoffs": p_so,
-              "width_ft": float(path_width_ft),
-          })
-      except Exception:
-        pass
-
-    # Render ASME Drawing Sheet with updated workflow path rendering
-    fig = draw_asme_drawing(
-        size_char=sheet_size,
-        floor_width_ft=floor_w,
-        floor_height_ft=floor_h,
-        machines=st.session_state.placed_machines,
-        conduits=st.session_state.placed_conduits,
-        lighting=st.session_state.placed_lighting,
-        workflow_paths=active_workflow_paths,
-        show_safety=show_safety,
-        show_contour=show_contour,
-    )
-    st.pyplot(fig)
-
-  # Analysis & Compliance Reporting
-  st.header("📈 Layout Analytics & OSHA / NJ-UCC Verification")
-
-  warnings = run_layout_analysis(
-      st.session_state.placed_machines, st.session_state.placed_conduits
-  )
-  metrics = calculate_production_metrics(st.session_state.placed_machines)
-
-  stat1, stat2, stat3 = st.columns(3)
-  with stat1:
-    st.metric("Line Bottleneck", metrics.get("Bottleneck Machine", "N/A"))
-  with stat2:
-    st.metric(
-        "Line Balance Index", metrics.get("Line Balance Efficiency", "N/A")
-    )
-  with stat3:
-    st.metric(
-        "UDP Power Sleep Savings", metrics.get("UDP Switch-Off Savings", "N/A")
-    )
-
-  if warnings:
-    st.error("⚠️ Spatial & Regulatory Warnings Found:")
-    for warn in warnings:
-      st.warning(warn)
-  else:
-    st.success(
-        "✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical"
-        " Standards!"
-    )
-
-  st.info(
-      "⚡ Estimated Throughput (MPDI Bucket Brigade Dynamic Model):"
-      f" {metrics.get('Bucket Brigade Throughput', '0')}"
-  )
-
+# TAB 5: MACHINE FLOWS & WORKFLOW PATHS
 with tab_flow:
   st.header("🔄 Machine Part Flow Configuration")
   st.markdown(
@@ -496,13 +536,15 @@ with tab_flow:
   with st.container():
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-      source_id = st.text_input("Source Machine ID", placeholder="e.g., M-100")
+      source_id = st.text_input(
+          "Source Machine ID", placeholder="e.g., M-100", key="src_flow_tab"
+      )
     with f_col2:
       dest_id = st.text_input(
-          "Destination Machine ID", placeholder="e.g., M-200"
+          "Destination Machine ID", placeholder="e.g., M-200", key="dst_flow_tab"
       )
 
-    if st.button("Add Machine Flow", type="primary"):
+    if st.button("Add Machine Flow", type="primary", key="add_flow_btn"):
       if source_id and dest_id:
         st.session_state.machine_flows.append(
             {"Source": source_id, "Destination": dest_id}
@@ -521,15 +563,14 @@ with tab_flow:
 
   st.divider()
 
-  st.header("🛣️ Workflow Path Definition")
+  st.header("GM Workflow Path Definition")
   st.markdown(
       "Input and edit the sequential X/Y coordinate points that define the"
       " workflow path. Parts will travel sequentially from the first to the"
       " last point."
   )
 
-  # Form to add a new coordinate point
-  with st.form("path_point_form"):
+  with st.form("path_point_form_tab"):
     st.subheader("Add Point to Workflow Path")
     col_x, col_y, col_standoff, col_speed = st.columns(4)
 
@@ -573,13 +614,17 @@ with tab_flow:
       num_rows="dynamic",
       use_container_width=True,
       hide_index=True,
+      key="data_editor_path_tab",
   )
 
-  # Save the edits back to session state
   st.session_state.path_points = edited_path_df
   st.divider()
 
-  if st.button("💾 Save & Send to Optimization Engine", type="primary"):
+  if st.button(
+      "💾 Save & Send to Optimization Engine",
+      type="primary",
+      key="save_c_engine_btn",
+  ):
     st.info(
         "Configuration data and workflow paths are ready and serialized for"
         " execution."
