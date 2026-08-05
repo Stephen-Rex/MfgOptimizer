@@ -30,7 +30,6 @@ def draw_asme_drawing(
   margin = 0.50
   tb_w, tb_h = 6.25, 2.0
 
-  # Calculate fitting scale factors
   W1 = width_in - 2 * margin - tb_w
   H1 = height_in - 2 * margin
   S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
@@ -82,7 +81,6 @@ def draw_asme_drawing(
       lw=1,
   )
 
-  # Title Block
   tb_x, tb_y = width_in - margin - tb_w, margin
   ax.plot(
       [tb_x, tb_x, width_in - margin, width_in - margin, tb_x],
@@ -131,7 +129,7 @@ def draw_asme_drawing(
       label='Factory Floor Boundary',
   )
 
-  # Heatmaps & Contour Underlays
+  # Heatmaps or Contour Underlays
   if (show_safety or show_contour) and len(machines) > 0:
     grid_x = np.linspace(0, floor_width_ft, 100)
     grid_y = np.linspace(0, floor_height_ft, 100)
@@ -188,9 +186,9 @@ def draw_asme_drawing(
       x_in = O_x + x_pts * S
       y_in = O_y + y_pts * S
 
-      # Draw main grey bar (travel path)
+      # Draw main grey bar
       bar_width_ft = path.get('width_ft', 4.0)
-      bar_lw_in = bar_width_ft * S * 72  # 72 points per inch in matplotlib
+      bar_lw_in = bar_width_ft * S * 72
       ax.plot(
           x_in,
           y_in,
@@ -203,7 +201,7 @@ def draw_asme_drawing(
           label='Workflow Path',
       )
 
-      # Compute parallel offsets for safety standoff envelope
+      # Offset vectors for safety standoff envelope
       dx = np.diff(x_in)
       dy = np.diff(y_in)
       lengths = np.sqrt(dx**2 + dy**2)
@@ -225,14 +223,13 @@ def draw_asme_drawing(
           vx_n[i] /= v_len
           vy_n[i] /= v_len
 
-      # Apply standoff distances in inches
       st_in = (np.array(standoffs) + bar_width_ft / 2.0) * S
       left_x = x_in + vx_n * st_in
       left_y = y_in + vy_n * st_in
       right_x = x_in - vx_n * st_in
       right_y = y_in - vy_n * st_in
 
-      # Dotted yellow safety standoff envelope
+      # Dotted yellow safety envelope
       ax.plot(
           left_x,
           left_y,
@@ -252,7 +249,9 @@ def draw_asme_drawing(
       )
 
       # Waypoint Markers
-      ax.scatter
+      ax.scatter(
+          x_in, y_in, color='#FFD700', s=35, zorder=4, edgecolor='black'
+      )
       for idx, (px, py) in enumerate(zip(x_in, y_in)):
         ax.text(
             px,
@@ -265,7 +264,7 @@ def draw_asme_drawing(
             zorder=5,
         )
 
-  # Draw electrical conduits
+  # Draw conduits
   for cond in conduits:
     cx_in = [O_x + val * S for val in cond['x']]
     cy_in = [O_y + val * S for val in cond['y']]
