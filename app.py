@@ -16,8 +16,13 @@ st.sidebar.header("📁 Material & Machinery Library")
 machinery_lib = get_default_machinery()
 lighting_lib = get_default_lighting()
 
+# Display Machinery Library
 st.sidebar.subheader("Default Machinery Specifications")
 st.sidebar.dataframe(pd.DataFrame(machinery_lib)[["Make", "Model", "Type", "Volume", "Yield"]])
+
+# Display Lighting Library
+st.sidebar.subheader("Default Lighting Specifications")
+st.sidebar.dataframe(pd.DataFrame(lighting_lib)[["Make", "Brand", "Type", "Wattage", "Lumens", "Lux"]])
 
 # Setup Layout State
 if "placed_machines" not in st.session_state:
@@ -91,3 +96,4 @@ else:
     st.success("✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical Standards!")
 
 st.info(f"⚡ Estimated Throughput (MPDI Bucket Brigade Dynamic Model): {metrics.get('Bucket Brigade Throughput', '0')}")
+
