@@ -31,16 +31,6 @@ lighting_lib = get_default_lighting()
 df_machinery = pd.DataFrame(machinery_lib)
 df_lighting = pd.DataFrame(lighting_lib)
 
-# Sidebar Library Files
-st.sidebar.header("📁 Material & Machinery Library")
-st.sidebar.subheader("Default Machinery Specifications")
-st.sidebar.dataframe(df_machinery[["Make", "Model", "Type", "Volume", "Yield"]])
-
-st.sidebar.subheader("Default Lighting Specifications")
-st.sidebar.dataframe(
-    df_lighting[["Make", "Brand", "Type", "Wattage", "Lumens", "Lux"]]
-)
-
 # Setup Session State for Placed Items & Workflow Routes
 if "placed_machines" not in st.session_state:
   st.session_state.placed_machines = [
@@ -110,7 +100,7 @@ if "show_safety" not in st.session_state:
 if "show_contour" not in st.session_state:
   st.session_state.show_contour = False
 
-# Render Top Main ASME Blueprint Drawing View
+# Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
 # Extract workflow path points from session state for ASME Drawing
@@ -150,7 +140,11 @@ fig = draw_asme_drawing(
     show_safety=st.session_state.show_safety,
     show_contour=st.session_state.show_contour,
 )
-st.pyplot(fig)
+
+# Display Blueprint at 75% width
+bp_col, bp_space = st.columns([0.75, 0.25])
+with bp_col:
+  st.pyplot(fig, use_container_width=True)
 
 # Analytics Summary
 metrics = calculate_production_metrics(st.session_state.placed_machines)
@@ -576,13 +570,14 @@ with tab_flow:
 
   st.divider()
 
-  st.header("GM Workflow Path Definition")
+  st.header("🛣️ Workflow Path Definition")
   st.markdown(
       "Input and edit the sequential X/Y coordinate points that define the"
       " workflow path. Parts will travel sequentially from the first to the"
       " last point."
   )
 
+  # Form to add a new coordinate point
   with st.form("path_point_form_tab"):
     st.subheader("Add Point to Workflow Path")
     col_x, col_y, col_standoff, col_speed = st.columns(4)
