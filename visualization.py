@@ -387,7 +387,7 @@ def draw_asme_drawing(
     cy_in = [O_y + val * S for val in cond['y']]
     ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
 
-  # Draw machines with ONLY M1, M2...
+  # Draw machines with M1, M2...
   for idx, m in enumerate(machines):
     mx_in = O_x + m['x'] * S
     my_in = O_y + m['y'] * S
@@ -431,7 +431,7 @@ def draw_asme_drawing(
     )
     ax.add_patch(so_circ)
 
-  # Draw lighting with ONLY L1, L2...
+  # Draw lighting with L1, L2...
   for idx, l in enumerate(lighting):
     lx_in = O_x + l['x'] * S
     ly_in = O_y + l['y'] * S
