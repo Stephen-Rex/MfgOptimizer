@@ -31,7 +31,27 @@ lighting_lib = get_default_lighting()
 df_machinery = pd.DataFrame(machinery_lib)
 df_lighting = pd.DataFrame(lighting_lib)
 
-# Setup Session State
+# Setup Session State for Blueprint Controls & Placed Items
+if "sheet_size" not in st.session_state:
+  st.session_state.sheet_size = "B"
+if "floor_w" not in st.session_state:
+  st.session_state.floor_w = 200.0
+if "floor_h" not in st.session_state:
+  st.session_state.floor_h = 100.0
+if "path_width_ft" not in st.session_state:
+  st.session_state.path_width_ft = 6.0
+if "show_safety" not in st.session_state:
+  st.session_state.show_safety = False
+if "show_contour" not in st.session_state:
+  st.session_state.show_contour = False
+
+if "designer_name" not in st.session_state:
+  st.session_state.designer_name = "Facility Architects Inc."
+if "dwg_title" not in st.session_state:
+  st.session_state.dwg_title = "Factory Layout Blueprint"
+if "dwg_num" not in st.session_state:
+  st.session_state.dwg_num = "FFO-001"
+
 if "placed_machines" not in st.session_state:
   st.session_state.placed_machines = [
       {
@@ -87,30 +107,10 @@ if "path_points" not in st.session_state:
       "Movement Speed": [5.00, 5.00, 5.00],
   })
 
-if "sheet_size" not in st.session_state:
-  st.session_state.sheet_size = "B"
-if "floor_w" not in st.session_state:
-  st.session_state.floor_w = 200.0
-if "floor_h" not in st.session_state:
-  st.session_state.floor_h = 100.0
-if "path_width_ft" not in st.session_state:
-  st.session_state.path_width_ft = 6.0
-if "show_safety" not in st.session_state:
-  st.session_state.show_safety = False
-if "show_contour" not in st.session_state:
-  st.session_state.show_contour = False
-
-# Session state for Project Info (Title Block Metadata)
-if "designer_name" not in st.session_state:
-  st.session_state.designer_name = "Facility Architects Inc."
-if "dwg_title" not in st.session_state:
-  st.session_state.dwg_title = "Factory Layout Blueprint"
-if "dwg_num" not in st.session_state:
-  st.session_state.dwg_num = "FFO-001"
-
 # Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
+# Extract workflow path points from session state for ASME Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
   try:
@@ -185,7 +185,7 @@ else:
 st.divider()
 
 # TABBED NAVIGATION FOR ALL CONFIGURATION MENUS
-st.header("GE Layout Configuration & Component Menus")
+st.header("⚙️ Layout Configuration & Component Menus")
 
 tab_proj, tab_dims, tab_mach, tab_cond, tab_light, tab_flow, tab_lib = st.tabs([
     "📋 Project Info",
@@ -209,22 +209,10 @@ with tab_proj:
 
   p_col1, p_col2 = st.columns(2)
   with p_col1:
-    st.session_state.designer_name = st.text_input(
-        "Designer / Company Name",
-        value=st.session_state.designer_name,
-        key="proj_designer_input",
-    )
-    st.session_state.dwg_title = st.text_input(
-        "Drawing Title",
-        value=st.session_state.dwg_title,
-        key="proj_title_input",
-    )
+    st.text_input("Designer / Company Name", key="designer_name")
+    st.text_input("Drawing Title", key="dwg_title")
   with p_col2:
-    st.session_state.dwg_num = st.text_input(
-        "Drawing Number (DWG NO)",
-        value=st.session_state.dwg_num,
-        key="proj_dwg_num_input",
-    )
+    st.text_input("Drawing Number (DWG NO)", key="dwg_num")
 
 # -------------------------------------------------------------
 # TAB 1: PHYSICAL FLOOR & SHEET DIMENSIONS
@@ -233,39 +221,33 @@ with tab_dims:
   st.subheader("📐 Factory Floor & ASME Drawing Sheet Configuration")
   dim_col1, dim_col2 = st.columns(2)
   with dim_col1:
-    st.session_state.sheet_size = st.selectbox(
-        "Select ASME Sheet Boundary Size",
-        ["A", "B", "C", "D"],
-        index=["A", "B", "C", "D"].index(st.session_state.sheet_size),
+    st.selectbox(
+        "Select ASME Sheet Boundary Size", ["A", "B", "C", "D"], key="sheet_size"
     )
-    st.session_state.floor_w = st.number_input(
+    st.number_input(
         "Factory Floor Width (feet)",
         min_value=10.0,
         max_value=1000.0,
-        value=float(st.session_state.floor_w),
         step=10.0,
+        key="floor_w",
     )
-    st.session_state.floor_h = st.number_input(
+    st.number_input(
         "Factory Floor Height (feet)",
         min_value=10.0,
         max_value=1000.0,
-        value=float(st.session_state.floor_h),
         step=10.0,
+        key="floor_h",
     )
   with dim_col2:
-    st.session_state.path_width_ft = st.number_input(
+    st.number_input(
         "Workflow Path Width (feet)",
         min_value=1.0,
         max_value=20.0,
-        value=float(st.session_state.path_width_ft),
         step=0.5,
+        key="path_width_ft",
     )
-    st.session_state.show_safety = st.checkbox(
-        "Show Safety Heatmap underlay", value=st.session_state.show_safety
-    )
-    st.session_state.show_contour = st.checkbox(
-        "Show Part Volume Contour plots", value=st.session_state.show_contour
-    )
+    st.checkbox("Show Safety Heatmap underlay", key="show_safety")
+    st.checkbox("Show Part Volume Contour plots", key="show_contour")
 
 # -------------------------------------------------------------
 # TAB 2: MACHINERY PLACEMENT & EDITS
