@@ -19,11 +19,11 @@ def draw_asme_drawing(
 ):
   """Renders factory layout inside standardized ASME Y14.1 margins and title block.
 
-  Renders workflow paths as a solid grey bar with dotted yellow lines
-  representing the safety standoff envelope. Labels machines as M1, M2... and
-  lights as L1, L2... Adds 20ft dotted grey grid lines inside the factory floor
-  boundary. Allows editing title block metadata (Designer, Title, Drawing
-  Number).
+  Renders workflow paths as a solid grey bar (1ft thick) with dotted yellow
+  lines representing the safety standoff envelope (5ft normal offset). Labels
+  machines as M1, M2... and lights as L1, L2... Adds 20ft dotted grey grid lines
+  inside the factory floor boundary. Allows editing title block metadata
+  (Designer, Title, Drawing Number).
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -36,6 +36,7 @@ def draw_asme_drawing(
   margin = 0.50
   tb_w, tb_h = 6.25, 2.0
 
+  # Scale factor calculation
   W1 = width_in - 2 * margin - tb_w
   H1 = height_in - 2 * margin
   S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
@@ -66,7 +67,8 @@ def draw_asme_drawing(
     O_x = margin + (width_in - 2 * margin - W_drawn) / 2
     O_y = margin + (height_in - 2 * margin - H_drawn) / 2
 
-  fig, ax = plt.subplots(figsize=(10, 6.5))
+  fig_w, fig_h = 10.0, 6.5
+  fig, ax = plt.subplots(figsize=(fig_w, fig_h))
 
   blueprint_blue = '#002B49'
   fig.patch.set_facecolor(blueprint_blue)
@@ -137,7 +139,7 @@ def draw_asme_drawing(
       label='Factory Floor Boundary',
   )
 
-  # Dotted Grey Grid Lines Every 20 ft Inside Floor Boundary
+  # --- Dotted Grey Grid Lines Every 20 ft Inside Factory Floor Boundary ---
   grid_color = '#808080'
   x_ticks = np.arange(20.0, floor_width_ft, 20.0)
   for x_ft in x_ticks:
@@ -165,7 +167,7 @@ def draw_asme_drawing(
         alpha=0.6,
     )
 
-  # Heatmaps / Contour Underlays
+  # Draw heatmaps or contour underlays
   if (show_safety or show_contour) and len(machines) > 0:
     grid_x = np.linspace(0, floor_width_ft, 100)
     grid_y = np.linspace(0, floor_height_ft, 100)
@@ -212,44 +214,52 @@ def draw_asme_drawing(
           zorder=1,
       )
 
-  # Draw Workflow Paths: Grey Bar + Dotted Yellow Safety Standoff Envelope
+  # --- Draw Workflow Paths ---
+  # Convert data coordinate inches to matplotlib points:
+  # ax.set_xlim(-1, width_in + 1) -> total data width = width_in + 2.0
+  data_width = width_in + 2.0
+  points_per_data_inch = (fig_w / data_width) * 72.0
+
   for path in workflow_paths:
     x_pts = np.array(path['x'])
     y_pts = np.array(path['y'])
-    standoffs = path.get('standoffs', [2.0] * len(x_pts))
+    standoffs = path.get('standoffs', [5.0] * len(x_pts))
 
     if len(x_pts) >= 2:
       x_in = O_x + x_pts * S
       y_in = O_y + y_pts * S
 
-      bar_width_ft = path.get('width_ft', 4.0)
-      bar_lw_in = bar_width_ft * S * 72
+      # Grey bar path thickness = 1.0 ft EXACTLY
+      bar_width_ft = path.get('width_ft', 1.0)
+      bar_lw_pts = bar_width_ft * S * points_per_data_inch
+
       ax.plot(
           x_in,
           y_in,
           color='#808080',
-          lw=max(4, bar_lw_in),
-          alpha=0.75,
+          lw=max(1.5, bar_lw_pts),
+          alpha=0.85,
           solid_capstyle='round',
           solid_joinstyle='round',
           zorder=2,
           label='Workflow Path',
       )
 
-      dx = np.diff(x_in)
-      dy = np.diff(y_in)
+      # Offset vectors in physical feet
+      dx = np.diff(x_pts)
+      dy = np.diff(y_pts)
       lengths = np.sqrt(dx**2 + dy**2)
       lengths[lengths == 0] = 1e-6
 
       nx = -dy / lengths
       ny = dx / lengths
 
-      vx_n = np.zeros(len(x_in))
-      vy_n = np.zeros(len(y_in))
+      vx_n = np.zeros(len(x_pts))
+      vy_n = np.zeros(len(y_pts))
       vx_n[0], vy_n[0] = nx[0], ny[0]
       vx_n[-1], vy_n[-1] = nx[-1], ny[-1]
 
-      for i in range(1, len(x_in) - 1):
+      for i in range(1, len(x_pts) - 1):
         vx_n[i] = (nx[i - 1] + nx[i]) / 2.0
         vy_n[i] = (ny[i - 1] + ny[i]) / 2.0
         v_len = np.sqrt(vx_n[i] ** 2 + vy_n[i] ** 2)
@@ -257,18 +267,20 @@ def draw_asme_drawing(
           vx_n[i] /= v_len
           vy_n[i] /= v_len
 
-      st_in = (np.array(standoffs) + bar_width_ft / 2.0) * S
+      # Standoff in drawing inches = standoff_ft * S
+      st_in = np.array(standoffs) * S
       left_x = x_in + vx_n * st_in
       left_y = y_in + vy_n * st_in
       right_x = x_in - vx_n * st_in
       right_y = y_in - vy_n * st_in
 
+      # Dotted yellow safety envelope
       ax.plot(
           left_x,
           left_y,
           color='#FFD700',
           linestyle=':',
-          lw=2.0,
+          lw=1.5,
           zorder=3,
           label='Safety Standoff Envelope',
       )
@@ -277,12 +289,13 @@ def draw_asme_drawing(
           right_y,
           color='#FFD700',
           linestyle=':',
-          lw=2.0,
+          lw=1.5,
           zorder=3,
       )
 
+      # Waypoint Markers
       ax.scatter(
-          x_in, y_in, color='#FFD700', s=35, zorder=4, edgecolor='black'
+          x_in, y_in, color='#FFD700', s=25, zorder=4, edgecolor='black'
       )
       for idx, (px, py) in enumerate(zip(x_in, y_in)):
         ax.text(
@@ -377,3 +390,4 @@ def draw_asme_drawing(
   ax.set_aspect('equal')
   ax.axis('off')
   return fig
+
