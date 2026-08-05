@@ -31,7 +31,7 @@ lighting_lib = get_default_lighting()
 df_machinery = pd.DataFrame(machinery_lib)
 df_lighting = pd.DataFrame(lighting_lib)
 
-# Setup Session State
+# Setup Session State for Blueprint Controls & Placed Items
 if "sheet_size" not in st.session_state:
   st.session_state.sheet_size = "B"
 if "floor_w" not in st.session_state:
@@ -114,6 +114,7 @@ if "path_points" not in st.session_state:
 # Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
+# Extract workflow path points from session state for ASME Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
   try:
@@ -696,4 +697,3 @@ with tab_lib:
   with lib_col2:
     st.subheader("💡 Default Lighting Library")
     st.dataframe(df_lighting, use_container_width=True)
-
