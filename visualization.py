@@ -14,7 +14,7 @@ def draw_asme_drawing(
     show_safety=False,
     show_contour=False,
     show_decibel=False,
-    designer_name='Facility Architects Inc.',
+    designer_name='FACILITY ARCHITECTS INC.',
     dwg_title='Factory Layout Blueprint',
     dwg_num='FFO-001',
 ):
@@ -25,7 +25,8 @@ def draw_asme_drawing(
   machines as M1, M2... and lights as L1, L2... Adds 20ft dotted grey grid lines
   inside the factory floor boundary. Allows editing title block metadata
   (Designer, Title, Drawing Number). Includes Machine Decibel Acoustic Contour
-  Plot using Inverse Square Law.
+  Plot using Inverse Square Law, Safety Heatmap, and Part Volume Contours with
+  colorbar legends.
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -38,6 +39,7 @@ def draw_asme_drawing(
   margin = 0.50
   tb_w, tb_h = 6.25, 2.0
 
+  # Scale factor calculation
   W1 = width_in - 2 * margin - tb_w
   H1 = height_in - 2 * margin
   S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
@@ -90,6 +92,7 @@ def draw_asme_drawing(
       lw=1,
   )
 
+  # Title Block Box
   tb_x, tb_y = width_in - margin - tb_w, margin
   ax.plot(
       [tb_x, tb_x, width_in - margin, width_in - margin, tb_x],
@@ -98,6 +101,7 @@ def draw_asme_drawing(
       lw=1.5,
   )
 
+  # Dynamic Title Block Text
   text_color = '#FFFFFF'
   ax.text(
       tb_x + 0.2,
@@ -138,7 +142,7 @@ def draw_asme_drawing(
       label='Factory Floor Boundary',
   )
 
-  # --- Dotted Grey Grid Lines Every 20 ft Inside Factory Floor Boundary ---
+  # Dotted Grey Grid Lines Every 20 ft Inside Factory Floor Boundary
   grid_color = '#808080'
   x_ticks = np.arange(20.0, floor_width_ft, 20.0)
   for x_ft in x_ticks:
@@ -173,7 +177,7 @@ def draw_asme_drawing(
     X, Y = np.meshgrid(grid_x, grid_y)
 
     if show_decibel:
-      # Sound Pressure Level (SPL) Inverse Square Law: L_p(r) = L_p0 - 20 * log10(r / r0)
+      # Sound Pressure Level (SPL) Inverse Square Law
       r0 = 3.0
       sum_intensity = np.zeros_like(X)
 
@@ -185,7 +189,6 @@ def draw_asme_drawing(
         sum_intensity += 10.0 ** (spl_i / 10.0)
 
       Z_db = 10.0 * np.log10(np.maximum(sum_intensity, 1e-12))
-
       X_plot = O_x + X * S
       Y_plot = O_y + Y * S
 
@@ -193,7 +196,7 @@ def draw_asme_drawing(
       z_max = np.max(Z_db)
       levels = np.linspace(max(30.0, z_min), max(35.0, z_max), 12)
 
-      ax.contourf(
+      cf = ax.contourf(
           X_plot,
           Y_plot,
           Z_db,
@@ -213,6 +216,14 @@ def draw_asme_drawing(
           zorder=1,
       )
 
+      # Colorbar / Legend
+      cbar = fig.colorbar(cf, ax=ax, fraction=0.025, pad=0.02)
+      cbar.set_label(
+          'Noise Level (dBA)', color='white', fontsize=8, weight='bold'
+      )
+      cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=7)
+      cbar.outline.set_edgecolor('gold')
+
     elif show_safety:
       Z_safety = np.zeros_like(X)
       for m in machines:
@@ -223,7 +234,7 @@ def draw_asme_drawing(
       z_min = np.min(Z_safety)
       z_max = np.max(Z_safety)
       vmin, vmax = 0.0, max(1.0, z_max) if z_min != z_max else 1.0
-      ax.imshow(
+      im = ax.imshow(
           Z_safety,
           extent=[O_x, O_x + W_drawn, O_y, O_y + H_drawn],
           origin='lower',
@@ -233,6 +244,14 @@ def draw_asme_drawing(
           vmax=vmax,
           zorder=1,
       )
+
+      # Colorbar / Legend
+      cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+      cbar.set_label(
+          'Safety Overlap Risk Index', color='white', fontsize=8, weight='bold'
+      )
+      cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=7)
+      cbar.outline.set_edgecolor('gold')
 
     elif show_contour:
       Z_vol = np.zeros_like(X)
@@ -244,7 +263,7 @@ def draw_asme_drawing(
       Y_plot = O_y + Y * S
       z_max = np.max(Z_vol)
       levels = np.linspace(0.0, z_max, 10) if z_max > 0 else [0.0, 1.0]
-      ax.contourf(
+      cf = ax.contourf(
           X_plot,
           Y_plot,
           Z_vol,
@@ -253,6 +272,17 @@ def draw_asme_drawing(
           alpha=0.4,
           zorder=1,
       )
+
+      # Colorbar / Legend
+      cbar = fig.colorbar(cf, ax=ax, fraction=0.025, pad=0.02)
+      cbar.set_label(
+          'Part Volume Density (parts/hr)',
+          color='white',
+          fontsize=8,
+          weight='bold',
+      )
+      cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=7)
+      cbar.outline.set_edgecolor('gold')
 
   # --- Draw Workflow Paths ---
   data_width = width_in + 2.0
@@ -423,3 +453,4 @@ def draw_asme_drawing(
   ax.set_aspect('equal')
   ax.axis('off')
   return fig
+
