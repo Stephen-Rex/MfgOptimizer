@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -200,6 +201,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
     tab_cond,
     tab_light,
     tab_flow,
+    tab_io,
     tab_lib,
 ) = st.tabs([
     "📋 Project Info",
@@ -209,6 +211,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
     "🔌 Conduit Routing & Edits",
     "💡 Lighting Fixtures & Edits",
     "🔄 Machine Flows & Workflow Paths",
+    "💾 Import / Export Layout",
     "📚 Default Libraries",
 ])
 
@@ -375,9 +378,7 @@ with tab_mach:
     else:
       st.info("No machines currently placed on the layout.")
 
-# -------------------------------------------------------------
 # TAB 4: CONDUIT ROUTING & EDITS
-# -------------------------------------------------------------
 with tab_cond:
   c_col1, c_col2 = st.columns(2)
   with c_col1:
@@ -495,9 +496,7 @@ with tab_cond:
     else:
       st.info("No conduits currently routed.")
 
-# -------------------------------------------------------------
 # TAB 5: LIGHTING FIXTURES & EDITS
-# -------------------------------------------------------------
 with tab_light:
   l_col1, l_col2 = st.columns(2)
   with l_col1:
@@ -587,9 +586,7 @@ with tab_light:
     else:
       st.info("No lighting fixtures currently placed.")
 
-# -------------------------------------------------------------
 # TAB 6: MACHINE FLOWS & WORKFLOW PATHS
-# -------------------------------------------------------------
 with tab_flow:
   st.header("🔄 Machine Part Flow Configuration")
   st.markdown(
@@ -694,9 +691,119 @@ with tab_flow:
         " execution."
     )
 
-# -------------------------------------------------------------
-# TAB 7: DEFAULT LIBRARIES
-# -------------------------------------------------------------
+# TAB 7: IMPORT / EXPORT LAYOUT DESIGN
+with tab_io:
+  st.header("💾 Import & Export Factory Layout Designs")
+  st.markdown(
+      "Save your current project configuration as a formatted text file (JSON"
+      " format) or import a previously saved design file."
+  )
+
+  io_col1, io_col2 = st.columns(2)
+
+  with io_col1:
+    st.subheader("📤 Export Current Project Layout")
+    st.markdown(
+        "Click the button below to download your complete factory floor"
+        " configuration file."
+    )
+
+    # Prepare export dictionary
+    export_data = {
+        "designer_name": st.session_state.designer_name,
+        "dwg_title": st.session_state.dwg_title,
+        "dwg_num": st.session_state.dwg_num,
+        "sheet_size": st.session_state.sheet_size,
+        "floor_w": st.session_state.floor_w,
+        "floor_h": st.session_state.floor_h,
+        "path_width_ft": st.session_state.path_width_ft,
+        "show_safety": st.session_state.show_safety,
+        "show_contour": st.session_state.show_contour,
+        "show_decibel": st.session_state.show_decibel,
+        "placed_machines": st.session_state.placed_machines,
+        "placed_lighting": st.session_state.placed_lighting,
+        "placed_conduits": st.session_state.placed_conduits,
+        "machine_flows": st.session_state.machine_flows,
+        "path_points": st.session_state.path_points.to_dict(orient="records"),
+    }
+
+    export_str = json.dumps(export_data, indent=2)
+
+    st.download_button(
+        label="⬇️ Download Project File (.txt)",
+        data=export_str,
+        file_name=(
+            "factory_layout_"
+            f"{st.session_state.dwg_num.replace(' ', '_')}.txt"
+        ),
+        mime="text/plain",
+        type="primary",
+    )
+
+    with st.expander("Preview Formatted Export File Content"):
+      st.code(export_str, language="json")
+
+  with io_col2:
+    st.subheader("📥 Import Saved Project Layout")
+    st.markdown(
+        "Upload a formatted project text file (`.txt`) to restore a saved"
+        " layout."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Choose a layout text file", type=["txt", "json"]
+    )
+
+    if uploaded_file is not None:
+      try:
+        content = uploaded_file.read().decode("utf-8")
+        imported_data = json.loads(content)
+
+        if st.button("🔄 Apply Imported Layout to Floor", type="primary"):
+          if "designer_name" in imported_data:
+            st.session_state.designer_name = imported_data["designer_name"]
+          if "dwg_title" in imported_data:
+            st.session_state.dwg_title = imported_data["dwg_title"]
+          if "dwg_num" in imported_data:
+            st.session_state.dwg_num = imported_data["dwg_num"]
+          if "sheet_size" in imported_data:
+            st.session_state.sheet_size = imported_data["sheet_size"]
+          if "floor_w" in imported_data:
+            st.session_state.floor_w = float(imported_data["floor_w"])
+          if "floor_h" in imported_data:
+            st.session_state.floor_h = float(imported_data["floor_h"])
+          if "path_width_ft" in imported_data:
+            st.session_state.path_width_ft = float(
+                imported_data["path_width_ft"]
+            )
+          if "show_safety" in imported_data:
+            st.session_state.show_safety = imported_data["show_safety"]
+          if "show_contour" in imported_data:
+            st.session_state.show_contour = imported_data["show_contour"]
+          if "show_decibel" in imported_data:
+            st.session_state.show_decibel = imported_data["show_decibel"]
+          if "placed_machines" in imported_data:
+            st.session_state.placed_machines = imported_data["placed_machines"]
+          if "placed_lighting" in imported_data:
+            st.session_state.placed_lighting = imported_data["placed_lighting"]
+          if "placed_conduits" in imported_data:
+            st.session_state.placed_conduits = imported_data["placed_conduits"]
+          if "machine_flows" in imported_data:
+            st.session_state.machine_flows = imported_data["machine_flows"]
+          if "path_points" in imported_data:
+            st.session_state.path_points = pd.DataFrame(
+                imported_data["path_points"]
+            )
+
+          st.success(
+              "✅ Saved layout successfully imported and applied to the"
+              " blueprint view!"
+          )
+          st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+      except Exception as e:
+        st.error(f"Error parsing layout file: {e}")
+
+# TAB 8: DEFAULT LIBRARIES
 with tab_lib:
   st.header("📚 Default Machinery & Material Libraries")
   st.markdown(
