@@ -20,13 +20,14 @@ def draw_asme_drawing(
 ):
   """Renders factory layout inside standardized ASME Y14.1 margins and title block.
 
-  Renders workflow paths as a solid grey bar (1ft thick) with dotted yellow
-  lines representing the safety standoff envelope (5ft normal offset). Labels
-  machines as M1, M2... and lights as L1, L2... Adds 20ft dotted grey grid lines
-  inside the factory floor boundary. Allows editing title block metadata
-  (Designer, Title, Drawing Number). Includes Machine Decibel Acoustic Contour
-  Plot using Inverse Square Law, Safety Heatmap, and Part Volume Contours with
-  colorbar legends.
+  - Workflow paths: Solid grey bar (1ft thick) with dotted yellow lines for
+  safety standoff envelope (5ft normal offset).
+  - Component labels: Machines as M1, M2... and lights as L1, L2...
+  - Grid: 20ft dotted grey grid lines inside the factory floor boundary.
+  - Title block metadata: Dynamic fields for Designer Name, Drawing Title, and
+  Drawing Number.
+  - Contour Plots: Includes colorbar legends for Noise Level (dBA, min=0.0),
+  Safety Overlap Risk Index, and Part Volume Density (parts/hr).
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -189,12 +190,14 @@ def draw_asme_drawing(
         sum_intensity += 10.0 ** (spl_i / 10.0)
 
       Z_db = 10.0 * np.log10(np.maximum(sum_intensity, 1e-12))
+      # Enforce minimum limit of 0.0 dBA
+      Z_db = np.maximum(0.0, Z_db)
+
       X_plot = O_x + X * S
       Y_plot = O_y + Y * S
 
-      z_min = np.min(Z_db)
       z_max = np.max(Z_db)
-      levels = np.linspace(max(30.0, z_min), max(35.0, z_max), 12)
+      levels = np.linspace(0.0, max(10.0, z_max), 12)
 
       cf = ax.contourf(
           X_plot,
@@ -216,12 +219,14 @@ def draw_asme_drawing(
           zorder=1,
       )
 
-      # Colorbar / Legend
+      # Colorbar / Legend starting at 0.0 dBA
       cbar = fig.colorbar(cf, ax=ax, fraction=0.025, pad=0.02)
       cbar.set_label(
           'Noise Level (dBA)', color='white', fontsize=8, weight='bold'
       )
-      cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=7)
+      cbar.ax.yaxis.set_tick_params(
+          color='white', labelcolor='white', labelsize=7
+      )
       cbar.outline.set_edgecolor('gold')
 
     elif show_safety:
@@ -250,7 +255,9 @@ def draw_asme_drawing(
       cbar.set_label(
           'Safety Overlap Risk Index', color='white', fontsize=8, weight='bold'
       )
-      cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=7)
+      cbar.ax.yaxis.set_tick_params(
+          color='white', labelcolor='white', labelsize=7
+      )
       cbar.outline.set_edgecolor('gold')
 
     elif show_contour:
@@ -281,7 +288,9 @@ def draw_asme_drawing(
           fontsize=8,
           weight='bold',
       )
-      cbar.ax.yaxis.set_tick_params(color='white', labelcolor='white', labelsize=7)
+      cbar.ax.yaxis.set_tick_params(
+          color='white', labelcolor='white', labelsize=7
+      )
       cbar.outline.set_edgecolor('gold')
 
   # --- Draw Workflow Paths ---
@@ -378,7 +387,7 @@ def draw_asme_drawing(
     cy_in = [O_y + val * S for val in cond['y']]
     ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
 
-  # Draw machines with M1, M2...
+  # Draw machines with ONLY M1, M2...
   for idx, m in enumerate(machines):
     mx_in = O_x + m['x'] * S
     my_in = O_y + m['y'] * S
@@ -422,7 +431,7 @@ def draw_asme_drawing(
     )
     ax.add_patch(so_circ)
 
-  # Draw lighting with L1, L2...
+  # Draw lighting with ONLY L1, L2...
   for idx, l in enumerate(lighting):
     lx_in = O_x + l['x'] * S
     ly_in = O_y + l['y'] * S
@@ -453,4 +462,3 @@ def draw_asme_drawing(
   ax.set_aspect('equal')
   ax.axis('off')
   return fig
-
