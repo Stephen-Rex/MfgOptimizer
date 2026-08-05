@@ -2,152 +2,335 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def draw_asme_drawing(size_char='B', floor_width_ft=200.0, floor_height_ft=100.0, machines=[], conduits=[], lighting=[], show_safety=False, show_contour=False):
-    """
-    Renders factory layout inside standardized ASME Y14.1 margins, title block,
-    scaling the custom-sized factory floor to fit inside the drawing sheet without overlapping the title box.
-    Formatted as a classic blueprint with dark blue background and yellow lines.
-    """
-    # Standard sheet sizes in inches (ASME Y14.1 Table 4-1)
-    sizes = {'A': (8.5, 11.0), 'B': (11.0, 17.0), 'C': (17.0, 22.0), 'D': (22.0, 34.0)}
-    height_in, width_in = sizes.get(size_char.upper(), (11.0, 17.0))
-    
-    # margin and title block sizes
-    margin = 0.50
-    tb_w, tb_h = 6.25, 2.0
-    
-    # 1. Compute dynamic scale factor (inches per foot) under two fit scenarios to prevent Title Block overlap
-    # Scenario 1: The floor fits strictly to the left of the Title Block
-    W1 = width_in - 2 * margin - tb_w
-    H1 = height_in - 2 * margin
-    S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
-    
-    # Scenario 2: The floor fits strictly above the Title Block
-    W2 = width_in - 2 * margin
-    H2 = height_in - 2 * margin - tb_h
-    S2 = min(W2 / floor_width_ft, H2 / floor_height_ft) if H2 > 0 else 0
-    
-    # Choose the fitting region that maximizes our scale factor (gives the largest layout)
-    if S1 >= S2 and S1 > 0:
-        S = S1
-        W_drawn = floor_width_ft * S
-        H_drawn = floor_height_ft * S
-        O_x = margin + (W1 - W_drawn) / 2
-        O_y = margin + (H1 - H_drawn) / 2
-    elif S2 > S1 and S2 > 0:
-        S = S2
-        W_drawn = floor_width_ft * S
-        H_drawn = floor_height_ft * S
-        O_x = margin + (W2 - W_drawn) / 2
-        O_y = margin + tb_h + (H2 - H_drawn) / 2
-    else:
-        # Fallback to standard sheet margins centering
-        S = min(W_avail / floor_width_ft, H_avail / floor_height_ft)
-        W_drawn = floor_width_ft * S
-        H_drawn = floor_height_ft * S
-        O_x = margin + (width_in - 2 * margin - W_drawn) / 2
-        O_y = margin + (height_in - 2 * margin - H_drawn) / 2
-    
-    fig, ax = plt.subplots(figsize=(10, 6.5))
-    
-    # Set classic dark blueprint background colors
-    blueprint_blue = '#002B49'
-    fig.patch.set_facecolor(blueprint_blue)
-    ax.set_facecolor(blueprint_blue)
-    
-    # Draw physical sheet border & format margin (in yellow/gold)
-    yellow_color = '#FFD700'
-    ax.plot([0, width_in, width_in, 0, 0], [0, 0, height_in, height_in, 0], color=yellow_color, lw=2)
-    ax.plot([margin, width_in - margin, width_in - margin, margin, margin],
-            [margin, margin, height_in - margin, height_in - margin, margin], color=yellow_color, linestyle='--', lw=1)
-            
-    # Draw standard ASME Title Block (lower right of sheet in yellow/gold)
-    tb_x, tb_y = width_in - margin - tb_w, margin
-    ax.plot([tb_x, tb_x, width_in - margin, width_in - margin, tb_x], [tb_y, tb_y + tb_h, tb_y + tb_h, tb_y, tb_y], color=yellow_color, lw=1.5)
-    
-    # Title Block text in high contrast white
-    text_color = '#FFFFFF'
-    ax.text(tb_x + 0.2, tb_y + tb_h - 0.4, 'FACILITY ARCHITECTS INC.', fontsize=7, weight='bold', color=text_color)
-    ax.text(tb_x + 0.2, tb_y + tb_h - 0.8, 'TITLE: Factory Layout Blueprint', fontsize=7, color=text_color)
-    ax.text(tb_x + 0.2, tb_y + tb_h - 1.2, f'DWG NO: FFO-001  SIZE: {size_char}', fontsize=7, color=text_color)
-    ax.text(tb_x + 0.2, tb_y + tb_h - 1.6, f'Floor Scale: 1 in = {1.0/S:.1f} ft', fontsize=6, color='#A0A0A0')
-    
-    # Draw neon green Factory Floor Boundary box (in inches)
-    floor_green = '#39FF14'
-    ax.plot([O_x, O_x + W_drawn, O_x + W_drawn, O_x, O_x], [O_y, O_y, O_y + H_drawn, O_y + H_drawn, O_y], color=floor_green, lw=2, label='Factory Floor Boundary')
-    
-    # Draw heatmaps or contour underlays (in plot inches)
-    if (show_safety or show_contour) and len(machines) > 0:
-        grid_x = np.linspace(0, floor_width_ft, 100)
-        grid_y = np.linspace(0, floor_height_ft, 100)
-        X, Y = np.meshgrid(grid_x, grid_y)
-        
-        if show_safety:
-            Z_safety = np.zeros_like(X)
-            for m in machines:
-                dist = np.sqrt((X - m['x'])**2 + (Y - m['y'])**2)
-                r = (max(m['Width'], m['Height']) / 2.0) + m['Standoff']
-                Z_safety += np.exp(-dist / r)
-                
-            # Safe Normalization
-            z_min = np.min(Z_safety)
-            z_max = np.max(Z_safety)
-            if z_min == z_max:
-                vmin, vmax = 0.0, 1.0
-            else:
-                vmin, vmax = 0.0, max(1.0, z_max)
-            ax.imshow(Z_safety, extent=[O_x, O_x + W_drawn, O_y, O_y + H_drawn], origin='lower', cmap='RdYlGn_r', alpha=0.5, vmin=vmin, vmax=vmax)
-            
-        elif show_contour:
-            Z_vol = np.zeros_like(X)
-            for m in machines:
-                dist_sq = (X - m['x'])**2 + (Y - m['y'])**2
-                Z_vol += m['Volume'] * np.exp(-dist_sq / 1200)
-                
-            X_plot = O_x + X * S
-            Y_plot = O_y + Y * S
-            
-            z_max = np.max(Z_vol)
-            if z_max == 0:
-                levels = [0.0, 1.0]
-                Z_vol = np.zeros_like(X)
-            else:
-                levels = np.linspace(0.0, z_max, 10)
-            ax.contourf(X_plot, Y_plot, Z_vol, levels=levels, cmap='viridis', alpha=0.5)
-            
-    # Draw machines (mapped from feet to inches)
-    for m in machines:
-        mx_in = O_x + m['x'] * S
-        my_in = O_y + m['y'] * S
-        mw_in = m['Width'] * S
-        mh_in = m['Height'] * S
-        
-        # Skyblue with white edge contrasts beautifully with dark blue
-        rect = plt.Rectangle((mx_in - mw_in/2, my_in - mh_in/2), mw_in, mh_in, fill=True, color='skyblue', alpha=0.8, edgecolor='white', lw=1.5)
-        ax.add_patch(rect)
-        ax.text(mx_in, my_in, f"{m['Make']}\n{m['Model']}", fontsize=5, ha='center', va='center', color='#FFFFFF')
-        
-        # Bright red standoff circle
-        so_in = m['Standoff'] * S
-        so_circ = plt.Circle((mx_in, my_in), (max(mw_in, mh_in)/2.0) + so_in, fill=False, color='#FF3333', linestyle=':', lw=1)
-        ax.add_patch(so_circ)
-        
-    # Draw conduits (mapped from feet to inches)
-    for cond in conduits:
-        cx_in = [O_x + val * S for val in cond['x']]
-        cy_in = [O_y + val * S for val in cond['y']]
-        ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2) # Bright Orange
-        
-    # Draw lighting fixtures (mapped from feet to inches)
-    for l in lighting:
-        lx_in = O_x + l['x'] * S
-        ly_in = O_y + l['y'] * S
-        ax.plot(lx_in, ly_in, marker='o', color='gold', markersize=10, markeredgecolor='black', markeredgewidth=1)
-        ax.plot(lx_in, ly_in, marker='*', color='white', markersize=5)
-        ax.text(lx_in + 0.1, ly_in + 0.1, f"{l['Make']}\n{l['Brand']}", fontsize=5, color='#FFD700', weight='bold')
-        
-    ax.set_xlim(-1, width_in + 1)
-    ax.set_ylim(-1, height_in + 1)
-    ax.set_aspect('equal')
-    ax.axis('off')
-    return fig
+
+def draw_asme_drawing(
+    size_char='B',
+    floor_width_ft=200.0,
+    floor_height_ft=100.0,
+    machines=[],
+    conduits=[],
+    lighting=[],
+    workflow_paths=[],
+    show_safety=False,
+    show_contour=False,
+):
+  """Renders factory layout inside standardized ASME Y14.1 margins and title block.
+
+  Renders workflow paths as a solid grey bar with dotted yellow lines
+  representing the safety standoff envelope.
+  """
+  sizes = {
+      'A': (8.5, 11.0),
+      'B': (11.0, 17.0),
+      'C': (17.0, 22.0),
+      'D': (22.0, 34.0),
+  }
+  height_in, width_in = sizes.get(size_char.upper(), (11.0, 17.0))
+
+  margin = 0.50
+  tb_w, tb_h = 6.25, 2.0
+
+  # Calculate fitting scale factors
+  W1 = width_in - 2 * margin - tb_w
+  H1 = height_in - 2 * margin
+  S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
+
+  W2 = width_in - 2 * margin
+  H2 = height_in - 2 * margin - tb_h
+  S2 = min(W2 / floor_width_ft, H2 / floor_height_ft) if H2 > 0 else 0
+
+  if S1 >= S2 and S1 > 0:
+    S = S1
+    W_drawn = floor_width_ft * S
+    H_drawn = floor_height_ft * S
+    O_x = margin + (W1 - W_drawn) / 2
+    O_y = margin + (H1 - H_drawn) / 2
+  elif S2 > S1 and S2 > 0:
+    S = S2
+    W_drawn = floor_width_ft * S
+    H_drawn = floor_height_ft * S
+    O_x = margin + (W2 - W_drawn) / 2
+    O_y = margin + tb_h + (H2 - H_drawn) / 2
+  else:
+    S = min(
+        (width_in - 2 * margin) / floor_width_ft,
+        (height_in - 2 * margin) / floor_height_ft,
+    )
+    W_drawn = floor_width_ft * S
+    H_drawn = floor_height_ft * S
+    O_x = margin + (width_in - 2 * margin - W_drawn) / 2
+    O_y = margin + (height_in - 2 * margin - H_drawn) / 2
+
+  fig, ax = plt.subplots(figsize=(10, 6.5))
+
+  blueprint_blue = '#002B49'
+  fig.patch.set_facecolor(blueprint_blue)
+  ax.set_facecolor(blueprint_blue)
+
+  yellow_color = '#FFD700'
+  ax.plot(
+      [0, width_in, width_in, 0, 0],
+      [0, 0, height_in, height_in, 0],
+      color=yellow_color,
+      lw=2,
+  )
+  ax.plot(
+      [margin, width_in - margin, width_in - margin, margin, margin],
+      [margin, margin, height_in - margin, height_in - margin, margin],
+      color=yellow_color,
+      linestyle='--',
+      lw=1,
+  )
+
+  # Title Block
+  tb_x, tb_y = width_in - margin - tb_w, margin
+  ax.plot(
+      [tb_x, tb_x, width_in - margin, width_in - margin, tb_x],
+      [tb_y, tb_y + tb_h, tb_y + tb_h, tb_y, tb_y],
+      color=yellow_color,
+      lw=1.5,
+  )
+
+  text_color = '#FFFFFF'
+  ax.text(
+      tb_x + 0.2,
+      tb_y + tb_h - 0.4,
+      'FACILITY ARCHITECTS INC.',
+      fontsize=7,
+      weight='bold',
+      color=text_color,
+  )
+  ax.text(
+      tb_x + 0.2,
+      tb_y + tb_h - 0.8,
+      'TITLE: Factory Layout Blueprint',
+      fontsize=7,
+      color=text_color,
+  )
+  ax.text(
+      tb_x + 0.2,
+      tb_y + tb_h - 1.2,
+      f'DWG NO: FFO-001  SIZE: {size_char}',
+      fontsize=7,
+      color=text_color,
+  )
+  ax.text(
+      tb_x + 0.2,
+      tb_y + tb_h - 1.6,
+      f'Floor Scale: 1 in = {1.0/S:.1f} ft',
+      fontsize=6,
+      color='#A0A0A0',
+  )
+
+  floor_green = '#39FF14'
+  ax.plot(
+      [O_x, O_x + W_drawn, O_x + W_drawn, O_x, O_x],
+      [O_y, O_y, O_y + H_drawn, O_y + H_drawn, O_y],
+      color=floor_green,
+      lw=2,
+      label='Factory Floor Boundary',
+  )
+
+  # Heatmaps & Contour Underlays
+  if (show_safety or show_contour) and len(machines) > 0:
+    grid_x = np.linspace(0, floor_width_ft, 100)
+    grid_y = np.linspace(0, floor_height_ft, 100)
+    X, Y = np.meshgrid(grid_x, grid_y)
+
+    if show_safety:
+      Z_safety = np.zeros_like(X)
+      for m in machines:
+        dist = np.sqrt((X - m['x']) ** 2 + (Y - m['y']) ** 2)
+        r = (max(m['Width'], m['Height']) / 2.0) + m['Standoff']
+        Z_safety += np.exp(-dist / r)
+
+      z_min = np.min(Z_safety)
+      z_max = np.max(Z_safety)
+      vmin, vmax = 0.0, max(1.0, z_max) if z_min != z_max else 1.0
+      ax.imshow(
+          Z_safety,
+          extent=[O_x, O_x + W_drawn, O_y, O_y + H_drawn],
+          origin='lower',
+          cmap='RdYlGn_r',
+          alpha=0.4,
+          vmin=vmin,
+          vmax=vmax,
+          zorder=1,
+      )
+
+    elif show_contour:
+      Z_vol = np.zeros_like(X)
+      for m in machines:
+        dist_sq = (X - m['x']) ** 2 + (Y - m['y']) ** 2
+        Z_vol += m['Volume'] * np.exp(-dist_sq / 1200)
+
+      X_plot = O_x + X * S
+      Y_plot = O_y + Y * S
+      z_max = np.max(Z_vol)
+      levels = np.linspace(0.0, z_max, 10) if z_max > 0 else [0.0, 1.0]
+      ax.contourf(
+          X_plot,
+          Y_plot,
+          Z_vol,
+          levels=levels,
+          cmap='viridis',
+          alpha=0.4,
+          zorder=1,
+      )
+
+  # --- Draw Workflow Paths: Grey Bar + Dotted Yellow Safety Standoff Envelope ---
+  for path in workflow_paths:
+    x_pts = np.array(path['x'])
+    y_pts = np.array(path['y'])
+    standoffs = path.get('standoffs', [2.0] * len(x_pts))
+
+    if len(x_pts) >= 2:
+      x_in = O_x + x_pts * S
+      y_in = O_y + y_pts * S
+
+      # Draw main grey bar (travel path)
+      bar_width_ft = path.get('width_ft', 4.0)
+      bar_lw_in = bar_width_ft * S * 72  # 72 points per inch in matplotlib
+      ax.plot(
+          x_in,
+          y_in,
+          color='#808080',
+          lw=max(4, bar_lw_in),
+          alpha=0.75,
+          solid_capstyle='round',
+          solid_joinstyle='round',
+          zorder=2,
+          label='Workflow Path',
+      )
+
+      # Compute parallel offsets for safety standoff envelope
+      dx = np.diff(x_in)
+      dy = np.diff(y_in)
+      lengths = np.sqrt(dx**2 + dy**2)
+      lengths[lengths == 0] = 1e-6
+
+      nx = -dy / lengths
+      ny = dx / lengths
+
+      vx_n = np.zeros(len(x_in))
+      vy_n = np.zeros(len(y_in))
+      vx_n[0], vy_n[0] = nx[0], ny[0]
+      vx_n[-1], vy_n[-1] = nx[-1], ny[-1]
+
+      for i in range(1, len(x_in) - 1):
+        vx_n[i] = (nx[i - 1] + nx[i]) / 2.0
+        vy_n[i] = (ny[i - 1] + ny[i]) / 2.0
+        v_len = np.sqrt(vx_n[i] ** 2 + vy_n[i] ** 2)
+        if v_len > 0:
+          vx_n[i] /= v_len
+          vy_n[i] /= v_len
+
+      # Apply standoff distances in inches
+      st_in = (np.array(standoffs) + bar_width_ft / 2.0) * S
+      left_x = x_in + vx_n * st_in
+      left_y = y_in + vy_n * st_in
+      right_x = x_in - vx_n * st_in
+      right_y = y_in - vy_n * st_in
+
+      # Dotted yellow safety standoff envelope
+      ax.plot(
+          left_x,
+          left_y,
+          color='#FFD700',
+          linestyle=':',
+          lw=2.0,
+          zorder=3,
+          label='Safety Standoff Envelope',
+      )
+      ax.plot(
+          right_x,
+          right_y,
+          color='#FFD700',
+          linestyle=':',
+          lw=2.0,
+          zorder=3,
+      )
+
+      # Waypoint Markers
+      ax.scatter
+      for idx, (px, py) in enumerate(zip(x_in, y_in)):
+        ax.text(
+            px,
+            py + 0.12,
+            f'P{idx+1}',
+            color='#FFFFFF',
+            fontsize=6,
+            weight='bold',
+            ha='center',
+            zorder=5,
+        )
+
+  # Draw electrical conduits
+  for cond in conduits:
+    cx_in = [O_x + val * S for val in cond['x']]
+    cy_in = [O_y + val * S for val in cond['y']]
+    ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
+
+  # Draw machines
+  for m in machines:
+    mx_in = O_x + m['x'] * S
+    my_in = O_y + m['y'] * S
+    mw_in = m['Width'] * S
+    mh_in = m['Height'] * S
+
+    rect = plt.Rectangle(
+        (mx_in - mw_in / 2, my_in - mh_in / 2),
+        mw_in,
+        mh_in,
+        fill=True,
+        color='skyblue',
+        alpha=0.85,
+        edgecolor='white',
+        lw=1.5,
+        zorder=4,
+    )
+    ax.add_patch(rect)
+    ax.text(
+        mx_in,
+        my_in,
+        f"{m['Make']}\n{m['Model']}",
+        fontsize=5,
+        ha='center',
+        va='center',
+        color='#FFFFFF',
+        zorder=5,
+    )
+
+    so_in = m['Standoff'] * S
+    so_circ = plt.Circle(
+        (mx_in, my_in),
+        (max(mw_in, mh_in) / 2.0) + so_in,
+        fill=False,
+        color='#FF3333',
+        linestyle=':',
+        lw=1,
+        zorder=4,
+    )
+    ax.add_patch(so_circ)
+
+  # Draw lighting
+  for l in lighting:
+    lx_in = O_x + l['x'] * S
+    ly_in = O_y + l['y'] * S
+    ax.plot(
+        lx_in,
+        ly_in,
+        marker='o',
+        color='gold',
+        markersize=8,
+        markeredgecolor='black',
+        markeredgewidth=1,
+        zorder=5,
+    )
+    ax.plot(lx_in, ly_in, marker='*', color='white', markersize=4, zorder=6)
+
+  ax.set_xlim(-1, width_in + 1)
+  ax.set_ylim(-1, height_in + 1)
+  ax.set_aspect('equal')
+  ax.axis('off')
+  return fig
