@@ -5,7 +5,9 @@ from library_loader import get_default_machinery, get_default_lighting
 from engine import run_layout_analysis, calculate_production_metrics
 from visualization import draw_asme_drawing
 
-st.set_page_size = "wide"
+# Set page configuration safely
+st.set_page_config(layout="wide")
+
 st.title("🏭 Factory Floor Optimizer & Compliance Suite")
 st.markdown("Designed strictly to comply with **ASME Y14.1 Drawing Sheets** and **NJ Uniform Construction Code** Standards.")
 
@@ -14,7 +16,7 @@ st.sidebar.header("📁 Material & Machinery Library")
 machinery_lib = get_default_machinery()
 lighting_lib = get_default_lighting()
 
-st.sidebar.subheader("Default Machinery specifications")
+st.sidebar.subheader("Default Machinery Specifications")
 st.sidebar.dataframe(pd.DataFrame(machinery_lib)[["Make", "Model", "Type", "Volume", "Yield"]])
 
 # Setup Layout State
@@ -44,10 +46,17 @@ with col2:
     
     if st.button("Add Conduit"):
         st.session_state.placed_conduits.append({
-            "label": cx_lbl, "x": [30.0, 80.0], "y": [30.0, 80.0],
-            "depth_in": cx_depth, "warning_tape": cx_tape
+            "label": cx_lbl, 
+            "x": [30.0, 80.0], 
+            "y": [30.0, 80.0],
+            "depth_in": cx_depth, 
+            "warning_tape": cx_tape
         })
-        st.experimental_rerun()
+        # Version-safe rerun call
+        if hasattr(st, "rerun"):
+            st.rerun()
+        else:
+            st.experimental_rerun()
 
 with col1:
     # Render Drawing
