@@ -17,7 +17,8 @@ def draw_asme_drawing(
   """Renders factory layout inside standardized ASME Y14.1 margins and title block.
 
   Renders workflow paths as a solid grey bar with dotted yellow lines
-  representing the safety standoff envelope.
+  representing the safety standoff envelope. Labels machines as M1, M2... and
+  lights as L1, L2...
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -129,7 +130,7 @@ def draw_asme_drawing(
       label='Factory Floor Boundary',
   )
 
-  # Heatmaps or Contour Underlays
+  # Draw heatmaps or contour underlays
   if (show_safety or show_contour) and len(machines) > 0:
     grid_x = np.linspace(0, floor_width_ft, 100)
     grid_y = np.linspace(0, floor_height_ft, 100)
@@ -270,8 +271,8 @@ def draw_asme_drawing(
     cy_in = [O_y + val * S for val in cond['y']]
     ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
 
-  # Draw machines
-  for m in machines:
+  # Draw machines with M1, M2... labels
+  for idx, m in enumerate(machines):
     mx_in = O_x + m['x'] * S
     my_in = O_y + m['y'] * S
     mw_in = m['Width'] * S
@@ -289,11 +290,13 @@ def draw_asme_drawing(
         zorder=4,
     )
     ax.add_patch(rect)
+    m_label = f"M{idx+1}\n{m['Make']} {m['Model']}"
     ax.text(
         mx_in,
         my_in,
-        f"{m['Make']}\n{m['Model']}",
-        fontsize=5,
+        m_label,
+        fontsize=5.5,
+        weight='bold',
         ha='center',
         va='center',
         color='#FFFFFF',
@@ -312,8 +315,8 @@ def draw_asme_drawing(
     )
     ax.add_patch(so_circ)
 
-  # Draw lighting
-  for l in lighting:
+  # Draw lighting with L1, L2... labels
+  for idx, l in enumerate(lighting):
     lx_in = O_x + l['x'] * S
     ly_in = O_y + l['y'] * S
     ax.plot(
@@ -327,9 +330,20 @@ def draw_asme_drawing(
         zorder=5,
     )
     ax.plot(lx_in, ly_in, marker='*', color='white', markersize=4, zorder=6)
+    l_label = f"L{idx+1}: {l['Make']} {l['Brand']}"
+    ax.text(
+        lx_in + 0.1,
+        ly_in + 0.1,
+        l_label,
+        fontsize=5.5,
+        weight='bold',
+        color='#FFD700',
+        zorder=7,
+    )
 
   ax.set_xlim(-1, width_in + 1)
   ax.set_ylim(-1, height_in + 1)
   ax.set_aspect('equal')
   ax.axis('off')
   return fig
+
