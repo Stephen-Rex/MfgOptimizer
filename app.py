@@ -11,6 +11,13 @@ st.set_page_config(layout="wide")
 st.title("🏭 Factory Floor Optimizer & Compliance Suite")
 st.markdown("Designed strictly to comply with **ASME Y14.1 Drawing Sheets** and **NJ Uniform Construction Code** Standards.")
 
+# Helper to parse string list to coordinate floats safely
+def parse_coords(coord_str):
+    try:
+        return [float(val.strip()) for val in coord_str.split(",") if val.strip()]
+    except ValueError:
+        return None
+
 # Sidebar Library Files
 st.sidebar.header("📁 Material & Machinery Library")
 machinery_lib = get_default_machinery()
@@ -49,7 +56,7 @@ with col2:
     show_safety = st.checkbox("Show Safety Heatmap underlay", value=True)
     show_contour = st.checkbox("Show Part Volume Contour plots")
     
-    # 1. Machinery Placement form
+    # 1. Machinery Placement Form
     st.subheader("🤖 Place Machine from Library")
     machine_options = [f"{m['Make']} {m['Model']} ({m['Type']})" for m in machinery_lib]
     selected_m_idx = st.selectbox("Choose Machine", range(len(machine_options)), format_func=lambda x: machine_options[x])
@@ -78,8 +85,6 @@ with col2:
         )
         
         mach = st.session_state.placed_machines[selected_placed_idx]
-        
-        # Position modification fields populated with active machine's coordinates
         edit_x = st.number_input("Adjust Coordinate X (ft)", min_value=0.0, max_value=200.0, value=float(mach["x"]), key=f"edit_x_{selected_placed_idx}")
         edit_y = st.number_input("Adjust Coordinate Y (ft)", min_value=0.0, max_value=200.0, value=float(mach["y"]), key=f"edit_y_{selected_placed_idx}")
         
@@ -95,8 +100,78 @@ with col2:
                 removed = st.session_state.placed_machines.pop(selected_placed_idx)
                 st.warning(f"Removed {removed['Make']} {removed['Model']} from layout.")
                 st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    # 3. Custom Conduit Creation Form
+    st.subheader("🔌 Route Conduit Run (Polyline)")
+    cx_lbl = st.text_input("Conduit Run Label", "Sub-Station Hookup")
+    cx_x_str = st.text_input("X Coordinates (comma separated)", "40.0, 120.0")
+    cx_y_str = st.text_input("Y Coordinates (comma separated)", "80.0, 35.0")
+    cx_depth = st.number_input("Trench Burial Depth (inches)", min_value=12, max_value=60, value=36, key="cx_depth")
+    cx_tape = st.checkbox("Contains Orange 4 mil Warning Tape", value=True, key="cx_tape")
+    
+    if st.button("Route Conduit Path"):
+        parsed_x = parse_coords(cx_x_str)
+        parsed_y = parse_coords(cx_y_str)
         
-    # 3. Lighting Placement Form
+        if parsed_x is None or parsed_y is None or len(parsed_x) != len(parsed_y):
+            st.error("Error: Coordinates must be valid numeric values, and X and Y must contain matching point counts.")
+        else:
+            st.session_state.placed_conduits.append({
+                "label": cx_lbl, 
+                "x": parsed_x, 
+                "y": parsed_y,
+                "depth_in": cx_depth, 
+                "warning_tape": cx_tape
+            })
+            st.success(f"Successfully routed conduit '{cx_lbl}'!")
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    # 4. Modify or Delete Placed Conduits
+    if len(st.session_state.placed_conduits) > 0:
+        st.subheader("🛠️ Modify or Delete Placed Conduits")
+        conduit_options = [
+            f"{i+1}: {c['label']} ({len(c['x'])} points)"
+            for i, c in enumerate(st.session_state.placed_conduits)
+        ]
+        selected_cond_idx = st.selectbox(
+            "Select Conduit to Edit", 
+            range(len(conduit_options)), 
+            format_func=lambda x: conduit_options[x]
+        )
+        
+        cond = st.session_state.placed_conduits[selected_cond_idx]
+        
+        # Populate editable fields
+        edit_cx_lbl = st.text_input("Edit Conduit Label", cond["label"], key=f"lbl_{selected_cond_idx}")
+        edit_cx_x_str = st.text_input("Edit X Coordinates", ", ".join(map(str, cond["x"])), key=f"cx_{selected_cond_idx}")
+        edit_cx_y_str = st.text_input("Edit Y Coordinates", ", ".join(map(str, cond["y"])), key=f"cy_{selected_cond_idx}")
+        edit_cx_depth = st.number_input("Edit Burial Depth (inches)", min_value=12, max_value=60, value=int(cond["depth_in"]), key=f"dp_{selected_cond_idx}")
+        edit_cx_tape = st.checkbox("Edit Warning Tape Status", value=cond["warning_tape"], key=f"tp_{selected_cond_idx}")
+        
+        c_btn_col1, c_btn_col2 = st.columns(2)
+        with c_btn_col1:
+            if st.button("Update Conduit Run", key=f"up_c_{selected_cond_idx}"):
+                up_x = parse_coords(edit_cx_x_str)
+                up_y = parse_coords(edit_cx_y_str)
+                if up_x is None or up_y is None or len(up_x) != len(up_y):
+                    st.error("Error: Coordinates must be valid numeric pairs.")
+                else:
+                    st.session_state.placed_conduits[selected_cond_idx] = {
+                        "label": edit_cx_lbl,
+                        "x": up_x,
+                        "y": up_y,
+                        "depth_in": edit_cx_depth,
+                        "warning_tape": edit_cx_tape
+                    }
+                    st.success("Conduit run updated successfully!")
+                    st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        with c_btn_col2:
+            if st.button("Delete Conduit Run", key=f"del_c_{selected_cond_idx}"):
+                removed_c = st.session_state.placed_conduits.pop(selected_cond_idx)
+                st.warning(f"Removed conduit run '{removed_c['label']}'.")
+                st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    # 5. Lighting Placement Form
     st.subheader("💡 Place Light from Library")
     light_options = [f"{l['Make']} {l['Brand']} ({l['Type']})" for l in lighting_lib]
     selected_l_idx = st.selectbox("Choose Lighting Fixture", range(len(light_options)), format_func=lambda x: light_options[x])
@@ -109,22 +184,6 @@ with col2:
         spec_l["y"] = ly_coord
         st.session_state.placed_lighting.append(spec_l)
         st.success(f"Placed Lighting Fixture at ({lx_coord}, {ly_coord})!")
-        st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
-
-    # 4. Conduit Routing
-    st.subheader("🔌 Add Conduit Run")
-    cx_lbl = st.text_input("Conduit Label", "Main Power Drop")
-    cx_depth = st.number_input("Trench Burial Depth (inches)", min_value=12, max_value=60, value=36)
-    cx_tape = st.checkbox("Contains Orange 4 mil Warning Tape", value=True)
-    
-    if st.button("Route Conduit Path"):
-        st.session_state.placed_conduits.append({
-            "label": cx_lbl, 
-            "x": [30.0, 80.0], 
-            "y": [30.0, 80.0],
-            "depth_in": cx_depth, 
-            "warning_tape": cx_tape
-        })
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
 with col1:
@@ -160,3 +219,4 @@ else:
     st.success("✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical Standards!")
 
 st.info(f"⚡ Estimated Throughput (MPDI Bucket Brigade Dynamic Model): {metrics.get('Bucket Brigade Throughput', '0')}")
+
