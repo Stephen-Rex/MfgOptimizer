@@ -73,3 +73,4 @@ def calculate_production_metrics(placed_machines, m_workers=3, cv_task=0.5):
         "Bucket Brigade Throughput": f"{throughput_month} assemblies/month",
         "UDP Switch-Off Savings": f"{energy_savings_pct:.1f}% idle power reduction"
     }
+
