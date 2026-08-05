@@ -13,13 +13,17 @@ def draw_asme_drawing(
     workflow_paths=[],
     show_safety=False,
     show_contour=False,
+    designer_name='FACILITY ARCHITECTS INC.',
+    dwg_title='Factory Layout Blueprint',
+    dwg_num='FFO-001',
 ):
   """Renders factory layout inside standardized ASME Y14.1 margins and title block.
 
   Renders workflow paths as a solid grey bar with dotted yellow lines
   representing the safety standoff envelope. Labels machines as M1, M2... and
   lights as L1, L2... Adds 20ft dotted grey grid lines inside the factory floor
-  boundary.
+  boundary. Allows editing title block metadata (Designer, Title, Drawing
+  Number).
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -83,6 +87,7 @@ def draw_asme_drawing(
       lw=1,
   )
 
+  # Title Block Box
   tb_x, tb_y = width_in - margin - tb_w, margin
   ax.plot(
       [tb_x, tb_x, width_in - margin, width_in - margin, tb_x],
@@ -91,11 +96,12 @@ def draw_asme_drawing(
       lw=1.5,
   )
 
+  # Dynamic Title Block Text
   text_color = '#FFFFFF'
   ax.text(
       tb_x + 0.2,
       tb_y + tb_h - 0.4,
-      'FACILITY ARCHITECTS INC.',
+      str(designer_name).upper(),
       fontsize=7,
       weight='bold',
       color=text_color,
@@ -103,14 +109,14 @@ def draw_asme_drawing(
   ax.text(
       tb_x + 0.2,
       tb_y + tb_h - 0.8,
-      'TITLE: Factory Layout Blueprint',
+      f'TITLE: {dwg_title}',
       fontsize=7,
       color=text_color,
   )
   ax.text(
       tb_x + 0.2,
       tb_y + tb_h - 1.2,
-      f'DWG NO: FFO-001  SIZE: {size_char}',
+      f'DWG NO: {dwg_num}  SIZE: {size_char}',
       fontsize=7,
       color=text_color,
   )
@@ -131,9 +137,8 @@ def draw_asme_drawing(
       label='Factory Floor Boundary',
   )
 
-  # --- Dotted Grey Grid Lines Every 20 ft Inside Factory Floor Boundary ---
+  # Dotted Grey Grid Lines Every 20 ft Inside Floor Boundary
   grid_color = '#808080'
-  # Vertical grid lines
   x_ticks = np.arange(20.0, floor_width_ft, 20.0)
   for x_ft in x_ticks:
     gx_in = O_x + x_ft * S
@@ -147,7 +152,6 @@ def draw_asme_drawing(
         alpha=0.6,
     )
 
-  # Horizontal grid lines
   y_ticks = np.arange(20.0, floor_height_ft, 20.0)
   for y_ft in y_ticks:
     gy_in = O_y + y_ft * S
@@ -161,7 +165,7 @@ def draw_asme_drawing(
         alpha=0.6,
     )
 
-  # Draw heatmaps or contour underlays
+  # Heatmaps / Contour Underlays
   if (show_safety or show_contour) and len(machines) > 0:
     grid_x = np.linspace(0, floor_width_ft, 100)
     grid_y = np.linspace(0, floor_height_ft, 100)
@@ -208,7 +212,7 @@ def draw_asme_drawing(
           zorder=1,
       )
 
-  # --- Draw Workflow Paths: Grey Bar + Dotted Yellow Safety Standoff Envelope ---
+  # Draw Workflow Paths: Grey Bar + Dotted Yellow Safety Standoff Envelope
   for path in workflow_paths:
     x_pts = np.array(path['x'])
     y_pts = np.array(path['y'])
@@ -292,7 +296,7 @@ def draw_asme_drawing(
             zorder=5,
         )
 
-  # Draw electrical conduits
+  # Draw conduits
   for cond in conduits:
     cx_in = [O_x + val * S for val in cond['x']]
     cy_in = [O_y + val * S for val in cond['y']]
