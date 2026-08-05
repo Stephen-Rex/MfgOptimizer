@@ -423,4 +423,3 @@ def draw_asme_drawing(
   ax.set_aspect('equal')
   ax.axis('off')
   return fig
-
