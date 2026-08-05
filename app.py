@@ -140,8 +140,6 @@ with col2:
         )
         
         cond = st.session_state.placed_conduits[selected_cond_idx]
-        
-        # Populate editable fields
         edit_cx_lbl = st.text_input("Edit Conduit Label", cond["label"], key=f"lbl_{selected_cond_idx}")
         edit_cx_x_str = st.text_input("Edit X Coordinates", ", ".join(map(str, cond["x"])), key=f"cx_{selected_cond_idx}")
         edit_cx_y_str = st.text_input("Edit Y Coordinates", ", ".join(map(str, cond["y"])), key=f"cy_{selected_cond_idx}")
@@ -186,12 +184,42 @@ with col2:
         st.success(f"Placed Lighting Fixture at ({lx_coord}, {ly_coord})!")
         st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
+    # 6. Modify or Delete Placed Lighting
+    if len(st.session_state.placed_lighting) > 0:
+        st.subheader("🛠️ Modify or Delete Placed Lighting")
+        placed_l_opts = [
+            f"{i+1}: {li['Make']} {li['Brand']} at ({li['x']:.1f} ft, {li['y']:.1f} ft)"
+            for i, li in enumerate(st.session_state.placed_lighting)
+        ]
+        selected_placed_l_idx = st.selectbox(
+            "Select Light on Floor to Edit",
+            range(len(placed_l_opts)),
+            format_func=lambda x: placed_l_opts[x]
+        )
+        active_light = st.session_state.placed_lighting[selected_placed_l_idx]
+        edit_lx = st.number_input("Adjust Light Coordinate X (ft)", min_value=0.0, max_value=200.0, value=float(active_light["x"]), key=f"elx_{selected_placed_l_idx}")
+        edit_ly = st.number_input("Adjust Light Coordinate Y (ft)", min_value=0.0, max_value=200.0, value=float(active_light["y"]), key=f"ely_{selected_placed_l_idx}")
+        
+        l_btn_col1, l_btn_col2 = st.columns(2)
+        with l_btn_col1:
+            if st.button("Update Light Position", key=f"up_l_{selected_placed_l_idx}"):
+                st.session_state.placed_lighting[selected_placed_l_idx]["x"] = edit_lx
+                st.session_state.placed_lighting[selected_placed_l_idx]["y"] = edit_ly
+                st.success("Lighting position updated!")
+                st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        with l_btn_col2:
+            if st.button("Delete Light Fixture", key=f"del_l_{selected_placed_l_idx}"):
+                removed_light = st.session_state.placed_lighting.pop(selected_placed_l_idx)
+                st.warning(f"Removed light fixture '{removed_light['Make']} {removed_light['Brand']}'.")
+                st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
 with col1:
     # Render ASME Drawing Sheet with updated configurations
     fig = draw_asme_drawing(
         size_char=sheet_size,
         machines=st.session_state.placed_machines,
         conduits=st.session_state.placed_conduits,
+        lighting=st.session_state.placed_lighting,
         show_safety=show_safety,
         show_contour=show_contour
     )
