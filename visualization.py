@@ -13,7 +13,8 @@ def draw_asme_drawing(
     workflow_paths=[],
     show_safety=False,
     show_contour=False,
-    designer_name='FACILITY ARCHITECTS INC.',
+    show_decibel=False,
+    designer_name='Facility Architects Inc.',
     dwg_title='Factory Layout Blueprint',
     dwg_num='FFO-001',
 ):
@@ -23,7 +24,8 @@ def draw_asme_drawing(
   lines representing the safety standoff envelope (5ft normal offset). Labels
   machines as M1, M2... and lights as L1, L2... Adds 20ft dotted grey grid lines
   inside the factory floor boundary. Allows editing title block metadata
-  (Designer, Title, Drawing Number).
+  (Designer, Title, Drawing Number). Includes Machine Decibel Acoustic Contour
+  Plot using Inverse Square Law.
   """
   sizes = {
       'A': (8.5, 11.0),
@@ -36,7 +38,6 @@ def draw_asme_drawing(
   margin = 0.50
   tb_w, tb_h = 6.25, 2.0
 
-  # Scale factor calculation
   W1 = width_in - 2 * margin - tb_w
   H1 = height_in - 2 * margin
   S1 = min(W1 / floor_width_ft, H1 / floor_height_ft) if W1 > 0 else 0
@@ -89,7 +90,6 @@ def draw_asme_drawing(
       lw=1,
   )
 
-  # Title Block Box
   tb_x, tb_y = width_in - margin - tb_w, margin
   ax.plot(
       [tb_x, tb_x, width_in - margin, width_in - margin, tb_x],
@@ -98,7 +98,6 @@ def draw_asme_drawing(
       lw=1.5,
   )
 
-  # Dynamic Title Block Text
   text_color = '#FFFFFF'
   ax.text(
       tb_x + 0.2,
@@ -167,13 +166,54 @@ def draw_asme_drawing(
         alpha=0.6,
     )
 
-  # Draw heatmaps or contour underlays
-  if (show_safety or show_contour) and len(machines) > 0:
+  # --- Draw Heatmaps, Volume Contours, or Decibel Contour Plot ---
+  if (show_safety or show_contour or show_decibel) and len(machines) > 0:
     grid_x = np.linspace(0, floor_width_ft, 100)
     grid_y = np.linspace(0, floor_height_ft, 100)
     X, Y = np.meshgrid(grid_x, grid_y)
 
-    if show_safety:
+    if show_decibel:
+      # Sound Pressure Level (SPL) Inverse Square Law: L_p(r) = L_p0 - 20 * log10(r / r0)
+      r0 = 3.0
+      sum_intensity = np.zeros_like(X)
+
+      for m in machines:
+        db_0 = m.get('Decibel', 75.0)
+        dist = np.sqrt((X - m['x']) ** 2 + (Y - m['y']) ** 2)
+        r_eff = np.maximum(dist, r0)
+        spl_i = db_0 - 20.0 * np.log10(r_eff / r0)
+        sum_intensity += 10.0 ** (spl_i / 10.0)
+
+      Z_db = 10.0 * np.log10(np.maximum(sum_intensity, 1e-12))
+
+      X_plot = O_x + X * S
+      Y_plot = O_y + Y * S
+
+      z_min = np.min(Z_db)
+      z_max = np.max(Z_db)
+      levels = np.linspace(max(30.0, z_min), max(35.0, z_max), 12)
+
+      ax.contourf(
+          X_plot,
+          Y_plot,
+          Z_db,
+          levels=levels,
+          cmap='plasma',
+          alpha=0.5,
+          zorder=1,
+      )
+      ax.contour(
+          X_plot,
+          Y_plot,
+          Z_db,
+          levels=levels[::2],
+          colors='white',
+          linewidths=0.5,
+          alpha=0.7,
+          zorder=1,
+      )
+
+    elif show_safety:
       Z_safety = np.zeros_like(X)
       for m in machines:
         dist = np.sqrt((X - m['x']) ** 2 + (Y - m['y']) ** 2)
@@ -215,8 +255,6 @@ def draw_asme_drawing(
       )
 
   # --- Draw Workflow Paths ---
-  # Convert data coordinate inches to matplotlib points:
-  # ax.set_xlim(-1, width_in + 1) -> total data width = width_in + 2.0
   data_width = width_in + 2.0
   points_per_data_inch = (fig_w / data_width) * 72.0
 
@@ -229,7 +267,6 @@ def draw_asme_drawing(
       x_in = O_x + x_pts * S
       y_in = O_y + y_pts * S
 
-      # Grey bar path thickness = 1.0 ft EXACTLY
       bar_width_ft = path.get('width_ft', 1.0)
       bar_lw_pts = bar_width_ft * S * points_per_data_inch
 
@@ -245,7 +282,6 @@ def draw_asme_drawing(
           label='Workflow Path',
       )
 
-      # Offset vectors in physical feet
       dx = np.diff(x_pts)
       dy = np.diff(y_pts)
       lengths = np.sqrt(dx**2 + dy**2)
@@ -267,14 +303,12 @@ def draw_asme_drawing(
           vx_n[i] /= v_len
           vy_n[i] /= v_len
 
-      # Standoff in drawing inches = standoff_ft * S
       st_in = np.array(standoffs) * S
       left_x = x_in + vx_n * st_in
       left_y = y_in + vy_n * st_in
       right_x = x_in - vx_n * st_in
       right_y = y_in - vy_n * st_in
 
-      # Dotted yellow safety envelope
       ax.plot(
           left_x,
           left_y,
@@ -293,7 +327,6 @@ def draw_asme_drawing(
           zorder=3,
       )
 
-      # Waypoint Markers
       ax.scatter(
           x_in, y_in, color='#FFD700', s=25, zorder=4, edgecolor='black'
       )
@@ -315,7 +348,7 @@ def draw_asme_drawing(
     cy_in = [O_y + val * S for val in cond['y']]
     ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
 
-  # Draw machines with ONLY M1, M2... labels
+  # Draw machines with M1, M2...
   for idx, m in enumerate(machines):
     mx_in = O_x + m['x'] * S
     my_in = O_y + m['y'] * S
@@ -359,7 +392,7 @@ def draw_asme_drawing(
     )
     ax.add_patch(so_circ)
 
-  # Draw lighting with ONLY L1, L2... labels
+  # Draw lighting with L1, L2...
   for idx, l in enumerate(lighting):
     lx_in = O_x + l['x'] * S
     ly_in = O_y + l['y'] * S
