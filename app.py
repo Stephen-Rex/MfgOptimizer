@@ -271,7 +271,7 @@ with tab_mach:
     if len(st.session_state.placed_machines) > 0:
       st.subheader("🛠️ Modify or Delete Placed Machinery")
       placed_options = [
-          f"{i+1}: {m['Make']} {m['Model']} at ({m['x']:.1f} ft, {m['y']:.1f}"
+          f"M{i+1}: {m['Make']} {m['Model']} at ({m['x']:.1f} ft, {m['y']:.1f}"
           " ft)"
           for i, m in enumerate(st.session_state.placed_machines)
       ]
@@ -304,7 +304,7 @@ with tab_mach:
         ):
           st.session_state.placed_machines[selected_placed_idx]["x"] = edit_x
           st.session_state.placed_machines[selected_placed_idx]["y"] = edit_y
-          st.success("Machine moved successfully!")
+          st.success(f"Machine M{selected_placed_idx+1} moved successfully!")
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
       with btn_col2:
         if st.button(
@@ -312,7 +312,8 @@ with tab_mach:
         ):
           removed = st.session_state.placed_machines.pop(selected_placed_idx)
           st.warning(
-              f"Removed {removed['Make']} {removed['Model']} from layout."
+              f"Removed M{selected_placed_idx+1} ({removed['Make']}"
+              f" {removed['Model']}) from layout."
           )
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
     else:
@@ -481,7 +482,7 @@ with tab_light:
     if len(st.session_state.placed_lighting) > 0:
       st.subheader("🛠️ Modify or Delete Placed Lighting")
       placed_l_opts = [
-          f"{i+1}: {li['Make']} {li['Brand']} at ({li['x']:.1f} ft,"
+          f"L{i+1}: {li['Make']} {li['Brand']} at ({li['x']:.1f} ft,"
           f" {li['y']:.1f} ft)"
           for i, li in enumerate(st.session_state.placed_lighting)
       ]
@@ -513,7 +514,7 @@ with tab_light:
         ):
           st.session_state.placed_lighting[selected_placed_l_idx]["x"] = edit_lx
           st.session_state.placed_lighting[selected_placed_l_idx]["y"] = edit_ly
-          st.success("Lighting position updated!")
+          st.success(f"Lighting L{selected_placed_l_idx+1} position updated!")
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
       with l_btn_col2:
         if st.button(
@@ -523,8 +524,8 @@ with tab_light:
               selected_placed_l_idx
           )
           st.warning(
-              "Removed light fixture"
-              f" '{removed_light['Make']} {removed_light['Brand']}'."
+              f"Removed L{selected_placed_l_idx+1} ({removed_light['Make']}"
+              f" {removed_light['Brand']})."
           )
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
     else:
@@ -570,7 +571,7 @@ with tab_flow:
 
   st.divider()
 
-  st.header("🛣️ Workflow Path Definition")
+  st.header("GM Workflow Path Definition")
   st.markdown(
       "Input and edit the sequential X/Y coordinate points that define the"
       " workflow path. Parts will travel sequentially from the first to the"
