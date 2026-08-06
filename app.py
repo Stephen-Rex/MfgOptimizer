@@ -150,14 +150,13 @@ if "machine_flows" not in st.session_state:
   st.session_state.machine_flows = []
 
 if "path_points" not in st.session_state:
-  st.session_state.path_points = pd.[1, 2, 3](asc_slot://start-slot-12)DataFrame({
-      "Point":,
-      "X Coordinate": [20.00, 70.00, 150.00],
-      "Y Coordinate": [80.00, 50.00, 25.00],
-      "Safety Standoff (ft)": [5.00, 5.00, 5.00],
-      "Movement Speed": [5.00, 5.00, 5.00],
-  })
-
+  st.session_state.path_points = pd.DataFrame({
+    "Point": [1, 2, 3],
+    "X Coordinate": [20.00, 70.00, 150.00],
+    "Y Coordinate": [80.00, 50.00, 25.00],
+    "Safety Standoff (ft)": [5.00, 5.00, 5.00],
+    "Movement Speed": [5.00, 5.00, 5.00],
+})
 
 # Callback function to update crane input fields when library dropdown changes
 def on_crane_select_change():
