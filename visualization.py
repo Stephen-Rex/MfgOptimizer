@@ -2,6 +2,7 @@
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
+import plotly.graph_objects as go
 
 
 def draw_asme_drawing(
@@ -25,6 +26,7 @@ def draw_asme_drawing(
     dwg_title='Factory Layout Blueprint',
     dwg_num='FFO-001',
 ):
+  """Generates a standardized 2D ASME Y14.1 blueprint drawing."""
   sizes = {
       'A': (8.5, 11.0),
       'B': (11.0, 17.0),
@@ -167,7 +169,7 @@ def draw_asme_drawing(
         alpha=0.6,
     )
 
-  # --- Draw Overhead Crane Coverage Areas (Transparent Grey Boxes) ---
+  # --- Draw Overhead Crane Coverage Areas ---
   if show_cranes:
     for idx, crane in enumerate(cranes):
       if 'll_x' in crane:
@@ -515,4 +517,266 @@ def draw_asme_drawing(
   ax.set_ylim(-1, height_in + 1)
   ax.set_aspect('equal')
   ax.axis('off')
+  return fig
+
+
+def draw_3d_asme_factory_viewport(
+    floor_w=200.0,
+    floor_h=100.0,
+    ceiling_h=25.0,
+    machines=[],
+    lighting=[],
+    cranes=[],
+    conduits=[],
+    workflow_paths=[],
+    show_machines=True,
+    show_lighting=True,
+    show_cranes=True,
+    show_workflow=True,
+    show_electrical=True,
+):
+  """Generates an interactive Plotly 3D WebGL viewport for plant floor walkthrough."""
+  fig = go.Figure()
+
+  # 1. Floor Plane (Z = 0)
+  fig.add_trace(
+      go.Mesh3d(
+          x=[0, floor_w, floor_w, 0],
+          y=[0, 0, floor_h, floor_h],
+          z=[0, 0, 0, 0],
+          i=[0, 0],
+          j=,
+          k=,
+          color='#002B49',
+          opacity=0.95,
+          name='Factory Floor',
+          showscale=False,
+      )
+  )
+
+  # Grid lines on floor
+  for x_grid in np.arange(0, floor_w + 20, 20):
+    fig.add_trace(
+        go.Scatter3d(
+            x=[x_grid, x_grid],
+            y=[0, floor_h],
+            z=[0.1, 0.1],
+            mode='lines',
+            line=dict(color='#39FF14', width=1.5),
+            showlegend=False,
+            hoverinfo='none',
+        )
+    )
+  for y_grid in np.arange(0, floor_h + 20, 20):
+    fig.add_trace(
+        go.Scatter3d(
+            x=[0, floor_w],
+            y=[y_grid, y_grid],
+            z=[0.1, 0.1],
+            mode='lines',
+            line=dict(color='#39FF14', width=1.5),
+            showlegend=False,
+            hoverinfo='none',
+        )
+    )
+
+  # 2. Machines 3D Cuboids
+  if show_machines:
+    for idx, m in enumerate(machines):
+      mx, my = m['x'], m['y']
+      mw, mh = m['Width'], m['Height']
+      mz = m.get('Height3D', 8.0)
+
+      x0, x1 = mx - mw / 2, mx + mw / 2
+      y0, y1 = my - mh / 2, my + mh / 2
+      z0, z1 = 0.0, mz
+
+      vx = [x0, x1, x1, x0, x0, x1, x1, x0]
+      vy = [y0, y0, y1, y1, y0, y0, y1, y1]
+      vz = [z0, z0, z0, z0, z1, z1, z1, z1]
+
+      i_idx =
+      j_idx =
+      k_idx =
+
+      fig.add_trace(
+          go.Mesh3d(
+              x=vx,
+              y=vy,
+              z=vz,
+              i=i_idx,
+              j=j_idx,
+              k=k_idx,
+              color='#00A8E8',
+              opacity=0.85,
+              name=(
+                  f"Machine M{idx+1} ({m.get('Make','')} {m.get('Model','')})"
+              ),
+              flatshading=True,
+          )
+      )
+
+      fig.add_trace(
+          go.Scatter3d(
+              x=[mx],
+              y=[my],
+              z=[z1 + 2.0],
+              mode='text',
+              text=[f'M{idx+1}'],
+              textposition='top center',
+              textfont=dict(color='white', size=11, family='Arial Black'),
+              showlegend=False,
+          )
+      )
+
+  # 3. Overhead Cranes 3D Coverage Volumes & Bridge Girders
+  if show_cranes:
+    for idx, crane in enumerate(cranes):
+      if 'll_x' in crane:
+        x_min, y_min = crane['ll_x'], crane['ll_y']
+        x_max, y_max = crane['ur_x'], crane['ur_y']
+      elif 'x1' in crane:
+        xs = [crane['x1'], crane['x2'], crane['x3'], crane['x4']]
+        ys = [crane['y1'], crane['y2'], crane['y3'], crane['y4']]
+        x_min, x_max = min(xs), max(xs)
+        y_min, y_max = min(ys), max(ys)
+      else:
+        x_min, y_min, x_max, y_max = 20, 20, 180, 80
+
+      z_crane_beam = ceiling_h - 2.0
+
+      # 3D Transparent Grey Box Volume
+      vx = [x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min]
+      vy = [y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max]
+      vz = [0, 0, 0, 0, z_crane_beam, z_crane_beam, z_crane_beam, z_crane_beam]
+
+      i_idx =
+      j_idx =
+      k_idx =
+
+      fig.add_trace(
+          go.Mesh3d(
+              x=vx,
+              y=vy,
+              z=vz,
+              i=i_idx,
+              j=j_idx,
+              k=k_idx,
+              color='#A0A0A0',
+              opacity=0.25,
+              name=f'Crane C{idx+1} Coverage Zone',
+              flatshading=True,
+          )
+      )
+
+      cx_mid = (x_min + x_max) / 2
+      fig.add_trace(
+          go.Scatter3d(
+              x=[cx_mid, cx_mid],
+              y=[y_min, y_max],
+              z=[z_crane_beam, z_crane_beam],
+              mode='lines+markers',
+              line=dict(color='#FF6B00', width=8),
+              marker=dict(size=6, color='yellow'),
+              name=f'Crane C{idx+1} Bridge Girder',
+          )
+      )
+
+      fig.add_trace(
+          go.Scatter3d(
+              x=[cx_mid],
+              y=[(y_min + y_max) / 2],
+              z=[z_crane_beam + 2.0],
+              mode='text',
+              text=[f'C{idx+1}'],
+              textfont=dict(color='#FFD700', size=12, family='Arial Black'),
+              showlegend=False,
+          )
+      )
+
+  # 4. Lighting Fixtures at Ceiling Height
+  if show_lighting:
+    for idx, l in enumerate(lighting):
+      lx, ly = l['x'], l['y']
+      lz = ceiling_h - 1.0
+      fig.add_trace(
+          go.Scatter3d(
+              x=[lx],
+              y=[ly],
+              z=[lz],
+              mode='markers+text',
+              marker=dict(size=8, color='gold', symbol='diamond'),
+              text=[f'L{idx+1}'],
+              textposition='top center',
+              textfont=dict(color='gold', size=10),
+              name=f'Lighting L{idx+1}',
+          )
+      )
+
+  # 5. Workflow Paths in 3D
+  if show_workflow:
+    for path in workflow_paths:
+      x_pts, y_pts = path.get('x', []), path.get('y', [])
+      z_pts = [1.5] * len(x_pts)
+      if len(x_pts) >= 2:
+        fig.add_trace(
+            go.Scatter3d(
+                x=x_pts,
+                y=y_pts,
+                z=z_pts,
+                mode='lines+markers',
+                line=dict(color='#808080', width=6),
+                marker=dict(size=5, color='#FFD700'),
+                name='Workflow Path 3D',
+            )
+        )
+
+  # 6. Electrical Underground Conduits (Z < 0)
+  if show_electrical:
+    for cond in conduits:
+      cx_pts, cy_pts = cond.get('x', []), cond.get('y', [])
+      cz_pts = [-2.0] * len(cx_pts)  # 2ft trench depth
+      if len(cx_pts) >= 2:
+        fig.add_trace(
+            go.Scatter3d(
+                x=cx_pts,
+                y=cy_pts,
+                z=cz_pts,
+                mode='lines',
+                line=dict(color='#FFA500', width=6),
+                name=f"Conduit: {cond.get('label', 'Run')}",
+            )
+        )
+
+  fig.update_layout(
+      scene=dict(
+          xaxis=dict(
+              title='Floor Width X (ft)',
+              range=[0, floor_w],
+              backgroundcolor='#001F3F',
+          ),
+          yaxis=dict(
+              title='Floor Height Y (ft)',
+              range=[0, floor_h],
+              backgroundcolor='#001F3F',
+          ),
+          zaxis=dict(
+              title='Height Z (ft)',
+              range=[-5, ceiling_h + 5],
+              backgroundcolor='#001F3F',
+          ),
+          aspectmode='manual',
+          aspectratio=dict(x=floor_w / 100, y=floor_h / 100, z=ceiling_h / 100),
+          camera=dict(eye=dict(x=1.5, y=-1.5, z=1.2)),
+      ),
+      paper_bgcolor='#001529',
+      margin=dict(l=0, r=0, b=0, t=30),
+      title=dict(
+          text=(
+              '🕶️ Interactive 3D Factory Floor Viewport (Orbit / Zoom /'
+              ' Walkthrough)'
+          ),
+          font=dict(color='white', size=14),
+      ),
+  )
   return fig
