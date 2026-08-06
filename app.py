@@ -112,6 +112,62 @@ if "path_points" not in st.session_state:
       "Movement Speed": [5.00, 5.00, 5.00],
   })
 
+
+# Callback function to execute BEFORE page widgets are instantiated
+def apply_imported_layout():
+  if (
+      "uploaded_layout_file" in st.session_state
+      and st.session_state.uploaded_layout_file is not None
+  ):
+    try:
+      content = st.session_state.uploaded_layout_file.read().decode("utf-8")
+      imported_data = json.loads(content)
+
+      if "designer_name" in imported_data:
+        st.session_state.designer_name = imported_data["designer_name"]
+      if "dwg_title" in imported_data:
+        st.session_state.dwg_title = imported_data["dwg_title"]
+      if "dwg_num" in imported_data:
+        st.session_state.dwg_num = imported_data["dwg_num"]
+      if "sheet_size" in imported_data:
+        st.session_state.sheet_size = imported_data["sheet_size"]
+      if "floor_w" in imported_data:
+        st.session_state.floor_w = float(imported_data["floor_w"])
+      if "floor_h" in imported_data:
+        st.session_state.floor_h = float(imported_data["floor_h"])
+      if "path_width_ft" in imported_data:
+        st.session_state.path_width_ft = float(imported_data["path_width_ft"])
+      if "show_safety" in imported_data:
+        st.session_state.show_safety = imported_data["show_safety"]
+      if "show_contour" in imported_data:
+        st.session_state.show_contour = imported_data["show_contour"]
+      if "show_decibel" in imported_data:
+        st.session_state.show_decibel = imported_data["show_decibel"]
+      if "placed_machines" in imported_data:
+        st.session_state.placed_machines = imported_data["placed_machines"]
+      if "placed_lighting" in imported_data:
+        st.session_state.placed_lighting = imported_data["placed_lighting"]
+      if "placed_conduits" in imported_data:
+        st.session_state.placed_conduits = imported_data["placed_conduits"]
+      if "machine_flows" in imported_data:
+        st.session_state.machine_flows = imported_data["machine_flows"]
+      if "path_points" in imported_data:
+        st.session_state.path_points = pd.DataFrame(
+            imported_data["path_points"]
+        )
+
+      st.session_state["import_status"] = (
+          "success",
+          "✅ Saved layout successfully imported and applied to the blueprint"
+          " view!",
+      )
+    except Exception as e:
+      st.session_state["import_status"] = (
+          "error",
+          f"Error parsing layout file: {e}",
+      )
+
+
 # Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
@@ -215,9 +271,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
     "📚 Default Libraries",
 ])
 
-# -------------------------------------------------------------
 # TAB 0: PROJECT INFO
-# -------------------------------------------------------------
 with tab_proj:
   st.subheader("📋 Blueprint Title Block Parameters")
   st.markdown(
@@ -232,9 +286,7 @@ with tab_proj:
   with p_col2:
     st.text_input("Drawing Number (DWG NO)", key="dwg_num")
 
-# -------------------------------------------------------------
 # TAB 1: FLOOR & SHEET DIMENSIONS
-# -------------------------------------------------------------
 with tab_dims:
   st.subheader("📐 Factory Floor & ASME Drawing Sheet Configuration")
   dim_col1, dim_col2 = st.columns(2)
@@ -265,9 +317,7 @@ with tab_dims:
         key="path_width_ft",
     )
 
-# -------------------------------------------------------------
 # TAB 2: PLOTS
-# -------------------------------------------------------------
 with tab_plots:
   st.subheader("📊 Blueprint Overlay & Contour Plots")
   st.markdown(
@@ -286,9 +336,7 @@ with tab_plots:
         key="show_decibel",
     )
 
-# -------------------------------------------------------------
 # TAB 3: MACHINERY PLACEMENT & EDITS
-# -------------------------------------------------------------
 with tab_mach:
   m_col1, m_col2 = st.columns(2)
   with m_col1:
@@ -751,57 +799,24 @@ with tab_io:
     )
 
     uploaded_file = st.file_uploader(
-        "Choose a layout text file", type=["txt", "json"]
+        "Choose a layout text file",
+        type=["txt", "json"],
+        key="uploaded_layout_file",
     )
 
     if uploaded_file is not None:
-      try:
-        content = uploaded_file.read().decode("utf-8")
-        imported_data = json.loads(content)
+      st.button(
+          "🔄 Apply Imported Layout to Floor",
+          type="primary",
+          on_click=apply_imported_layout,
+      )
 
-        if st.button("🔄 Apply Imported Layout to Floor", type="primary"):
-          if "designer_name" in imported_data:
-            st.session_state.designer_name = imported_data["designer_name"]
-          if "dwg_title" in imported_data:
-            st.session_state.dwg_title = imported_data["dwg_title"]
-          if "dwg_num" in imported_data:
-            st.session_state.dwg_num = imported_data["dwg_num"]
-          if "sheet_size" in imported_data:
-            st.session_state.sheet_size = imported_data["sheet_size"]
-          if "floor_w" in imported_data:
-            st.session_state.floor_w = float(imported_data["floor_w"])
-          if "floor_h" in imported_data:
-            st.session_state.floor_h = float(imported_data["floor_h"])
-          if "path_width_ft" in imported_data:
-            st.session_state.path_width_ft = float(
-                imported_data["path_width_ft"]
-            )
-          if "show_safety" in imported_data:
-            st.session_state.show_safety = imported_data["show_safety"]
-          if "show_contour" in imported_data:
-            st.session_state.show_contour = imported_data["show_contour"]
-          if "show_decibel" in imported_data:
-            st.session_state.show_decibel = imported_data["show_decibel"]
-          if "placed_machines" in imported_data:
-            st.session_state.placed_machines = imported_data["placed_machines"]
-          if "placed_lighting" in imported_data:
-            st.session_state.placed_lighting = imported_data["placed_lighting"]
-          if "placed_conduits" in imported_data:
-            st.session_state.placed_conduits = imported_data["placed_conduits"]
-          if "machine_flows" in imported_data:
-            st.session_state.machine_flows = imported_data["machine_flows"]
-          if "path_points" in imported_data:
-            st.session_state.path_points = pd.DataFrame(
-                imported_data["path_points"]
-            )
-
-          st.success(
-              "✅ Saved layout successfully imported and applied to the"
-              " blueprint view!"
-          )
-          st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
-      except Exception as e:
-        st.error(f"Error parsing layout file: {e}")
+    if "import_status" in st.session_state:
+      status_type, msg = st.session_state["import_status"]
+      if status_type == "success":
+        st.success(msg)
+      elif status_type == "error":
+        st.error(msg)
 
 # TAB 8: DEFAULT LIBRARIES
 with tab_lib:
@@ -820,4 +835,3 @@ with tab_lib:
   with lib_col2:
     st.subheader("💡 Default Lighting Library")
     st.dataframe(df_lighting, use_container_width=True)
-
