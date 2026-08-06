@@ -653,8 +653,8 @@ with tab_crane:
   with crane_col1:
     st.subheader("🏗️ Add Overhead Crane Coverage Area")
     st.markdown(
-        "Define 4 individual boundary coordinates (X & Y pairs) to establish"
-        " the transparent grey crane coverage box on the blueprint view."
+        "Define 2 corner points (Lower Left & Upper Right) to establish the"
+        " rectangular transparent grey crane coverage box on the blueprint."
     )
 
     crane_make = st.text_input("Crane Make", "Demag", key="crane_make_add")
@@ -689,30 +689,18 @@ with tab_crane:
           key="crane_tsp_add",
       )
 
-    st.markdown("##### 📍 Define 4 Coverage Corner Coordinates (ft)")
-    p1_c1, p1_c2 = st.columns(2)
-    with p1_c1:
-      x1_val = st.number_input("Point 1 X", value=20.0, key="crane_x1_add")
-    with p1_c2:
-      y1_val = st.number_input("Point 1 Y", value=20.0, key="crane_y1_add")
+    st.markdown("##### 📍 Define Rectangular Coverage Corner Points (ft)")
+    ll_col1, ll_col2 = st.columns(2)
+    with ll_col1:
+      ll_x_val = st.number_input("Lower Left X (ft)", value=20.0, key="crane_ll_x_add")
+    with ll_col2:
+      ll_y_val = st.number_input("Lower Left Y (ft)", value=20.0, key="crane_ll_y_add")
 
-    p2_c1, p2_c2 = st.columns(2)
-    with p2_c1:
-      x2_val = st.number_input("Point 2 X", value=180.0, key="crane_x2_add")
-    with p2_c2:
-      y2_val = st.number_input("Point 2 Y", value=20.0, key="crane_y2_add")
-
-    p3_c1, p3_c2 = st.columns(2)
-    with p3_c1:
-      x3_val = st.number_input("Point 3 X", value=180.0, key="crane_x3_add")
-    with p3_c2:
-      y3_val = st.number_input("Point 3 Y", value=80.0, key="crane_y3_add")
-
-    p4_c1, p4_c2 = st.columns(2)
-    with p4_c1:
-      x4_val = st.number_input("Point 4 X", value=20.0, key="crane_x4_add")
-    with p4_c2:
-      y4_val = st.number_input("Point 4 Y", value=80.0, key="crane_y4_add")
+    ur_col1, ur_col2 = st.columns(2)
+    with ur_col1:
+      ur_x_val = st.number_input("Upper Right X (ft)", value=180.0, key="crane_ur_x_add")
+    with ur_col2:
+      ur_y_val = st.number_input("Upper Right Y (ft)", value=80.0, key="crane_ur_y_add")
 
     if st.button("Add Crane Coverage to Floor", type="primary"):
       new_crane = {
@@ -721,14 +709,10 @@ with tab_crane:
           "max_lift_weight": crane_lift_wt,
           "max_lift_speed": crane_lift_sp,
           "max_transversal_speed": crane_trans_sp,
-          "x1": x1_val,
-          "y1": y1_val,
-          "x2": x2_val,
-          "y2": y2_val,
-          "x3": x3_val,
-          "y3": y3_val,
-          "x4": x4_val,
-          "y4": y4_val,
+          "ll_x": ll_x_val,
+          "ll_y": ll_y_val,
+          "ur_x": ur_x_val,
+          "ur_y": ur_y_val,
       }
       st.session_state.placed_cranes.append(new_crane)
       st.success(
@@ -741,7 +725,7 @@ with tab_crane:
     st.subheader("🛠️ Edit or Delete Placed Cranes")
     if len(st.session_state.placed_cranes) > 0:
       crane_opts = [
-          f"C{i+1}: {c['make']} {c['model']} ({c['max_lift_weight']} T)"
+          f"C{i+1}: {c.get('make', 'Crane')} {c.get('model', '')} ({c.get('max_lift_weight', 0)} T)"
           for i, c in enumerate(st.session_state.placed_cranes)
       ]
       selected_crane_idx = st.selectbox(
@@ -754,87 +738,59 @@ with tab_crane:
       c_edit = st.session_state.placed_cranes[selected_crane_idx]
 
       e_make = st.text_input(
-          "Edit Make", c_edit["make"], key=f"e_cr_make_{selected_crane_idx}"
+          "Edit Make", c_edit.get("make", ""), key=f"e_cr_make_{selected_crane_idx}"
       )
       e_model = st.text_input(
-          "Edit Model", c_edit["model"], key=f"e_cr_model_{selected_crane_idx}"
+          "Edit Model", c_edit.get("model", ""), key=f"e_cr_model_{selected_crane_idx}"
       )
 
       e_col1, e_col2, e_col3 = st.columns(3)
       with e_col1:
         e_wt = st.number_input(
             "Max Weight (T)",
-            value=float(c_edit["max_lift_weight"]),
+            value=float(c_edit.get("max_lift_weight", 10.0)),
             key=f"e_cr_wt_{selected_crane_idx}",
         )
       with e_col2:
         e_lsp = st.number_input(
             "Lift Speed (ft/min)",
-            value=float(c_edit["max_lift_speed"]),
+            value=float(c_edit.get("max_lift_speed", 25.0)),
             key=f"e_cr_lsp_{selected_crane_idx}",
         )
       with e_col3:
         e_tsp = st.number_input(
             "Transversal Speed",
-            value=float(c_edit["max_transversal_speed"]),
+            value=float(c_edit.get("max_transversal_speed", 120.0)),
             key=f"e_cr_tsp_{selected_crane_idx}",
         )
 
       st.markdown("##### 📍 Edit Corner Coordinates (ft)")
-      ep1_c1, ep1_c2 = st.columns(2)
-      with ep1_c1:
-        e_x1 = st.number_input(
-            "Point 1 X",
-            value=float(c_edit["x1"]),
-            key=f"e_cr_x1_{selected_crane_idx}",
+      ell_col1, ell_col2 = st.columns(2)
+      with ell_col1:
+        e_ll_x = st.number_input(
+            "Lower Left X (ft)",
+            value=float(c_edit.get("ll_x", c_edit.get("x1", 20.0))),
+            key=f"e_cr_ll_x_{selected_crane_idx}",
         )
-      with ep1_c2:
-        e_y1 = st.number_input(
-            "Point 1 Y",
-            value=float(c_edit["y1"]),
-            key=f"e_cr_y1_{selected_crane_idx}",
-        )
-
-      ep2_c1, ep2_c2 = st.columns(2)
-      with ep2_c1:
-        e_x2 = st.number_input(
-            "Point 2 X",
-            value=float(c_edit["x2"]),
-            key=f"e_cr_x2_{selected_crane_idx}",
-        )
-      with ep2_c2:
-        e_y2 = st.number_input(
-            "Point 2 Y",
-            value=float(c_edit["y2"]),
-            key=f"e_cr_y2_{selected_crane_idx}",
+      with ell_col2:
+        e_ll_y = st.number_input(
+            "Lower Left Y (ft)",
+            value=float(c_edit.get("ll_y", c_edit.get("y1", 20.0))),
+            key=f"e_cr_ll_y_{selected_crane_idx}",
         )
 
-      ep3_c1, ep3_c2 = st.columns(2)
-      with ep3_c1:
-        e_x3 = st.number_input(
-            "Point 3 X",
-            value=float(c_edit["x3"]),
-            key=f"e_cr_x3_{selected_crane_idx}",
+      eur_col1, eur_col2 = st.columns(2)
+      with eur_col1:
+        e_ur_x = st.number_input(
+            "Upper Right X (ft)",
+            value=float(c_edit.get("ur_x", c_edit.get("x3", 180.0))),
+            key=f"e_cr_ur_x_{selected_crane_idx}",
         )
-      with ep3_c2:
-        e_y3 = st.number_input(
-            "Point 3 Y",
-            value=float(c_edit["y3"]),
-            key=f"e_cr_y3_{selected_crane_idx}",
-        )
-
-      ep4_c1, ep4_c2 = st.columns(2)
-      with ep4_c1:
-        e_x4 = st.number_input(
-            "Point 4 X",
-            value=float(c_edit["x4"]),
-            key=f"e_cr_x4_{selected_crane_idx}",
-        )
-      with ep4_c2:
-        e_y4 = st.number_input(
-            "Point 4 Y",
-            value=float(c_edit["y4"]),
-            key=f"e_cr_y4_{selected_crane_idx}",
+      with eur_col2:
+        e_ur_y = st.number_input(
+            "Upper Right Y (ft)",
+            value=float(c_edit.get("ur_y", c_edit.get("y3", 80.0))),
+            key=f"e_cr_ur_y_{selected_crane_idx}",
         )
 
       c_btn_c1, c_btn_c2 = st.columns(2)
@@ -846,14 +802,10 @@ with tab_crane:
               "max_lift_weight": e_wt,
               "max_lift_speed": e_lsp,
               "max_transversal_speed": e_tsp,
-              "x1": e_x1,
-              "y1": e_y1,
-              "x2": e_x2,
-              "y2": e_y2,
-              "x3": e_x3,
-              "y3": e_y3,
-              "x4": e_x4,
-              "y4": e_y4,
+              "ll_x": e_ll_x,
+              "ll_y": e_ll_y,
+              "ur_x": e_ur_x,
+              "ur_y": e_ur_y,
           }
           st.success(f"Updated Crane C{selected_crane_idx+1} configuration!")
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
@@ -863,8 +815,8 @@ with tab_crane:
               selected_crane_idx
           )
           st.warning(
-              f"Removed Crane C{selected_crane_idx+1} ({removed_crane['make']}"
-              f" {removed_crane['model']})."
+              f"Removed Crane C{selected_crane_idx+1} ({removed_crane.get('make', '')}"
+              f" {removed_crane.get('model', '')})."
           )
           st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
     else:
