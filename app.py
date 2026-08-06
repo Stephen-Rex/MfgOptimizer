@@ -120,6 +120,18 @@ if "placed_cranes" not in st.session_state:
       "ur_y": 80.0,
   }]
 
+# Add crane session state input keys initialization
+if "crane_make_add" not in st.session_state:
+  st.session_state["crane_make_add"] = crane_lib[0]["Make"]
+if "crane_model_add" not in st.session_state:
+  st.session_state["crane_model_add"] = crane_lib[0]["Model"]
+if "crane_wt_add" not in st.session_state:
+  st.session_state["crane_wt_add"] = float(crane_lib[0]["MaxLiftWeight"])
+if "crane_lsp_add" not in st.session_state:
+  st.session_state["crane_lsp_add"] = float(crane_lib[0]["MaxLiftSpeed"])
+if "crane_tsp_add" not in st.session_state:
+  st.session_state["crane_tsp_add"] = float(crane_lib[0]["MaxTransversalSpeed"])
+
 if "machine_flows" not in st.session_state:
   st.session_state.machine_flows = []
 
@@ -131,6 +143,18 @@ if "path_points" not in st.session_state:
       "Safety Standoff (ft)": [5.00, 5.00, 5.00],
       "Movement Speed": [5.00, 5.00, 5.00],
   })
+
+
+# Callback function to update crane specification input fields when library dropdown selection changes
+def on_crane_select_change():
+  if "crane_lib_select_add" in st.session_state:
+    selected_idx = st.session_state["crane_lib_select_add"]
+    spec = crane_lib[selected_idx]
+    st.session_state["crane_make_add"] = spec["Make"]
+    st.session_state["crane_model_add"] = spec["Model"]
+    st.session_state["crane_wt_add"] = float(spec["MaxLiftWeight"])
+    st.session_state["crane_lsp_add"] = float(spec["MaxLiftSpeed"])
+    st.session_state["crane_tsp_add"] = float(spec["MaxTransversalSpeed"])
 
 
 # Callback function to execute BEFORE page widgets are instantiated
@@ -675,21 +699,16 @@ with tab_crane:
         f"{c['Make']} {c['Model']} ({c['MaxLiftWeight']} T Max Weight)"
         for c in crane_lib
     ]
-    selected_crane_lib_idx = st.selectbox(
+    st.selectbox(
         "Choose Crane Model from Library",
         range(len(crane_lib_options)),
         format_func=lambda x: crane_lib_options[x],
         key="crane_lib_select_add",
+        on_change=on_crane_select_change,
     )
 
-    spec_crane = crane_lib[selected_crane_lib_idx]
-
-    crane_make = st.text_input(
-        "Crane Make", spec_crane["Make"], key="crane_make_add"
-    )
-    crane_model = st.text_input(
-        "Crane Model", spec_crane["Model"], key="crane_model_add"
-    )
+    crane_make = st.text_input("Crane Make", key="crane_make_add")
+    crane_model = st.text_input("Crane Model", key="crane_model_add")
 
     specs_col1, specs_col2, specs_col3 = st.columns(3)
     with specs_col1:
@@ -697,7 +716,6 @@ with tab_crane:
           "Max Lift Weight (tons)",
           min_value=0.5,
           max_value=200.0,
-          value=float(spec_crane["MaxLiftWeight"]),
           step=0.5,
           key="crane_wt_add",
       )
@@ -706,7 +724,6 @@ with tab_crane:
           "Max Lift Speed (ft/min)",
           min_value=1.0,
           max_value=200.0,
-          value=float(spec_crane["MaxLiftSpeed"]),
           step=1.0,
           key="crane_lsp_add",
       )
@@ -715,7 +732,6 @@ with tab_crane:
           "Max Transversal Speed (ft/min)",
           min_value=1.0,
           max_value=500.0,
-          value=float(spec_crane["MaxTransversalSpeed"]),
           step=5.0,
           key="crane_tsp_add",
       )
