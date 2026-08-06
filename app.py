@@ -3,9 +3,14 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from engine import calculate_production_metrics, run_layout_analysis
-from library_loader import get_default_lighting, get_default_machinery
+from library_loader import (
+    get_default_cranes,
+    get_default_lighting,
+    get_default_machinery,
+)
 from visualization import draw_asme_drawing
 
+# Set page configuration safely
 st.set_page_config(
     page_title="Factory Floor Optimizer", page_icon="🏭", layout="wide"
 )
@@ -17,6 +22,7 @@ st.markdown(
 )
 
 
+# Helper to parse string list to coordinate floats safely
 def parse_coords(coord_str):
   try:
     return [float(val.strip()) for val in coord_str.split(",") if val.strip()]
@@ -24,11 +30,16 @@ def parse_coords(coord_str):
     return None
 
 
+# Load Default Libraries
 machinery_lib = get_default_machinery()
 lighting_lib = get_default_lighting()
+crane_lib = get_default_cranes()
+
 df_machinery = pd.DataFrame(machinery_lib)
 df_lighting = pd.DataFrame(lighting_lib)
+df_cranes = pd.DataFrame(crane_lib)
 
+# Setup Session State for Blueprint Controls & Placed Items
 if "sheet_size" not in st.session_state:
   st.session_state.sheet_size = "B"
 if "floor_w" not in st.session_state:
@@ -103,14 +114,10 @@ if "placed_cranes" not in st.session_state:
       "max_lift_weight": 10.0,
       "max_lift_speed": 25.0,
       "max_transversal_speed": 120.0,
-      "x1": 20.0,
-      "y1": 20.0,
-      "x2": 180.0,
-      "y2": 20.0,
-      "x3": 180.0,
-      "y3": 80.0,
-      "x4": 20.0,
-      "y4": 80.0,
+      "ll_x": 20.0,
+      "ll_y": 20.0,
+      "ur_x": 180.0,
+      "ur_y": 80.0,
   }]
 
 if "machine_flows" not in st.session_state:
@@ -126,6 +133,7 @@ if "path_points" not in st.session_state:
   })
 
 
+# Callback function to execute BEFORE page widgets are instantiated
 def apply_imported_layout():
   if (
       "uploaded_layout_file" in st.session_state
@@ -182,8 +190,10 @@ def apply_imported_layout():
       )
 
 
+# Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
+# Extract workflow path points from session state for ASME Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
   try:
@@ -226,10 +236,12 @@ fig = draw_asme_drawing(
     dwg_num=st.session_state.dwg_num,
 )
 
+# Display Blueprint at 75% width
 bp_col, bp_space = st.columns([0.75, 0.25])
 with bp_col:
   st.pyplot(fig, use_container_width=True)
 
+# Analytics Summary
 metrics = calculate_production_metrics(st.session_state.placed_machines)
 warnings = run_layout_analysis(
     st.session_state.placed_machines, st.session_state.placed_conduits
@@ -257,6 +269,7 @@ else:
 
 st.divider()
 
+# TABBED NAVIGATION FOR ALL CONFIGURATION MENUS
 st.header("⚙️ Layout Configuration & Component Menus")
 
 (
@@ -747,28 +760,114 @@ with tab_crane:
       )
       st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-# TAB 9: DEFAULT LIBRARIES
-with tab_lib:
-  st.header("📚 Default Machinery, Lighting & Crane Libraries")
-  st.markdown(
-      "Reference specification tables loaded from default library"
-      " configurations."
-  )
+  with crane_col2:
+    st.subheader("🛠️ Edit or Delete Placed Cranes")
+    if len(st.session_state.placed_cranes) > 0:
+      crane_opts = [
+          f"C{i+1}: {c.get('make', 'Crane')} {c.get('model', '')}"
+          f" ({c.get('max_lift_weight', 0)} T)"
+          for i, c in enumerate(st.session_state.placed_cranes)
+      ]
+      selected_crane_idx = st.selectbox(
+          "Select Crane to Modify",
+          range(len(crane_opts)),
+          format_func=lambda x: crane_opts[x],
+          key="edit_crane_select",
+      )
 
-  lib_col1, lib_col2, lib_col3 = st.columns(3)
+      c_edit = st.session_state.placed_cranes[selected_crane_idx]
 
-  with lib_col1:
-    st.subheader("🤖 Default Machinery Library")
-    st.dataframe(df_machinery, use_container_width=True)
+      e_make = st.text_input(
+          "Edit Make",
+          c_edit.get("make", ""),
+          key=f"e_cr_make_{selected_crane_idx}",
+      )
+      e_model = st.text_input(
+          "Edit Model",
+          c_edit.get("model", ""),
+          key=f"e_cr_model_{selected_crane_idx}",
+      )
 
-  with lib_col2:
-    st.subheader("💡 Default Lighting Library")
-    st.dataframe(df_lighting, use_container_width=True)
+      e_col1, e_col2, e_col3 = st.columns(3)
+      with e_col1:
+        e_wt = st.number_input(
+            "Max Weight (T)",
+            value=float(c_edit.get("max_lift_weight", 10.0)),
+            key=f"e_cr_wt_{selected_crane_idx}",
+        )
+      with e_col2:
+        e_lsp = st.number_input(
+            "Lift Speed (ft/min)",
+            value=float(c_edit.get("max_lift_speed", 25.0)),
+            key=f"e_cr_lsp_{selected_crane_idx}",
+        )
+      with e_col3:
+        e_tsp = st.number_input(
+            "Transversal Speed",
+            value=float(c_edit.get("max_transversal_speed", 120.0)),
+            key=f"e_cr_tsp_{selected_crane_idx}",
+        )
 
-  with lib_col3:
-    st.subheader("🏗️ Default Overhead Crane Library")
-    st.dataframe(df_cranes, use_container_width=True)
+      st.markdown("##### 📍 Edit Corner Coordinates (ft)")
+      ell_col1, ell_col2 = st.columns(2)
+      with ell_col1:
+        e_ll_x = st.number_input(
+            "Lower Left X (ft)",
+            value=float(c_edit.get("ll_x", c_edit.get("x1", 20.0))),
+            key=f"e_cr_ll_x_{selected_crane_idx}",
+        )
+      with ell_col2:
+        e_ll_y = st.number_input(
+            "Lower Left Y (ft)",
+            value=float(c_edit.get("ll_y", c_edit.get("y1", 20.0))),
+            key=f"e_cr_ll_y_{selected_crane_idx}",
+        )
 
+      eur_col1, eur_col2 = st.columns(2)
+      with eur_col1:
+        e_ur_x = st.number_input(
+            "Upper Right X (ft)",
+            value=float(c_edit.get("ur_x", c_edit.get("x3", 180.0))),
+            key=f"e_cr_ur_x_{selected_crane_idx}",
+        )
+      with eur_col2:
+        e_ur_y = st.number_input(
+            "Upper Right Y (ft)",
+            value=float(c_edit.get("ur_y", c_edit.get("y3", 80.0))),
+            key=f"e_cr_ur_y_{selected_crane_idx}",
+        )
+
+      c_btn_c1, c_btn_c2 = st.columns(2)
+      with c_btn_c1:
+        if st.button(
+            "Update Crane Data", key=f"up_cr_btn_{selected_crane_idx}"
+        ):
+          st.session_state.placed_cranes[selected_crane_idx] = {
+              "make": e_make,
+              "model": e_model,
+              "max_lift_weight": e_wt,
+              "max_lift_speed": e_lsp,
+              "max_transversal_speed": e_tsp,
+              "ll_x": e_ll_x,
+              "ll_y": e_ll_y,
+              "ur_x": e_ur_x,
+              "ur_y": e_ur_y,
+          }
+          st.success(f"Updated Crane C{selected_crane_idx+1} configuration!")
+          st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+      with c_btn_c2:
+        if st.button("Delete Crane", key=f"del_cr_btn_{selected_crane_idx}"):
+          removed_crane = st.session_state.placed_cranes.pop(
+              selected_crane_idx
+          )
+          st.warning(
+              f"Removed Crane C{selected_crane_idx+1}"
+              f" ({removed_crane.get('make', '')}"
+              f" {removed_crane.get('model', '')})."
+          )
+          st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    else:
+      st.info("No overhead cranes currently placed.")
 
 # TAB 7: MACHINE FLOWS & WORKFLOW PATHS
 with tab_flow:
@@ -956,13 +1055,13 @@ with tab_io:
 
 # TAB 9: DEFAULT LIBRARIES
 with tab_lib:
-  st.header("📚 Default Machinery & Material Libraries")
+  st.header("📚 Default Machinery, Lighting & Crane Libraries")
   st.markdown(
       "Reference specification tables loaded from default library"
       " configurations."
   )
 
-  lib_col1, lib_col2 = st.columns(2)
+  lib_col1, lib_col2, lib_col3 = st.columns(3)
 
   with lib_col1:
     st.subheader("🤖 Default Machinery Library")
@@ -972,3 +1071,6 @@ with tab_lib:
     st.subheader("💡 Default Lighting Library")
     st.dataframe(df_lighting, use_container_width=True)
 
+  with lib_col3:
+    st.subheader("🏗️ Default Overhead Crane Library")
+    st.dataframe(df_cranes, use_container_width=True)
