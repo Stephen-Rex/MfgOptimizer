@@ -1119,4 +1119,3 @@ with tab_lib:
   with lib_col3:
     st.subheader("🏗️ Default Overhead Crane Library")
     st.dataframe(df_cranes, use_container_width=True)
-
