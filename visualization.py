@@ -16,6 +16,8 @@ def draw_asme_drawing(
     show_machines=True,
     show_lighting=True,
     show_cranes=True,
+    show_workflow=True,
+    show_electrical=True,
     show_safety=False,
     show_contour=False,
     show_decibel=False,
@@ -342,98 +344,100 @@ def draw_asme_drawing(
       cbar.outline.set_edgecolor('gold')
 
   # --- Draw Workflow Paths ---
-  data_width = width_in + 2.0
-  points_per_data_inch = (fig_w / data_width) * 72.0
+  if show_workflow:
+    data_width = width_in + 2.0
+    points_per_data_inch = (fig_w / data_width) * 72.0
 
-  for path in workflow_paths:
-    x_pts = np.array(path['x'])
-    y_pts = np.array(path['y'])
-    standoffs = path.get('standoffs', [5.0] * len(x_pts))
+    for path in workflow_paths:
+      x_pts = np.array(path['x'])
+      y_pts = np.array(path['y'])
+      standoffs = path.get('standoffs', [5.0] * len(x_pts))
 
-    if len(x_pts) >= 2:
-      x_in = O_x + x_pts * S
-      y_in = O_y + y_pts * S
+      if len(x_pts) >= 2:
+        x_in = O_x + x_pts * S
+        y_in = O_y + y_pts * S
 
-      bar_width_ft = path.get('width_ft', 1.0)
-      bar_lw_pts = bar_width_ft * S * points_per_data_inch
+        bar_width_ft = path.get('width_ft', 1.0)
+        bar_lw_pts = bar_width_ft * S * points_per_data_inch
 
-      ax.plot(
-          x_in,
-          y_in,
-          color='#808080',
-          lw=max(1.5, bar_lw_pts),
-          alpha=0.85,
-          solid_capstyle='round',
-          solid_joinstyle='round',
-          zorder=2,
-          label='Workflow Path',
-      )
-
-      dx = np.diff(x_pts)
-      dy = np.diff(y_pts)
-      lengths = np.sqrt(dx**2 + dy**2)
-      lengths[lengths == 0] = 1e-6
-
-      nx = -dy / lengths
-      ny = dx / lengths
-
-      vx_n = np.zeros(len(x_pts))
-      vy_n = np.zeros(len(y_pts))
-      vx_n[0], vy_n[0] = nx[0], ny[0]
-      vx_n[-1], vy_n[-1] = nx[-1], ny[-1]
-
-      for i in range(1, len(x_pts) - 1):
-        vx_n[i] = (nx[i - 1] + nx[i]) / 2.0
-        vy_n[i] = (ny[i - 1] + ny[i]) / 2.0
-        v_len = np.sqrt(vx_n[i] ** 2 + vy_n[i] ** 2)
-        if v_len > 0:
-          vx_n[i] /= v_len
-          vy_n[i] /= v_len
-
-      st_in = np.array(standoffs) * S
-      left_x = x_in + vx_n * st_in
-      left_y = y_in + vy_n * st_in
-      right_x = x_in - vx_n * st_in
-      right_y = y_in - vy_n * st_in
-
-      ax.plot(
-          left_x,
-          left_y,
-          color='#FFD700',
-          linestyle=':',
-          lw=1.5,
-          zorder=3,
-          label='Safety Standoff Envelope',
-      )
-      ax.plot(
-          right_x,
-          right_y,
-          color='#FFD700',
-          linestyle=':',
-          lw=1.5,
-          zorder=3,
-      )
-
-      ax.scatter(
-          x_in, y_in, color='#FFD700', s=25, zorder=4, edgecolor='black'
-      )
-      for idx, (px, py) in enumerate(zip(x_in, y_in)):
-        ax.text(
-            px,
-            py + 0.12,
-            f'P{idx+1}',
-            color='#FFFFFF',
-            fontsize=6,
-            weight='bold',
-            ha='center',
-            zorder=5,
+        ax.plot(
+            x_in,
+            y_in,
+            color='#808080',
+            lw=max(1.5, bar_lw_pts),
+            alpha=0.85,
+            solid_capstyle='round',
+            solid_joinstyle='round',
+            zorder=2,
+            label='Workflow Path',
         )
 
+        dx = np.diff(x_pts)
+        dy = np.diff(y_pts)
+        lengths = np.sqrt(dx**2 + dy**2)
+        lengths[lengths == 0] = 1e-6
+
+        nx = -dy / lengths
+        ny = dx / lengths
+
+        vx_n = np.zeros(len(x_pts))
+        vy_n = np.zeros(len(y_pts))
+        vx_n[0], vy_n[0] = nx[0], ny[0]
+        vx_n[-1], vy_n[-1] = nx[-1], ny[-1]
+
+        for i in range(1, len(x_pts) - 1):
+          vx_n[i] = (nx[i - 1] + nx[i]) / 2.0
+          vy_n[i] = (ny[i - 1] + ny[i]) / 2.0
+          v_len = np.sqrt(vx_n[i] ** 2 + vy_n[i] ** 2)
+          if v_len > 0:
+            vx_n[i] /= v_len
+            vy_n[i] /= v_len
+
+        st_in = np.array(standoffs) * S
+        left_x = x_in + vx_n * st_in
+        left_y = y_in + vy_n * st_in
+        right_x = x_in - vx_n * st_in
+        right_y = y_in - vy_n * st_in
+
+        ax.plot(
+            left_x,
+            left_y,
+            color='#FFD700',
+            linestyle=':',
+            lw=1.5,
+            zorder=3,
+            label='Safety Standoff Envelope',
+        )
+        ax.plot(
+            right_x,
+            right_y,
+            color='#FFD700',
+            linestyle=':',
+            lw=1.5,
+            zorder=3,
+        )
+
+        ax.scatter(
+            x_in, y_in, color='#FFD700', s=25, zorder=4, edgecolor='black'
+        )
+        for idx, (px, py) in enumerate(zip(x_in, y_in)):
+          ax.text(
+              px,
+              py + 0.12,
+              f'P{idx+1}',
+              color='#FFFFFF',
+              fontsize=6,
+              weight='bold',
+              ha='center',
+              zorder=5,
+          )
+
   # Draw conduits
-  for cond in conduits:
-    cx_in = [O_x + val * S for val in cond['x']]
-    cy_in = [O_y + val * S for val in cond['y']]
-    ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
+  if show_electrical:
+    for cond in conduits:
+      cx_in = [O_x + val * S for val in cond['x']]
+      cy_in = [O_y + val * S for val in cond['y']]
+      ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
 
   # Draw machines with M1, M2...
   if show_machines:
