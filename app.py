@@ -8,7 +8,7 @@ from library_loader import (
     get_default_lighting,
     get_default_machinery,
 )
-from visualization import draw_asme_drawing
+from visualization import draw_3d_asme_factory_viewport, draw_asme_drawing
 
 # Set page configuration safely
 st.set_page_config(
@@ -150,8 +150,8 @@ if "machine_flows" not in st.session_state:
   st.session_state.machine_flows = []
 
 if "path_points" not in st.session_state:
-  st.session_state.path_points = pd.DataFrame({
-      "Point": [1, 2, 3],
+  st.session_state.path_points = pd.[...](asc_slot://start-slot-12)DataFrame({
+      "Point":,
       "X Coordinate": [20.00, 70.00, 150.00],
       "Y Coordinate": [80.00, 50.00, 25.00],
       "Safety Standoff (ft)": [5.00, 5.00, 5.00],
@@ -238,10 +238,14 @@ def apply_imported_layout():
       )
 
 
-# Render Top Main ASME Blueprint Drawing View (75% Window Width)
-st.header("📐 Live ASME Y14.1 Blueprint View")
+# Top Viewport Selection Switcher
+viewport_mode = st.radio(
+    "Select Display Mode",
+    ["📐 2D ASME Y14.1 Blueprint View", "🕶️ Interactive 3D Factory Viewport"],
+    horizontal=True,
+)
 
-# Extract workflow path points from session state for ASME Drawing
+# Extract workflow path points from session state for Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
   try:
@@ -267,32 +271,52 @@ if len(st.session_state.path_points) > 0:
   except Exception:
     pass
 
-fig = draw_asme_drawing(
-    size_char=st.session_state.sheet_size,
-    floor_width_ft=st.session_state.floor_w,
-    floor_height_ft=st.session_state.floor_h,
-    machines=st.session_state.placed_machines,
-    conduits=st.session_state.placed_conduits,
-    lighting=st.session_state.placed_lighting,
-    workflow_paths=active_workflow_paths,
-    cranes=st.session_state.placed_cranes,
-    show_machines=st.session_state.show_machines,
-    show_lighting=st.session_state.show_lighting,
-    show_cranes=st.session_state.show_cranes,
-    show_workflow=st.session_state.show_workflow,
-    show_electrical=st.session_state.show_electrical,
-    show_safety=st.session_state.show_safety,
-    show_contour=st.session_state.show_contour,
-    show_decibel=st.session_state.show_decibel,
-    designer_name=st.session_state.designer_name,
-    dwg_title=st.session_state.dwg_title,
-    dwg_num=st.session_state.dwg_num,
-)
+if viewport_mode == "📐 2D ASME Y14.1 Blueprint View":
+  st.header("📐 Live ASME Y14.1 Blueprint View")
+  fig = draw_asme_drawing(
+      size_char=st.session_state.sheet_size,
+      floor_width_ft=st.session_state.floor_w,
+      floor_height_ft=st.session_state.floor_h,
+      machines=st.session_state.placed_machines,
+      conduits=st.session_state.placed_conduits,
+      lighting=st.session_state.placed_lighting,
+      workflow_paths=active_workflow_paths,
+      cranes=st.session_state.placed_cranes,
+      show_machines=st.session_state.show_machines,
+      show_lighting=st.session_state.show_lighting,
+      show_cranes=st.session_state.show_cranes,
+      show_workflow=st.session_state.show_workflow,
+      show_electrical=st.session_state.show_electrical,
+      show_safety=st.session_state.show_safety,
+      show_contour=st.session_state.show_contour,
+      show_decibel=st.session_state.show_decibel,
+      designer_name=st.session_state.designer_name,
+      dwg_title=st.session_state.dwg_title,
+      dwg_num=st.session_state.dwg_num,
+  )
 
-# Display Blueprint at 75% width
-bp_col, bp_space = st.columns([0.75, 0.25])
-with bp_col:
-  st.pyplot(fig, use_container_width=True)
+  bp_col, bp_space = st.columns([0.75, 0.25])
+  with bp_col:
+    st.pyplot(fig, use_container_width=True)
+
+else:
+  st.header("🕶️ Interactive 3D Factory Floor Viewport")
+  fig_3d = draw_3d_asme_factory_viewport(
+      floor_w=st.session_state.floor_w,
+      floor_h=st.session_state.floor_h,
+      ceiling_h=25.0,
+      machines=st.session_state.placed_machines,
+      lighting=st.session_state.placed_lighting,
+      cranes=st.session_state.placed_cranes,
+      conduits=st.session_state.placed_conduits,
+      workflow_paths=active_workflow_paths,
+      show_machines=st.session_state.show_machines,
+      show_lighting=st.session_state.show_lighting,
+      show_cranes=st.session_state.show_cranes,
+      show_workflow=st.session_state.show_workflow,
+      show_electrical=st.session_state.show_electrical,
+  )
+  st.plotly_chart(fig_3d, use_container_width=True)
 
 # Analytics Summary
 metrics = calculate_production_metrics(st.session_state.placed_machines)
@@ -1135,4 +1159,3 @@ with tab_lib:
   with lib_col3:
     st.subheader("🏗️ Default Overhead Crane Library")
     st.dataframe(df_cranes, use_container_width=True)
-
