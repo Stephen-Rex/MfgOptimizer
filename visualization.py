@@ -127,7 +127,7 @@ def draw_asme_drawing(
   ax.text(
       tb_x + 0.2,
       tb_y + tb_h - 1.6,
-      f'Floor Scale: 1 in = {1.0/S:.1f} ft',
+      f'Floor Scale: 1 in = {1.0/S:.1f} ft' if S > 0 else 'Floor Scale: N/A',
       fontsize=6,
       color='#A0A0A0',
   )
@@ -545,8 +545,8 @@ def draw_3d_asme_factory_viewport(
           y=[0, 0, floor_h, floor_h],
           z=[0, 0, 0, 0],
           i=[0, 0],
-          j=,
-          k=,
+          j=[1, 2],
+          k=[2, 3],
           color='#002B49',
           opacity=0.95,
           name='Factory Floor',
@@ -595,9 +595,9 @@ def draw_3d_asme_factory_viewport(
       vy = [y0, y0, y1, y1, y0, y0, y1, y1]
       vz = [z0, z0, z0, z0, z1, z1, z1, z1]
 
-      i_idx =
-      j_idx =
-      k_idx =
+      i_idx = [7, 0, 0, 0, 4, 4, 2, 6, 4, 0, 3, 7]
+      j_idx = [0, 1, 2, 3, 5, 1, 3, 7, 0, 1, 2, 6]
+      k_idx = [4, 5, 6, 7, 1, 5, 7, 5, 1, 2, 6, 2]
 
       fig.add_trace(
           go.Mesh3d(
@@ -650,9 +650,9 @@ def draw_3d_asme_factory_viewport(
       vy = [y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max]
       vz = [0, 0, 0, 0, z_crane_beam, z_crane_beam, z_crane_beam, z_crane_beam]
 
-      i_idx =
-      j_idx =
-      k_idx =
+      i_idx = [7, 0, 0, 0, 4, 4, 2, 6, 4, 0, 3, 7]
+      j_idx = [0, 1, 2, 3, 5, 1, 3, 7, 0, 1, 2, 6]
+      k_idx = [4, 5, 6, 7, 1, 5, 7, 5, 1, 2, 6, 2]
 
       fig.add_trace(
           go.Mesh3d(
