@@ -48,6 +48,16 @@ if "floor_h" not in st.session_state:
   st.session_state.floor_h = 100.0
 if "path_width_ft" not in st.session_state:
   st.session_state.path_width_ft = 1.0
+
+# Layer Visibility Toggles
+if "show_machines" not in st.session_state:
+  st.session_state.show_machines = True
+if "show_lighting" not in st.session_state:
+  st.session_state.show_lighting = True
+if "show_cranes" not in st.session_state:
+  st.session_state.show_cranes = True
+
+# Underlay Plot Toggles
 if "show_safety" not in st.session_state:
   st.session_state.show_safety = False
 if "show_contour" not in st.session_state:
@@ -120,7 +130,7 @@ if "placed_cranes" not in st.session_state:
       "ur_y": 80.0,
   }]
 
-# Add crane session state input keys initialization
+# Initialize crane add input keys in session state
 if "crane_make_add" not in st.session_state:
   st.session_state["crane_make_add"] = crane_lib[0]["Make"]
 if "crane_model_add" not in st.session_state:
@@ -145,7 +155,7 @@ if "path_points" not in st.session_state:
   })
 
 
-# Callback function to update crane specification input fields when library dropdown selection changes
+# Callback function to update crane input fields when library dropdown changes
 def on_crane_select_change():
   if "crane_lib_select_add" in st.session_state:
     selected_idx = st.session_state["crane_lib_select_add"]
@@ -181,6 +191,12 @@ def apply_imported_layout():
         st.session_state.floor_h = float(imported_data["floor_h"])
       if "path_width_ft" in imported_data:
         st.session_state.path_width_ft = float(imported_data["path_width_ft"])
+      if "show_machines" in imported_data:
+        st.session_state.show_machines = imported_data["show_machines"]
+      if "show_lighting" in imported_data:
+        st.session_state.show_lighting = imported_data["show_lighting"]
+      if "show_cranes" in imported_data:
+        st.session_state.show_cranes = imported_data["show_cranes"]
       if "show_safety" in imported_data:
         st.session_state.show_safety = imported_data["show_safety"]
       if "show_contour" in imported_data:
@@ -252,6 +268,9 @@ fig = draw_asme_drawing(
     lighting=st.session_state.placed_lighting,
     workflow_paths=active_workflow_paths,
     cranes=st.session_state.placed_cranes,
+    show_machines=st.session_state.show_machines,
+    show_lighting=st.session_state.show_lighting,
+    show_cranes=st.session_state.show_cranes,
     show_safety=st.session_state.show_safety,
     show_contour=st.session_state.show_contour,
     show_decibel=st.session_state.show_decibel,
@@ -368,12 +387,19 @@ with tab_dims:
 
 # TAB 2: PLOTS
 with tab_plots:
-  st.subheader("📊 Blueprint Overlay & Contour Plots")
-  st.markdown(
-      "Select plot underlay visualizations to display on the 2D ASME blueprint"
-      " drawing."
-  )
+  st.subheader("📊 Blueprint Layer Visibility & Contour Underlays")
+  st.markdown("Toggle component layers and analysis underlay visualizations.")
 
+  st.markdown("##### 👁️ Component Layer Visibility Toggles")
+  lyr_col1, lyr_col2, lyr_col3 = st.columns(3)
+  with lyr_col1:
+    st.checkbox("Show Machinery Layer", key="show_machines")
+  with lyr_col2:
+    st.checkbox("Show Lighting Fixtures Layer", key="show_lighting")
+  with lyr_col3:
+    st.checkbox("Show Overhead Cranes Layer", key="show_cranes")
+
+  st.markdown("##### 🎨 Analysis Plot Underlays")
   plt_col1, plt_col2, plt_col3 = st.columns(3)
   with plt_col1:
     st.checkbox("Show Safety Heatmap underlay", key="show_safety")
@@ -1015,6 +1041,9 @@ with tab_io:
         "floor_w": st.session_state.floor_w,
         "floor_h": st.session_state.floor_h,
         "path_width_ft": st.session_state.path_width_ft,
+        "show_machines": st.session_state.show_machines,
+        "show_lighting": st.session_state.show_lighting,
+        "show_cranes": st.session_state.show_cranes,
         "show_safety": st.session_state.show_safety,
         "show_contour": st.session_state.show_contour,
         "show_decibel": st.session_state.show_decibel,
@@ -1090,3 +1119,4 @@ with tab_lib:
   with lib_col3:
     st.subheader("🏗️ Default Overhead Crane Library")
     st.dataframe(df_cranes, use_container_width=True)
+
