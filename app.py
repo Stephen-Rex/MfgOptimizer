@@ -6,7 +6,6 @@ from engine import calculate_production_metrics, run_layout_analysis
 from library_loader import get_default_lighting, get_default_machinery
 from visualization import draw_asme_drawing
 
-# Set page configuration safely
 st.set_page_config(
     page_title="Factory Floor Optimizer", page_icon="🏭", layout="wide"
 )
@@ -18,7 +17,6 @@ st.markdown(
 )
 
 
-# Helper to parse string list to coordinate floats safely
 def parse_coords(coord_str):
   try:
     return [float(val.strip()) for val in coord_str.split(",") if val.strip()]
@@ -26,13 +24,11 @@ def parse_coords(coord_str):
     return None
 
 
-# Load Default Libraries
 machinery_lib = get_default_machinery()
 lighting_lib = get_default_lighting()
 df_machinery = pd.DataFrame(machinery_lib)
 df_lighting = pd.DataFrame(lighting_lib)
 
-# Setup Session State for Blueprint Controls & Placed Items
 if "sheet_size" not in st.session_state:
   st.session_state.sheet_size = "B"
 if "floor_w" not in st.session_state:
@@ -100,6 +96,23 @@ if "placed_conduits" not in st.session_state:
       "depth_in": 36,
       "warning_tape": True,
   }]
+if "placed_cranes" not in st.session_state:
+  st.session_state.placed_cranes = [{
+      "make": "Konecranes",
+      "model": "CXT 10T",
+      "max_lift_weight": 10.0,
+      "max_lift_speed": 25.0,
+      "max_transversal_speed": 120.0,
+      "x1": 20.0,
+      "y1": 20.0,
+      "x2": 180.0,
+      "y2": 20.0,
+      "x3": 180.0,
+      "y3": 80.0,
+      "x4": 20.0,
+      "y4": 80.0,
+  }]
+
 if "machine_flows" not in st.session_state:
   st.session_state.machine_flows = []
 
@@ -113,7 +126,6 @@ if "path_points" not in st.session_state:
   })
 
 
-# Callback function to execute BEFORE page widgets are instantiated
 def apply_imported_layout():
   if (
       "uploaded_layout_file" in st.session_state
@@ -149,6 +161,8 @@ def apply_imported_layout():
         st.session_state.placed_lighting = imported_data["placed_lighting"]
       if "placed_conduits" in imported_data:
         st.session_state.placed_conduits = imported_data["placed_conduits"]
+      if "placed_cranes" in imported_data:
+        st.session_state.placed_cranes = imported_data["placed_cranes"]
       if "machine_flows" in imported_data:
         st.session_state.machine_flows = imported_data["machine_flows"]
       if "path_points" in imported_data:
@@ -168,10 +182,8 @@ def apply_imported_layout():
       )
 
 
-# Render Top Main ASME Blueprint Drawing View (75% Window Width)
 st.header("📐 Live ASME Y14.1 Blueprint View")
 
-# Extract workflow path points from session state for ASME Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
   try:
@@ -205,6 +217,7 @@ fig = draw_asme_drawing(
     conduits=st.session_state.placed_conduits,
     lighting=st.session_state.placed_lighting,
     workflow_paths=active_workflow_paths,
+    cranes=st.session_state.placed_cranes,
     show_safety=st.session_state.show_safety,
     show_contour=st.session_state.show_contour,
     show_decibel=st.session_state.show_decibel,
@@ -213,12 +226,10 @@ fig = draw_asme_drawing(
     dwg_num=st.session_state.dwg_num,
 )
 
-# Display Blueprint at 75% width
 bp_col, bp_space = st.columns([0.75, 0.25])
 with bp_col:
   st.pyplot(fig, use_container_width=True)
 
-# Analytics Summary
 metrics = calculate_production_metrics(st.session_state.placed_machines)
 warnings = run_layout_analysis(
     st.session_state.placed_machines, st.session_state.placed_conduits
@@ -246,7 +257,6 @@ else:
 
 st.divider()
 
-# TABBED NAVIGATION FOR ALL CONFIGURATION MENUS
 st.header("⚙️ Layout Configuration & Component Menus")
 
 (
@@ -256,6 +266,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
     tab_mach,
     tab_cond,
     tab_light,
+    tab_crane,
     tab_flow,
     tab_io,
     tab_lib,
@@ -266,6 +277,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
     "🤖 Machinery Placement & Edits",
     "🔌 Conduit Routing & Edits",
     "💡 Lighting Fixtures & Edits",
+    "🏗️ Overhead Cranes & Coverage",
     "🔄 Machine Flows & Workflow Paths",
     "💾 Import / Export Layout",
     "📚 Default Libraries",
@@ -634,7 +646,231 @@ with tab_light:
     else:
       st.info("No lighting fixtures currently placed.")
 
-# TAB 6: MACHINE FLOWS & WORKFLOW PATHS
+# TAB 6: OVERHEAD CRANES & COVERAGE
+with tab_crane:
+  crane_col1, crane_col2 = st.columns(2)
+
+  with crane_col1:
+    st.subheader("🏗️ Add Overhead Crane Coverage Area")
+    st.markdown(
+        "Define 4 individual boundary coordinates (X & Y pairs) to establish"
+        " the transparent grey crane coverage box on the blueprint view."
+    )
+
+    crane_make = st.text_input("Crane Make", "Demag", key="crane_make_add")
+    crane_model = st.text_input("Crane Model", "EKKE 10T", key="crane_model_add")
+
+    specs_col1, specs_col2, specs_col3 = st.columns(3)
+    with specs_col1:
+      crane_lift_wt = st.number_input(
+          "Max Lift Weight (tons)",
+          min_value=0.5,
+          max_value=200.0,
+          value=10.0,
+          step=0.5,
+          key="crane_wt_add",
+      )
+    with specs_col2:
+      crane_lift_sp = st.number_input(
+          "Max Lift Speed (ft/min)",
+          min_value=1.0,
+          max_value=200.0,
+          value=25.0,
+          step=1.0,
+          key="crane_lsp_add",
+      )
+    with specs_col3:
+      crane_trans_sp = st.number_input(
+          "Max Transversal Speed (ft/min)",
+          min_value=1.0,
+          max_value=500.0,
+          value=120.0,
+          step=5.0,
+          key="crane_tsp_add",
+      )
+
+    st.markdown("##### 📍 Define 4 Coverage Corner Coordinates (ft)")
+    p1_c1, p1_c2 = st.columns(2)
+    with p1_c1:
+      x1_val = st.number_input("Point 1 X", value=20.0, key="crane_x1_add")
+    with p1_c2:
+      y1_val = st.number_input("Point 1 Y", value=20.0, key="crane_y1_add")
+
+    p2_c1, p2_c2 = st.columns(2)
+    with p2_c1:
+      x2_val = st.number_input("Point 2 X", value=180.0, key="crane_x2_add")
+    with p2_c2:
+      y2_val = st.number_input("Point 2 Y", value=20.0, key="crane_y2_add")
+
+    p3_c1, p3_c2 = st.columns(2)
+    with p3_c1:
+      x3_val = st.number_input("Point 3 X", value=180.0, key="crane_x3_add")
+    with p3_c2:
+      y3_val = st.number_input("Point 3 Y", value=80.0, key="crane_y3_add")
+
+    p4_c1, p4_c2 = st.columns(2)
+    with p4_c1:
+      x4_val = st.number_input("Point 4 X", value=20.0, key="crane_x4_add")
+    with p4_c2:
+      y4_val = st.number_input("Point 4 Y", value=80.0, key="crane_y4_add")
+
+    if st.button("Add Crane Coverage to Floor", type="primary"):
+      new_crane = {
+          "make": crane_make,
+          "model": crane_model,
+          "max_lift_weight": crane_lift_wt,
+          "max_lift_speed": crane_lift_sp,
+          "max_transversal_speed": crane_trans_sp,
+          "x1": x1_val,
+          "y1": y1_val,
+          "x2": x2_val,
+          "y2": y2_val,
+          "x3": x3_val,
+          "y3": y3_val,
+          "x4": x4_val,
+          "y4": y4_val,
+      }
+      st.session_state.placed_cranes.append(new_crane)
+      st.success(
+          f"Added Crane C{len(st.session_state.placed_cranes)} ({crane_make}"
+          f" {crane_model}) coverage area!"
+      )
+      st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+  with crane_col2:
+    st.subheader("🛠️ Edit or Delete Placed Cranes")
+    if len(st.session_state.placed_cranes) > 0:
+      crane_opts = [
+          f"C{i+1}: {c['make']} {c['model']} ({c['max_lift_weight']} T)"
+          for i, c in enumerate(st.session_state.placed_cranes)
+      ]
+      selected_crane_idx = st.selectbox(
+          "Select Crane to Modify",
+          range(len(crane_opts)),
+          format_func=lambda x: crane_opts[x],
+          key="edit_crane_select",
+      )
+
+      c_edit = st.session_state.placed_cranes[selected_crane_idx]
+
+      e_make = st.text_input(
+          "Edit Make", c_edit["make"], key=f"e_cr_make_{selected_crane_idx}"
+      )
+      e_model = st.text_input(
+          "Edit Model", c_edit["model"], key=f"e_cr_model_{selected_crane_idx}"
+      )
+
+      e_col1, e_col2, e_col3 = st.columns(3)
+      with e_col1:
+        e_wt = st.number_input(
+            "Max Weight (T)",
+            value=float(c_edit["max_lift_weight"]),
+            key=f"e_cr_wt_{selected_crane_idx}",
+        )
+      with e_col2:
+        e_lsp = st.number_input(
+            "Lift Speed (ft/min)",
+            value=float(c_edit["max_lift_speed"]),
+            key=f"e_cr_lsp_{selected_crane_idx}",
+        )
+      with e_col3:
+        e_tsp = st.number_input(
+            "Transversal Speed",
+            value=float(c_edit["max_transversal_speed"]),
+            key=f"e_cr_tsp_{selected_crane_idx}",
+        )
+
+      st.markdown("##### 📍 Edit Corner Coordinates (ft)")
+      ep1_c1, ep1_c2 = st.columns(2)
+      with ep1_c1:
+        e_x1 = st.number_input(
+            "Point 1 X",
+            value=float(c_edit["x1"]),
+            key=f"e_cr_x1_{selected_crane_idx}",
+        )
+      with ep1_c2:
+        e_y1 = st.number_input(
+            "Point 1 Y",
+            value=float(c_edit["y1"]),
+            key=f"e_cr_y1_{selected_crane_idx}",
+        )
+
+      ep2_c1, ep2_c2 = st.columns(2)
+      with ep2_c1:
+        e_x2 = st.number_input(
+            "Point 2 X",
+            value=float(c_edit["x2"]),
+            key=f"e_cr_x2_{selected_crane_idx}",
+        )
+      with ep2_c2:
+        e_y2 = st.number_input(
+            "Point 2 Y",
+            value=float(c_edit["y2"]),
+            key=f"e_cr_y2_{selected_crane_idx}",
+        )
+
+      ep3_c1, ep3_c2 = st.columns(2)
+      with ep3_c1:
+        e_x3 = st.number_input(
+            "Point 3 X",
+            value=float(c_edit["x3"]),
+            key=f"e_cr_x3_{selected_crane_idx}",
+        )
+      with ep3_c2:
+        e_y3 = st.number_input(
+            "Point 3 Y",
+            value=float(c_edit["y3"]),
+            key=f"e_cr_y3_{selected_crane_idx}",
+        )
+
+      ep4_c1, ep4_c2 = st.columns(2)
+      with ep4_c1:
+        e_x4 = st.number_input(
+            "Point 4 X",
+            value=float(c_edit["x4"]),
+            key=f"e_cr_x4_{selected_crane_idx}",
+        )
+      with ep4_c2:
+        e_y4 = st.number_input(
+            "Point 4 Y",
+            value=float(c_edit["y4"]),
+            key=f"e_cr_y4_{selected_crane_idx}",
+        )
+
+      c_btn_c1, c_btn_c2 = st.columns(2)
+      with c_btn_c1:
+        if st.button("Update Crane Data", key=f"up_cr_btn_{selected_crane_idx}"):
+          st.session_state.placed_cranes[selected_crane_idx] = {
+              "make": e_make,
+              "model": e_model,
+              "max_lift_weight": e_wt,
+              "max_lift_speed": e_lsp,
+              "max_transversal_speed": e_tsp,
+              "x1": e_x1,
+              "y1": e_y1,
+              "x2": e_x2,
+              "y2": e_y2,
+              "x3": e_x3,
+              "y3": e_y3,
+              "x4": e_x4,
+              "y4": e_y4,
+          }
+          st.success(f"Updated Crane C{selected_crane_idx+1} configuration!")
+          st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+      with c_btn_c2:
+        if st.button("Delete Crane", key=f"del_cr_btn_{selected_crane_idx}"):
+          removed_crane = st.session_state.placed_cranes.pop(
+              selected_crane_idx
+          )
+          st.warning(
+              f"Removed Crane C{selected_crane_idx+1} ({removed_crane['make']}"
+              f" {removed_crane['model']})."
+          )
+          st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    else:
+      st.info("No overhead cranes currently placed.")
+
+# TAB 7: MACHINE FLOWS & WORKFLOW PATHS
 with tab_flow:
   st.header("🔄 Machine Part Flow Configuration")
   st.markdown(
@@ -739,7 +975,7 @@ with tab_flow:
         " execution."
     )
 
-# TAB 7: IMPORT / EXPORT LAYOUT DESIGN
+# TAB 8: IMPORT / EXPORT LAYOUT DESIGN
 with tab_io:
   st.header("💾 Import & Export Factory Layout Designs")
   st.markdown(
@@ -756,7 +992,6 @@ with tab_io:
         " configuration file."
     )
 
-    # Prepare export dictionary
     export_data = {
         "designer_name": st.session_state.designer_name,
         "dwg_title": st.session_state.dwg_title,
@@ -771,6 +1006,7 @@ with tab_io:
         "placed_machines": st.session_state.placed_machines,
         "placed_lighting": st.session_state.placed_lighting,
         "placed_conduits": st.session_state.placed_conduits,
+        "placed_cranes": st.session_state.placed_cranes,
         "machine_flows": st.session_state.machine_flows,
         "path_points": st.session_state.path_points.to_dict(orient="records"),
     }
@@ -818,7 +1054,7 @@ with tab_io:
       elif status_type == "error":
         st.error(msg)
 
-# TAB 8: DEFAULT LIBRARIES
+# TAB 9: DEFAULT LIBRARIES
 with tab_lib:
   st.header("📚 Default Machinery & Material Libraries")
   st.markdown(
@@ -835,3 +1071,4 @@ with tab_lib:
   with lib_col2:
     st.subheader("💡 Default Lighting Library")
     st.dataframe(df_lighting, use_container_width=True)
+
