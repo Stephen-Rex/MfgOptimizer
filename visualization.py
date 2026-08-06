@@ -163,8 +163,20 @@ def draw_asme_drawing(
 
     # --- Draw Overhead Crane Coverage Areas (Transparent Grey Boxes) ---
     for idx, crane in enumerate(cranes):
-        c_x = [crane['x1'], crane['x2'], crane['x3'], crane['x4']]
-        c_y = [crane['y1'], crane['y2'], crane['y3'], crane['y4']]
+        # Support both 2-point (ll_x, ll_y, ur_x, ur_y) and 4-point backward compatibility
+        if 'll_x' in crane:
+            x_min, y_min = crane['ll_x'], crane['ll_y']
+            x_max, y_max = crane['ur_x'], crane['ur_y']
+        elif 'x1' in crane:
+            xs = [crane['x1'], crane['x2'], crane['x3'], crane['x4']]
+            ys = [crane['y1'], crane['y2'], crane['y3'], crane['y4']]
+            x_min, x_max = min(xs), max(xs)
+            y_min, y_max = min(ys), max(ys)
+        else:
+            x_min, y_min, x_max, y_max = 0, 0, 10, 10
+            
+        c_x = [x_min, x_max, x_max, x_min]
+        c_y = [y_min, y_min, y_max, y_max]
         
         c_x_in = [O_x + x * S for x in c_x]
         c_y_in = [O_y + y * S for y in c_y]
@@ -183,19 +195,19 @@ def draw_asme_drawing(
         )
         ax.add_patch(polygon)
         
-        # Center label for crane
+        # Center label for crane: Only format "C#" (e.g. C1, C2, ...)
         center_x = np.mean(c_x_in)
         center_y = np.mean(c_y_in)
-        crane_label = f"Crane C{idx+1}\n{crane.get('make', 'Crane')} {crane.get('model', '')}"
+        crane_label = f"C{idx+1}"
         ax.text(
             center_x,
             center_y,
             crane_label,
-            fontsize=6.5,
+            fontsize=7,
             weight='bold',
             ha='center',
             va='center',
-            color='#E0E0E0',
+            color='#FFFFFF',
             bbox=dict(boxstyle='round,pad=0.2', facecolor='#222222', alpha=0.6, edgecolor='gray'),
             zorder=3,
         )
