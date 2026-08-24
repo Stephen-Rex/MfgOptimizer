@@ -1395,29 +1395,6 @@ def render_interactive_editor_controls():
             if st.button("Apply Workflow Point", use_container_width=True):
                 apply_workflow_point_update()
 
-            st.markdown("**Nudge Selected Workflow Point**")
-            wf1, wf2, wf3 = st.columns(3)
-            with wf2:
-                if st.button("⬆ Workflow Up", use_container_width=True):
-                    apply_workflow_point_nudge(
-                        0.0, float(st.session_state.editor_move_step_ft)
-                    )
-            with wf1:
-                if st.button("⬅ Workflow Left", use_container_width=True):
-                    apply_workflow_point_nudge(
-                        -float(st.session_state.editor_move_step_ft), 0.0
-                    )
-            with wf2:
-                if st.button("⬇ Workflow Down", use_container_width=True):
-                    apply_workflow_point_nudge(
-                        0.0, -float(st.session_state.editor_move_step_ft)
-                    )
-            with wf3:
-                if st.button("➡ Workflow Right", use_container_width=True):
-                    apply_workflow_point_nudge(
-                        float(st.session_state.editor_move_step_ft), 0.0
-                    )
-
             wf_a1, wf_a2 = st.columns(2)
             with wf_a1:
                 if st.button("Add Workflow Point After Selected", use_container_width=True):
