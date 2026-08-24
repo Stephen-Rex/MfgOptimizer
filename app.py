@@ -1,7 +1,16 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-from engine import calculate_production_metrics, run_layout_analysis
+from engine import (
+    calculate_production_metrics,
+    run_layout_analysis,
+    build_full_report_bundle,
+    build_project_summary_report,
+    build_safety_report,
+    build_production_report,
+    build_utility_report,
+    build_machine_schedule_report,
+)
 from library_loader import (
     get_default_cranes,
     get_default_lighting,
@@ -179,9 +188,10 @@ st.header("⚙️ Layout Configuration & Component Menus")
     tab_flow,
     tab_io,
     tab_lib,
+    tab_reports,
 ) = st.tabs([
     "📋 Project Info",
-    "📏 Floor & Sheet Dimensions",
+    "📐 Floor & Sheet Dimensions",
     "📊 Plots",
     "🤖 Machinery Placement & Edits",
     "🔌 Conduit Routing & Edits",
@@ -190,6 +200,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
     "🔄 Machine Flows & Workflow Paths",
     "💾 Import / Export Layout",
     "📚 Default Libraries",
+    "🧾 Reports",
 ])
 
 with tab_proj:
