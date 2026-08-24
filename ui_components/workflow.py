@@ -24,13 +24,17 @@ def render_workflow_tab():
             mode_options,
             key="workflow_mode_select",
         )
-        st.number_input(
-            "Default Workflow Path Width (ft)",
-            min_value=0.5,
-            max_value=20.0,
-            step=0.5,
-            key="path_width_ft",
-        )
+        #st.number_input(
+        #    "Default Workflow Path Width (ft)",
+        #    min_value=0.5,
+        #    max_value=20.0,
+        #    step=0.5,
+        #    key="path_width_ft",
+        #)
+    st.markdown(
+    f"**Current Workflow Path Width:** {st.session_state.path_width_ft} ft "
+    "(edit in the Floor & Sheet Dimensions tab)"
+    )
 
     with wf_col2:
         st.markdown(
