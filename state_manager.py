@@ -183,6 +183,13 @@ def apply_imported_layout():
                 "placed_cranes",
                 "machine_flows",
                 "show_locator_dims",
+                "editor_enabled",
+                "editor_selected_type",
+                "editor_selected_index",
+                "editor_snap_enabled",
+                "editor_snap_ft",
+                "editor_show_grid",
+                "editor_show_labels",
             ]:
                 if key in imported_data:
                     st.session_state[key] = imported_data[key]
@@ -281,6 +288,28 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.dwg_title = "Factory Layout Blueprint"
     if "dwg_num" not in st.session_state:
         st.session_state.dwg_num = "FFO-001"
+
+      # Interactive 2D Editor State
+    if "editor_enabled" not in st.session_state:
+      st.session_state.editor_enabled = False
+    if "editor_selected_type" not in st.session_state:
+      st.session_state.editor_selected_type = "machine"
+    if "editor_selected_index" not in st.session_state:
+      st.session_state.editor_selected_index = 0
+    if "editor_snap_enabled" not in st.session_state:
+      st.session_state.editor_snap_enabled = True
+    if "editor_snap_ft" not in st.session_state:
+      st.session_state.editor_snap_ft = 1.0
+    if "editor_show_grid" not in st.session_state:
+      st.session_state.editor_show_grid = True
+    if "editor_show_labels" not in st.session_state:
+      st.session_state.editor_show_labels = True
+    if "editor_pending_dx_ft" not in st.session_state:
+      st.session_state.editor_pending_dx_ft = 0.0
+    if "editor_pending_dy_ft" not in st.session_state:
+      st.session_state.editor_pending_dy_ft = 0.0
+    if "editor_status_msg" not in st.session_state:
+      st.session_state.editor_status_msg = ""
 
     if "placed_machines" not in st.session_state:
         st.session_state.placed_machines = [
