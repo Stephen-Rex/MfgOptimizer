@@ -13,6 +13,45 @@ def _draw_ext_line(ax, x1, y1, x2, y2, color='#AAAAAA', lw=0.8, z=6):
 def _draw_tick(ax, x, y, dx, dy, color='#00E5FF', lw=1.0, z=7):
   ax.plot([x - dx, x + dx], [y - dy, y + dy], color=color, lw=lw, zorder=z)
 
+def _machine_occ_box(m, O_x, O_y, S, include_standoff=True):
+  mx_in = O_x + float(m['x']) * S
+  my_in = O_y + float(m['y']) * S
+  mw_in = float(m['Width']) * S
+  mh_in = float(m['Height']) * S
+  so_in = float(m.get('Standoff', 0.0)) * S if include_standoff else 0.0
+
+  x_min = mx_in - mw_in / 2.0 - so_in
+  x_max = mx_in + mw_in / 2.0 + so_in
+  y_min = my_in - mh_in / 2.0 - so_in
+  y_max = my_in + mh_in / 2.0 + so_in
+  return x_min, x_max, y_min, y_max
+
+
+def _hline_hits_any_machine(y_line, x0, x1, machines, self_idx, O_x, O_y, S, pad=0.04):
+  xa = min(x0, x1)
+  xb = max(x0, x1)
+  for j, other in enumerate(machines):
+    if j == self_idx:
+      continue
+    ox0, ox1, oy0, oy1 = _machine_occ_box(other, O_x, O_y, S, include_standoff=True)
+    if (y_line >= oy0 - pad) and (y_line <= oy1 + pad):
+      if not (xb < ox0 - pad or xa > ox1 + pad):
+        return True
+  return False
+
+
+def _vline_hits_any_machine(x_line, y0, y1, machines, self_idx, O_x, O_y, S, pad=0.04):
+  ya = min(y0, y1)
+  yb = max(y0, y1)
+  for j, other in enumerate(machines):
+    if j == self_idx:
+      continue
+    ox0, ox1, oy0, oy1 = _machine_occ_box(other, O_x, O_y, S, include_standoff=True)
+    if (x_line >= ox0 - pad) and (x_line <= ox1 + pad):
+      if not (yb < oy0 - pad or ya > oy1 + pad):
+        return True
+  return False
+
 def draw_asme_drawing(
     size_char='B',
     floor_width_ft=200.0,
@@ -488,8 +527,33 @@ def draw_asme_drawing(
 
         # Stacked spacing so machine dimensions do not overlap each other
         stack_pitch = 0.28
-        x_stack = idx * stack_pitch
-        y_stack = idx * stack_pitch
+        max_pushes = 20
+
+        # Start just outside this machine's footprint/standoff
+        x_dim_y = my_in - half_h_in - so_in - clear_pad_in
+        y_dim_x = mx_in - half_w_in - so_in - clear_pad_in
+
+        # Push X dimension downward until it clears all other machines
+        pushes = 0
+        while _hline_hits_any_machine(
+            x_dim_y, O_x, mx_in, machines, idx, O_x, O_y, S
+        ) and pushes < max_pushes:
+          x_dim_y -= stack_pitch
+          pushes += 1
+
+        # Add a small final stagger so identical clear positions still separate
+        x_dim_y -= idx * 0.04
+
+        # Push Y dimension left until it clears all other machines
+        pushes = 0
+        while _vline_hits_any_machine(
+            y_dim_x, O_y, my_in, machines, idx, O_x, O_y, S
+        ) and pushes < max_pushes:
+          y_dim_x -= stack_pitch
+          pushes += 1
+
+        # Add a small final stagger so identical clear positions still separate
+        y_dim_x -= idx * 0.04
 
         # Baseline dimension locations
         # X dimension goes below machine / envelope
