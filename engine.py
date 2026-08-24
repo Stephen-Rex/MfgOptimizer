@@ -172,30 +172,35 @@ def run_layout_analysis(
 
 def calculate_production_metrics(placed_machines, m_workers=3, cv_task=0.5):
     """
-    Simplified production metrics:
-    - bottleneck machine
-    - line balance efficiency
-    - estimated finished assemblies / hr
-    - simplified energy-saving estimate
+    Implements simplified production metrics:
+    - Bottleneck machine
+    - Line balance efficiency
+    - Estimated finished assemblies per hour
+    - Simplified energy-saving estimate
     """
     if not placed_machines:
         return {}
 
+    # Standard values
     volumes = [float(m["Volume"]) for m in placed_machines]
     yields = [float(m["Yield"]) / 100.0 for m in placed_machines]
     eff_vols = [v * y for v, y in zip(volumes, yields)]
 
+    # Bottleneck is minimum effective throughput
     bn_idx = int(np.argmin(eff_vols))
-    bottleneck_rate = eff_vols[bn_idx]
+    bottleneck_rate = float(eff_vols[bn_idx])
 
+    # Basic line balance heuristic
     avg_eff = float(np.mean(eff_vols)) if len(eff_vols) > 0 else 0.0
     max_eff = float(np.max(eff_vols)) if len(eff_vols) > 0 else 1.0
     line_balance = round((avg_eff / max_eff) * 100.0, 1) if max_eff > 0 else 0.0
 
+    # Simplified "switch-off savings" heuristic
     total_watts = sum(float(m.get("Wattage", 0.0)) for m in placed_machines)
     udp_switch_off_savings_kw = round(total_watts * 0.08 / 1000.0, 2)
 
-    finished_assemblies_per_hr = round(float(bottleneck_rate), 1)
+    # Explicit finished assemblies / hr metric
+    finished_assemblies_per_hr = round(bottleneck_rate, 1)
 
     return {
         "Bottleneck Machine": placed_machines[bn_idx].get(
