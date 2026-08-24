@@ -4,6 +4,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 
+def _draw_dim_line(ax, x1, y1, x2, y2, color='#00E5FF', lw=1.0, z=7):
+  ax.plot([x1, x2], [y1, y2], color=color, lw=lw, zorder=z)
+
+def _draw_ext_line(ax, x1, y1, x2, y2, color='#AAAAAA', lw=0.8, z=6):
+  ax.plot([x1, x2], [y1, y2], color=color, lw=lw, zorder=z)
+
+def _draw_tick(ax, x, y, dx, dy, color='#00E5FF', lw=1.0, z=7):
+  ax.plot([x - dx, x + dx], [y - dy, y + dy], color=color, lw=lw, zorder=z)
 
 def draw_asme_drawing(
     size_char='B',
@@ -23,6 +31,7 @@ def draw_asme_drawing(
     show_contour=False,
     show_decibel=False,
     show_locator_dims=False,
+    locator_dim_mode='stacked',
     designer_name='FACILITY ARCHITECTS INC.',
     dwg_title='Factory Layout Blueprint',
     dwg_num='FFO-001',
