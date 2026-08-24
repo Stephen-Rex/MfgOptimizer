@@ -344,7 +344,19 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     if "editor_vertex_y_input" not in st.session_state:
         st.session_state.editor_vertex_y_input = 0.0
     if "editor_pending_vertex_index" not in st.session_state:
-        st.session_state.editor_pending_vertex_index = None    
+        st.session_state.editor_pending_vertex_index = None
+    if "editor_workflow_selected_point_index" not in st.session_state:
+        st.session_state.editor_workflow_selected_point_index = 0
+    if "editor_workflow_x_input" not in st.session_state:
+        st.session_state.editor_workflow_x_input = 0.0
+    if "editor_workflow_y_input" not in st.session_state:
+        st.session_state.editor_workflow_y_input = 0.0
+    if "editor_workflow_standoff_input" not in st.session_state:
+        st.session_state.editor_workflow_standoff_input = 0.0
+    if "editor_workflow_speed_input" not in st.session_state:
+        st.session_state.editor_workflow_speed_input = 0.0
+    if "editor_pending_workflow_point_index" not in st.session_state:
+        st.session_state.editor_pending_workflow_point_index = None
     
 
     if "placed_machines" not in st.session_state:
