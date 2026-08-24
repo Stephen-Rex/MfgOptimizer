@@ -182,6 +182,7 @@ def apply_imported_layout():
                 "placed_conduits",
                 "placed_cranes",
                 "machine_flows",
+                "show_locator_dims",
             ]:
                 if key in imported_data:
                     st.session_state[key] = imported_data[key]
