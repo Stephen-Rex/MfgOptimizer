@@ -343,6 +343,8 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_vertex_x_input = 0.0
     if "editor_vertex_y_input" not in st.session_state:
         st.session_state.editor_vertex_y_input = 0.0
+    if "editor_pending_vertex_index" not in st.session_state:
+        st.session_state.editor_pending_vertex_index = None    
     
 
     if "placed_machines" not in st.session_state:
