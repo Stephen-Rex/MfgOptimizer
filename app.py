@@ -145,8 +145,7 @@ if warnings:
     st.warning(warn)
 else:
   st.success(
-      "✅ Layout fully meets OSHA Clearance and NJ-UCC Section 704 Electrical"
-      " Standards!"
+      "✅ No implemented spatial/compliance warnings detected."
   )
 
 st.divider()
