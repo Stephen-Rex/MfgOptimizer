@@ -1,6 +1,6 @@
 # engine.py
 import numpy as np
-
+from datetime import datetime
 
 VALID_UTILITY_TYPES = {"electrical", "water", "drainage", "network", "hvac"}
 VALID_MOVEMENT_MODES = {
@@ -210,4 +210,124 @@ def calculate_production_metrics(placed_machines, m_workers=3, cv_task=0.5):
         "Line Balance Efficiency": f"{line_balance}%",
         "Estimated Finished Assemblies / Hr": finished_assemblies_per_hr,
         "UDP Switch-Off Savings": f"{udp_switch_off_savings_kw} kW",
+    }
+
+def build_project_summary_report(session_state):
+    return {
+        "report_type": "project_summary",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "designer_name": session_state.get("designer_name", ""),
+        "dwg_title": session_state.get("dwg_title", ""),
+        "dwg_num": session_state.get("dwg_num", ""),
+        "sheet_size": session_state.get("sheet_size", ""),
+        "floor_w": session_state.get("floor_w", 0.0),
+        "floor_h": session_state.get("floor_h", 0.0),
+        "path_width_ft": session_state.get("path_width_ft", 0.0),
+        "counts": {
+            "machines": len(session_state.get("placed_machines", [])),
+            "lighting": len(session_state.get("placed_lighting", [])),
+            "conduits": len(session_state.get("placed_conduits", [])),
+            "cranes": len(session_state.get("placed_cranes", [])),
+        },
+    }
+
+
+def build_safety_report(placed_machines, placed_conduits, placed_cranes=None, workflow_paths=None):
+    warnings = run_layout_analysis(
+        placed_machines,
+        placed_conduits,
+        placed_cranes or [],
+        workflow_paths or [],
+    )
+    return {
+        "report_type": "safety_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "warning_count": len(warnings),
+        "warnings": warnings,
+    }
+
+
+def build_production_report(placed_machines):
+    metrics = calculate_production_metrics(placed_machines)
+    return {
+        "report_type": "production_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "metrics": metrics,
+    }
+
+
+def build_utility_report(placed_conduits):
+    utility_rows = []
+    for idx, cond in enumerate(placed_conduits):
+        x_pts = cond.get("x", [])
+        y_pts = cond.get("y", [])
+        route_length = 0.0
+        if len(x_pts) >= 2 and len(x_pts) == len(y_pts):
+            for i in range(1, len(x_pts)):
+                dx = float(x_pts[i]) - float(x_pts[i - 1])
+                dy = float(y_pts[i]) - float(y_pts[i - 1])
+                route_length += float(np.sqrt(dx**2 + dy**2))
+
+        utility_rows.append({
+            "id": cond.get("id", f"C-{idx+1:03d}"),
+            "label": cond.get("label", f"Utility-{idx+1}"),
+            "utility_type": cond.get("utility_type", "electrical"),
+            "depth_in": cond.get("depth_in", None),
+            "warning_tape": cond.get("warning_tape", None),
+            "point_count": len(x_pts),
+            "route_length_ft": round(route_length, 2),
+        })
+
+    return {
+        "report_type": "utility_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "utilities": utility_rows,
+    }
+
+
+def build_machine_schedule_report(placed_machines):
+    rows = []
+    for idx, m in enumerate(placed_machines):
+        rows.append({
+            "id": m.get("id", f"M-{idx+1:03d}"),
+            "make": m.get("Make", ""),
+            "model": m.get("Model", ""),
+            "x": m.get("x", 0.0),
+            "y": m.get("y", 0.0),
+            "width": m.get("Width", 0.0),
+            "height": m.get("Height", 0.0),
+            "standoff": m.get("Standoff", 0.0),
+            "volume_per_hr": m.get("Volume", 0.0),
+            "yield_pct": m.get("Yield", 0.0),
+            "decibel": m.get("Decibel", 0.0),
+            "crane_required": m.get("CraneRequired", False),
+            "amperage": m.get("Amperage", None),
+            "wattage": m.get("Wattage", None),
+        })
+
+    return {
+        "report_type": "machine_schedule",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "machines": rows,
+    }
+
+
+def build_full_report_bundle(session_state, workflow_paths=None):
+    placed_machines = session_state.get("placed_machines", [])
+    placed_conduits = session_state.get("placed_conduits", [])
+    placed_cranes = session_state.get("placed_cranes", [])
+
+    return {
+        "schema_version": "report_bundle_1.0",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "project_summary": build_project_summary_report(session_state),
+        "safety_report": build_safety_report(
+            placed_machines,
+            placed_conduits,
+            placed_cranes,
+            workflow_paths or [],
+        ),
+        "production_report": build_production_report(placed_machines),
+        "utility_report": build_utility_report(placed_conduits),
+        "machine_schedule": build_machine_schedule_report(placed_machines),
     }
