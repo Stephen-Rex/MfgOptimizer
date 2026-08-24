@@ -365,8 +365,8 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     if "machine_flows" not in st.session_state:
         st.session_state.machine_flows = []
 
-if "path_points" not in st.session_state:
-    st.session_state.path_points = pd.DataFrame({
+   if "path_points" not in st.session_state:
+      st.session_state.path_points = pd.DataFrame({
         "Point": [1, 2, 3],
         "X Coordinate": [20.00, 70.00, 150.00],
         "Y Coordinate": [80.00, 50.00, 25.00],
