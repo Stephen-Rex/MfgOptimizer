@@ -5,6 +5,8 @@ import json
 import numpy as np
 import pandas as pd
 import streamlit as st
+import io
+
 from engine import (
     calculate_production_metrics,
     run_layout_analysis,
@@ -35,6 +37,13 @@ from ui_components import (
 )
 from visualization import draw_3d_asme_factory_viewport, draw_asme_drawing
 
+def fig_to_png_bytes(fig):
+    """Convert a Matplotlib figure to PNG bytes for download."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
+    buf.seek(0)
+    return buf.getvalue()
+
 # Set page configuration safely
 st.set_page_config(
     page_title="Factory Floor Optimizer", page_icon="🏭", layout="wide"
@@ -63,6 +72,78 @@ viewport_mode = st.radio(
 
 # Extract workflow path points from session state for Drawing
 active_workflow_paths = []
+def build_full_layout_figure():
+    return draw_asme_drawing(
+        size_char=st.session_state.sheet_size,
+        floor_width_ft=st.session_state.floor_w,
+        floor_height_ft=st.session_state.floor_h,
+        machines=st.session_state.placed_machines,
+        conduits=st.session_state.placed_conduits,
+        lighting=st.session_state.placed_lighting,
+        workflow_paths=active_workflow_paths,
+        cranes=st.session_state.placed_cranes,
+        show_machines=True,
+        show_lighting=True,
+        show_cranes=True,
+        show_workflow=True,
+        show_electrical=True,
+        show_safety=False,
+        show_contour=False,
+        show_decibel=False,
+        designer_name=st.session_state.designer_name,
+        dwg_title=st.session_state.dwg_title,
+        dwg_num=st.session_state.dwg_num,
+    )
+
+
+def build_machine_layout_figure():
+    return draw_asme_drawing(
+        size_char=st.session_state.sheet_size,
+        floor_width_ft=st.session_state.floor_w,
+        floor_height_ft=st.session_state.floor_h,
+        machines=st.session_state.placed_machines,
+        conduits=[],
+        lighting=[],
+        workflow_paths=[],
+        cranes=[],
+        show_machines=True,
+        show_lighting=False,
+        show_cranes=False,
+        show_workflow=False,
+        show_electrical=False,
+        show_safety=False,
+        show_contour=False,
+        show_decibel=False,
+        designer_name=st.session_state.designer_name,
+        dwg_title=f"{st.session_state.dwg_title} - Machine Drawing",
+        dwg_num=f"{st.session_state.dwg_num}-M",
+    )
+
+
+def build_utility_layout_figure():
+    return draw_asme_drawing(
+        size_char=st.session_state.sheet_size,
+        floor_width_ft=st.session_state.floor_w,
+        floor_height_ft=st.session_state.floor_h,
+        machines=[],
+        conduits=st.session_state.placed_conduits,
+        lighting=[],
+        workflow_paths=[],
+        cranes=[],
+        show_machines=False,
+        show_lighting=False,
+        show_cranes=False,
+        show_workflow=False,
+        show_electrical=True,
+        show_safety=False,
+        show_contour=False,
+        show_decibel=False,
+        designer_name=st.session_state.designer_name,
+        dwg_title=f"{st.session_state.dwg_title} - Utility Routing Drawing",
+        dwg_num=f"{st.session_state.dwg_num}-U",
+    )
+
+
 if len(st.session_state.path_points) > 0:
     try:
         px = [float(v) for v in st.session_state.path_points["X Coordinate"].tolist()]
