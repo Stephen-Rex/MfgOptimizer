@@ -12,12 +12,11 @@ from state_manager import (
     polyline_length,
 )
 
-
 def render_import_export_tab():
     st.header("💾 Import & Export Factory Layout Designs")
     st.markdown(
-        "Save your current project configuration as a formatted text file "
-        "(JSON format) or import a previously saved design file."
+        "Save your current project configuration as a JSON-formatted project file "
+        "or import a previously saved layout."
     )
 
     io_col1, io_col2 = st.columns(2)
@@ -25,12 +24,11 @@ def render_import_export_tab():
     with io_col1:
         st.subheader("📤 Export Current Project Layout")
         st.markdown(
-            "Click the button below to download your complete factory floor "
-            "configuration file."
+            "Download the current factory layout configuration as a JSON project file."
         )
 
         export_data = {
-            "schema_version": st.session_state.get("schema_version", "1.1"),
+            "schema_version": "1.2",
             "designer_name": st.session_state.designer_name,
             "dwg_title": st.session_state.dwg_title,
             "dwg_num": st.session_state.dwg_num,
@@ -64,18 +62,18 @@ def render_import_export_tab():
             type="primary",
         )
 
-        with st.expander("Preview Formatted Export File Content"):
+        with st.expander("Preview Export File Content"):
             st.code(export_str, language="json")
 
     with io_col2:
         st.subheader("📥 Import Saved Project Layout")
         st.markdown(
-            "Upload a formatted project file (`.json` or `.txt`) to restore a saved layout."
+            "Upload a project file (`.json` or legacy `.txt`) to restore a saved layout."
         )
 
         uploaded_file = st.file_uploader(
-            "Choose a layout file",
-            type=["txt", "json"],
+            "Choose a layout file (.json or .txt)",
+            type=["json", "txt"],
             key="uploaded_layout_file",
         )
 
