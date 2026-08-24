@@ -729,11 +729,34 @@ def apply_workflow_point_nudge(dx, dy):
 
     cur_x = float(df.iloc[idx]["X Coordinate"])
     cur_y = float(df.iloc[idx]["Y Coordinate"])
+    cur_s = float(df.iloc[idx]["Safety Standoff (ft)"])
+    cur_v = float(df.iloc[idx]["Movement Speed"])
 
-    st.session_state["editor_workflow_x_input"] = cur_x + dx
-    st.session_state["editor_workflow_y_input"] = cur_y + dy
+    new_x = cur_x + float(dx)
+    new_y = cur_y + float(dy)
 
-    apply_workflow_point_update()
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    df.at[idx, "X Coordinate"] = new_x
+    df.at[idx, "Y Coordinate"] = new_y
+    df.at[idx, "Safety Standoff (ft)"] = max(0.0, cur_s)
+    df.at[idx, "Movement Speed"] = max(0.0, cur_v)
+    df["Point"] = list(range(1, len(df) + 1))
+
+    st.session_state.path_points = df
+    st.session_state.editor_status_msg = (
+        f"Nudged workflow point W{idx+1} to "
+        f"X={new_x:.2f} ft, Y={new_y:.2f} ft."
+    )
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
 
 
 def apply_add_workflow_point():
