@@ -114,6 +114,7 @@ def build_machine_layout_figure():
         show_safety=False,
         show_contour=False,
         show_decibel=False,
+        show_locator_dims=True,
         designer_name=st.session_state.designer_name,
         dwg_title=f"{st.session_state.dwg_title} - Machine Drawing",
         dwg_num=f"{st.session_state.dwg_num}-M",
