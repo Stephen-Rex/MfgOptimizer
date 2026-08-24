@@ -1,9 +1,9 @@
 # interactive_editor.py
 import math
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import streamlit as st
-import pandas as pd
 
 
 def _snap_value(value, snap_ft, enabled=True):
@@ -74,6 +74,8 @@ def _get_object_list(obj_type):
         return st.session_state.placed_conduits
     if obj_type == "crane":
         return st.session_state.placed_cranes
+    if obj_type == "workflow":
+        return [{"id": "WF-001"}] if len(st.session_state.path_points) > 0 else []
     return []
 
 
@@ -103,6 +105,9 @@ def _get_object_label(obj_type, obj, idx):
         model = str(obj.get("model", "")).strip()
         suffix = f"{make} {model}".strip()
         return f"{obj_id} - {suffix}" if suffix else obj_id
+
+    if obj_type == "workflow":
+        return "WF-001 - Workflow Path"
 
     return obj_id
 
@@ -150,6 +155,15 @@ def _object_center(obj_type, obj):
         ur_y = float(obj.get("ur_y", 0.0))
         return (ll_x + ur_x) / 2.0, (ll_y + ur_y) / 2.0
 
+    if obj_type == "workflow":
+        _normalize_workflow_df()
+        df = _workflow_df()
+        if len(df) > 0:
+            xs = [float(v) for v in df["X Coordinate"].tolist()]
+            ys = [float(v) for v in df["Y Coordinate"].tolist()]
+            return sum(xs) / len(xs), sum(ys) / len(ys)
+        return 0.0, 0.0
+
     return 0.0, 0.0
 
 
@@ -169,6 +183,90 @@ def _get_safe_selected_vertex_index():
     idx = int(st.session_state.get("editor_selected_vertex_index", 0))
     idx = max(0, min(idx, point_count - 1))
     return idx
+
+
+def _apply_pending_vertex_selection_if_any():
+    pending_idx = st.session_state.get("editor_pending_vertex_index", None)
+    if pending_idx is not None:
+        st.session_state["editor_selected_vertex_index"] = int(pending_idx)
+        st.session_state["editor_pending_vertex_index"] = None
+
+
+def _workflow_df():
+    return st.session_state.path_points.copy()
+
+
+def _workflow_point_count():
+    df = _workflow_df()
+    return len(df)
+
+
+def _normalize_workflow_df():
+    df = _workflow_df()
+
+    expected_cols = [
+        "Point",
+        "X Coordinate",
+        "Y Coordinate",
+        "Safety Standoff (ft)",
+        "Movement Speed",
+    ]
+
+    for col in expected_cols:
+        if col not in df.columns:
+            if col == "Point":
+                df[col] = list(range(1, len(df) + 1))
+            elif col == "Safety Standoff (ft)":
+                df[col] = 5.0
+            elif col == "Movement Speed":
+                df[col] = 5.0
+            else:
+                df[col] = 0.0
+
+    df = df[expected_cols].copy()
+    df["Point"] = list(range(1, len(df) + 1))
+    st.session_state.path_points = df
+
+
+def _get_safe_workflow_point_index():
+    _normalize_workflow_df()
+    point_count = _workflow_point_count()
+    if point_count <= 0:
+        return 0
+
+    idx = int(st.session_state.get("editor_workflow_selected_point_index", 0))
+    idx = max(0, min(idx, point_count - 1))
+    return idx
+
+
+def _apply_pending_workflow_point_selection_if_any():
+    pending_idx = st.session_state.get("editor_pending_workflow_point_index", None)
+    if pending_idx is not None:
+        st.session_state["editor_workflow_selected_point_index"] = int(pending_idx)
+        st.session_state["editor_pending_workflow_point_index"] = None
+
+
+def _prime_workflow_inputs_from_selection():
+    _normalize_workflow_df()
+    df = _workflow_df()
+
+    if len(df) == 0:
+        st.session_state["editor_workflow_x_input"] = 0.0
+        st.session_state["editor_workflow_y_input"] = 0.0
+        st.session_state["editor_workflow_standoff_input"] = 0.0
+        st.session_state["editor_workflow_speed_input"] = 0.0
+        return
+
+    idx = _get_safe_workflow_point_index()
+
+    st.session_state["editor_workflow_x_input"] = float(df.iloc[idx]["X Coordinate"])
+    st.session_state["editor_workflow_y_input"] = float(df.iloc[idx]["Y Coordinate"])
+    st.session_state["editor_workflow_standoff_input"] = float(
+        df.iloc[idx]["Safety Standoff (ft)"]
+    )
+    st.session_state["editor_workflow_speed_input"] = float(
+        df.iloc[idx]["Movement Speed"]
+    )
 
 
 def _prime_editor_inputs_from_selection():
@@ -206,6 +304,9 @@ def _prime_editor_inputs_from_selection():
         else:
             st.session_state["editor_vertex_x_input"] = 0.0
             st.session_state["editor_vertex_y_input"] = 0.0
+
+    if obj_type == "workflow":
+        _prime_workflow_inputs_from_selection()
 
 
 def _set_selected_xy(new_x, new_y):
@@ -432,8 +533,6 @@ def _add_conduit_vertex_after_selected():
 
     obj["x"] = x_vals
     obj["y"] = y_vals
-
-    # Defer widget-key update until next rerun
     st.session_state.editor_pending_vertex_index = insert_at
 
     st.session_state.editor_status_msg = (
@@ -489,172 +588,6 @@ def apply_editor_coordinate_update():
     st.session_state.editor_prime_inputs = True
     st.rerun()
 
-def apply_workflow_point_update():
-    _normalize_workflow_df()
-    df = _workflow_df()
-
-    if len(df) == 0:
-        st.session_state.editor_status_msg = "No workflow points available."
-        return
-
-    try:
-        x_val = float(st.session_state.editor_workflow_x_input)
-        y_val = float(st.session_state.editor_workflow_y_input)
-        standoff_val = float(st.session_state.editor_workflow_standoff_input)
-        speed_val = float(st.session_state.editor_workflow_speed_input)
-    except Exception:
-        st.session_state.editor_status_msg = "Invalid workflow point input."
-        return
-
-    floor_w = float(st.session_state.floor_w)
-    floor_h = float(st.session_state.floor_h)
-
-    if st.session_state.editor_snap_enabled:
-        x_val = _snap_value(x_val, st.session_state.editor_snap_ft, True)
-        y_val = _snap_value(y_val, st.session_state.editor_snap_ft, True)
-
-    x_val, y_val = _clamp_to_floor(x_val, y_val, floor_w, floor_h)
-    standoff_val = max(0.0, standoff_val)
-    speed_val = max(0.0, speed_val)
-
-    idx = _get_safe_workflow_point_index()
-
-    df.at[idx, "X Coordinate"] = x_val
-    df.at[idx, "Y Coordinate"] = y_val
-    df.at[idx, "Safety Standoff (ft)"] = standoff_val
-    df.at[idx, "Movement Speed"] = speed_val
-    df["Point"] = list(range(1, len(df) + 1))
-
-    st.session_state.path_points = df
-    st.session_state.editor_status_msg = (
-        f"Updated workflow point P{idx+1} to "
-        f"X={x_val:.2f} ft, Y={y_val:.2f} ft."
-    )
-    st.session_state.editor_prime_inputs = True
-    st.rerun()
-
-def apply_workflow_point_nudge(dx, dy):
-    _normalize_workflow_df()
-    df = _workflow_df()
-
-    if len(df) == 0:
-        st.session_state.editor_status_msg = "No workflow points available."
-        return
-
-    idx = _get_safe_workflow_point_index()
-
-    cur_x = float(df.iloc[idx]["X Coordinate"])
-    cur_y = float(df.iloc[idx]["Y Coordinate"])
-
-    st.session_state["editor_workflow_x_input"] = cur_x + dx
-    st.session_state["editor_workflow_y_input"] = cur_y + dy
-
-    apply_workflow_point_update()
-
-def apply_add_workflow_point():
-    _normalize_workflow_df()
-    df = _workflow_df()
-
-    if len(df) == 0:
-        new_row = {
-            "Point": 1,
-            "X Coordinate": 0.0,
-            "Y Coordinate": 0.0,
-            "Safety Standoff (ft)": 5.0,
-            "Movement Speed": 5.0,
-        }
-        df = pd.DataFrame([new_row])
-        st.session_state.path_points = df
-        st.session_state.editor_pending_workflow_point_index = 0
-        st.session_state.editor_status_msg = "Added first workflow point P1."
-        st.session_state.editor_prime_inputs = True
-        st.rerun()
-        return
-
-    idx = _get_safe_workflow_point_index()
-
-    x1 = float(df.iloc[idx]["X Coordinate"])
-    y1 = float(df.iloc[idx]["Y Coordinate"])
-    s1 = float(df.iloc[idx]["Safety Standoff (ft)"])
-    v1 = float(df.iloc[idx]["Movement Speed"])
-
-    if idx < len(df) - 1:
-        x2 = float(df.iloc[idx + 1]["X Coordinate"])
-        y2 = float(df.iloc[idx + 1]["Y Coordinate"])
-        s2 = float(df.iloc[idx + 1]["Safety Standoff (ft)"])
-        v2 = float(df.iloc[idx + 1]["Movement Speed"])
-
-        new_x = (x1 + x2) / 2.0
-        new_y = (y1 + y2) / 2.0
-        new_s = (s1 + s2) / 2.0
-        new_v = (v1 + v2) / 2.0
-        insert_at = idx + 1
-    else:
-        if len(df) >= 2:
-            px = float(df.iloc[idx - 1]["X Coordinate"])
-            py = float(df.iloc[idx - 1]["Y Coordinate"])
-            dx = x1 - px
-            dy = y1 - py
-        else:
-            dx = 10.0
-            dy = 0.0
-
-        new_x = x1 + dx * 0.5
-        new_y = y1 + dy * 0.5
-        new_s = s1
-        new_v = v1
-        insert_at = len(df)
-
-    floor_w = float(st.session_state.floor_w)
-    floor_h = float(st.session_state.floor_h)
-
-    if st.session_state.editor_snap_enabled:
-        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
-        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
-
-    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
-
-    top = df.iloc[:insert_at].copy()
-    bottom = df.iloc[insert_at:].copy()
-
-    new_row = pd.DataFrame([{
-        "Point": 0,
-        "X Coordinate": new_x,
-        "Y Coordinate": new_y,
-        "Safety Standoff (ft)": max(0.0, new_s),
-        "Movement Speed": max(0.0, new_v),
-    }])
-
-    df = pd.concat([top, new_row, bottom], ignore_index=True)
-    df["Point"] = list(range(1, len(df) + 1))
-
-    st.session_state.path_points = df
-    st.session_state.editor_pending_workflow_point_index = insert_at
-    st.session_state.editor_status_msg = f"Inserted workflow point P{insert_at+1}."
-    st.session_state.editor_prime_inputs = True
-    st.rerun()
-
-def apply_delete_workflow_point():
-    _normalize_workflow_df()
-    df = _workflow_df()
-
-    if len(df) <= 2:
-        st.session_state.editor_status_msg = (
-            "Cannot delete workflow point: path must retain at least two points."
-        )
-        return
-
-    idx = _get_safe_workflow_point_index()
-    df = df.drop(df.index[idx]).reset_index(drop=True)
-    df["Point"] = list(range(1, len(df) + 1))
-
-    st.session_state.path_points = df
-    st.session_state.editor_pending_workflow_point_index = max(
-        0, min(idx, len(df) - 1)
-    )
-    st.session_state.editor_status_msg = f"Deleted workflow point P{idx+1}."
-    st.session_state.editor_prime_inputs = True
-    st.rerun()
 
 def apply_editor_nudge(dx, dy):
     result = _get_selected_object()
@@ -663,6 +596,11 @@ def apply_editor_nudge(dx, dy):
         return
 
     obj_type, _, obj = result
+
+    if obj_type == "workflow":
+        apply_workflow_point_nudge(dx, dy)
+        return
+
     cur_x, cur_y = _object_center(obj_type, obj)
     _set_selected_xy(cur_x + dx, cur_y + dy)
     st.session_state.editor_prime_inputs = True
@@ -727,14 +665,180 @@ def apply_add_conduit_vertex():
     st.session_state.editor_prime_inputs = True
     st.rerun()
 
-def _apply_pending_vertex_selection_if_any():
-    pending_idx = st.session_state.get("editor_pending_vertex_index", None)
-    if pending_idx is not None:
-        st.session_state["editor_selected_vertex_index"] = int(pending_idx)
-        st.session_state["editor_pending_vertex_index"] = None
 
 def apply_delete_conduit_vertex():
     _delete_selected_conduit_vertex()
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
+def apply_workflow_point_update():
+    _normalize_workflow_df()
+    df = _workflow_df()
+
+    if len(df) == 0:
+        st.session_state.editor_status_msg = "No workflow points available."
+        return
+
+    try:
+        x_val = float(st.session_state.editor_workflow_x_input)
+        y_val = float(st.session_state.editor_workflow_y_input)
+        standoff_val = float(st.session_state.editor_workflow_standoff_input)
+        speed_val = float(st.session_state.editor_workflow_speed_input)
+    except Exception:
+        st.session_state.editor_status_msg = "Invalid workflow point input."
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    if st.session_state.editor_snap_enabled:
+        x_val = _snap_value(x_val, st.session_state.editor_snap_ft, True)
+        y_val = _snap_value(y_val, st.session_state.editor_snap_ft, True)
+
+    x_val, y_val = _clamp_to_floor(x_val, y_val, floor_w, floor_h)
+    standoff_val = max(0.0, standoff_val)
+    speed_val = max(0.0, speed_val)
+
+    idx = _get_safe_workflow_point_index()
+
+    df.at[idx, "X Coordinate"] = x_val
+    df.at[idx, "Y Coordinate"] = y_val
+    df.at[idx, "Safety Standoff (ft)"] = standoff_val
+    df.at[idx, "Movement Speed"] = speed_val
+    df["Point"] = list(range(1, len(df) + 1))
+
+    st.session_state.path_points = df
+    st.session_state.editor_status_msg = (
+        f"Updated workflow point W{idx+1} to "
+        f"X={x_val:.2f} ft, Y={y_val:.2f} ft."
+    )
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
+def apply_workflow_point_nudge(dx, dy):
+    _normalize_workflow_df()
+    df = _workflow_df()
+
+    if len(df) == 0:
+        st.session_state.editor_status_msg = "No workflow points available."
+        return
+
+    idx = _get_safe_workflow_point_index()
+
+    cur_x = float(df.iloc[idx]["X Coordinate"])
+    cur_y = float(df.iloc[idx]["Y Coordinate"])
+
+    st.session_state["editor_workflow_x_input"] = cur_x + dx
+    st.session_state["editor_workflow_y_input"] = cur_y + dy
+
+    apply_workflow_point_update()
+
+
+def apply_add_workflow_point():
+    _normalize_workflow_df()
+    df = _workflow_df()
+
+    if len(df) == 0:
+        new_row = {
+            "Point": 1,
+            "X Coordinate": 0.0,
+            "Y Coordinate": 0.0,
+            "Safety Standoff (ft)": 5.0,
+            "Movement Speed": 5.0,
+        }
+        df = pd.DataFrame([new_row])
+        st.session_state.path_points = df
+        st.session_state.editor_pending_workflow_point_index = 0
+        st.session_state.editor_status_msg = "Added first workflow point W1."
+        st.session_state.editor_prime_inputs = True
+        st.rerun()
+        return
+
+    idx = _get_safe_workflow_point_index()
+
+    x1 = float(df.iloc[idx]["X Coordinate"])
+    y1 = float(df.iloc[idx]["Y Coordinate"])
+    s1 = float(df.iloc[idx]["Safety Standoff (ft)"])
+    v1 = float(df.iloc[idx]["Movement Speed"])
+
+    if idx < len(df) - 1:
+        x2 = float(df.iloc[idx + 1]["X Coordinate"])
+        y2 = float(df.iloc[idx + 1]["Y Coordinate"])
+        s2 = float(df.iloc[idx + 1]["Safety Standoff (ft)"])
+        v2 = float(df.iloc[idx + 1]["Movement Speed"])
+
+        new_x = (x1 + x2) / 2.0
+        new_y = (y1 + y2) / 2.0
+        new_s = (s1 + s2) / 2.0
+        new_v = (v1 + v2) / 2.0
+        insert_at = idx + 1
+    else:
+        if len(df) >= 2:
+            px = float(df.iloc[idx - 1]["X Coordinate"])
+            py = float(df.iloc[idx - 1]["Y Coordinate"])
+            dx = x1 - px
+            dy = y1 - py
+        else:
+            dx = 10.0
+            dy = 0.0
+
+        new_x = x1 + dx * 0.5
+        new_y = y1 + dy * 0.5
+        new_s = s1
+        new_v = v1
+        insert_at = len(df)
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    top = df.iloc[:insert_at].copy()
+    bottom = df.iloc[insert_at:].copy()
+
+    new_row = pd.DataFrame([{
+        "Point": 0,
+        "X Coordinate": new_x,
+        "Y Coordinate": new_y,
+        "Safety Standoff (ft)": max(0.0, new_s),
+        "Movement Speed": max(0.0, new_v),
+    }])
+
+    df = pd.concat([top, new_row, bottom], ignore_index=True)
+    df["Point"] = list(range(1, len(df) + 1))
+
+    st.session_state.path_points = df
+    st.session_state.editor_pending_workflow_point_index = insert_at
+    st.session_state.editor_status_msg = f"Inserted workflow point W{insert_at+1}."
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
+def apply_delete_workflow_point():
+    _normalize_workflow_df()
+    df = _workflow_df()
+
+    if len(df) <= 2:
+        st.session_state.editor_status_msg = (
+            "Cannot delete workflow point: path must retain at least two points."
+        )
+        return
+
+    idx = _get_safe_workflow_point_index()
+    df = df.drop(df.index[idx]).reset_index(drop=True)
+    df["Point"] = list(range(1, len(df) + 1))
+
+    st.session_state.path_points = df
+    st.session_state.editor_pending_workflow_point_index = max(
+        0, min(idx, len(df) - 1)
+    )
+    st.session_state.editor_status_msg = f"Deleted workflow point W{idx+1}."
     st.session_state.editor_prime_inputs = True
     st.rerun()
 
@@ -761,6 +865,7 @@ def _select_nearest_object(obj_type, pick_x, pick_y):
 
     st.session_state.editor_selected_index = best_idx
     st.session_state.editor_selected_vertex_index = 0
+    st.session_state.editor_workflow_selected_point_index = 0
     sel_obj = items[best_idx]
     st.session_state.editor_status_msg = (
         f"Selected nearest {obj_type}: "
@@ -792,6 +897,7 @@ def apply_pick_selection():
 def _on_object_type_change():
     st.session_state.editor_selected_index = 0
     st.session_state.editor_selected_vertex_index = 0
+    st.session_state.editor_workflow_selected_point_index = 0
     st.session_state.editor_prime_inputs = True
 
 
@@ -802,83 +908,8 @@ def _on_selected_object_change():
     if selected_label in labels:
         st.session_state.editor_selected_index = labels.index(selected_label)
         st.session_state.editor_selected_vertex_index = 0
+        st.session_state.editor_workflow_selected_point_index = 0
         st.session_state.editor_prime_inputs = True
-
-def _workflow_df():
-    return st.session_state.path_points.copy()
-
-
-def _workflow_point_count():
-    df = _workflow_df()
-    return len(df)
-
-
-def _normalize_workflow_df():
-    df = _workflow_df()
-
-    expected_cols = [
-        "Point",
-        "X Coordinate",
-        "Y Coordinate",
-        "Safety Standoff (ft)",
-        "Movement Speed",
-    ]
-
-    for col in expected_cols:
-        if col not in df.columns:
-            if col == "Point":
-                df[col] = list(range(1, len(df) + 1))
-            elif col == "Safety Standoff (ft)":
-                df[col] = 5.0
-            elif col == "Movement Speed":
-                df[col] = 5.0
-            else:
-                df[col] = 0.0
-
-    df = df[expected_cols].copy()
-    df["Point"] = list(range(1, len(df) + 1))
-    st.session_state.path_points = df
-
-
-def _get_safe_workflow_point_index():
-    _normalize_workflow_df()
-    point_count = _workflow_point_count()
-    if point_count <= 0:
-        return 0
-
-    idx = int(st.session_state.get("editor_workflow_selected_point_index", 0))
-    idx = max(0, min(idx, point_count - 1))
-    return idx
-
-
-def _apply_pending_workflow_point_selection_if_any():
-    pending_idx = st.session_state.get("editor_pending_workflow_point_index", None)
-    if pending_idx is not None:
-        st.session_state["editor_workflow_selected_point_index"] = int(pending_idx)
-        st.session_state["editor_pending_workflow_point_index"] = None
-
-
-def _prime_workflow_inputs_from_selection():
-    _normalize_workflow_df()
-    df = _workflow_df()
-
-    if len(df) == 0:
-        st.session_state["editor_workflow_x_input"] = 0.0
-        st.session_state["editor_workflow_y_input"] = 0.0
-        st.session_state["editor_workflow_standoff_input"] = 0.0
-        st.session_state["editor_workflow_speed_input"] = 0.0
-        return
-
-    idx = _get_safe_workflow_point_index()
-
-    st.session_state["editor_workflow_x_input"] = float(df.iloc[idx]["X Coordinate"])
-    st.session_state["editor_workflow_y_input"] = float(df.iloc[idx]["Y Coordinate"])
-    st.session_state["editor_workflow_standoff_input"] = float(
-        df.iloc[idx]["Safety Standoff (ft)"]
-    )
-    st.session_state["editor_workflow_speed_input"] = float(
-        df.iloc[idx]["Movement Speed"]
-    )
 
 
 def _on_selected_vertex_change():
@@ -921,7 +952,7 @@ def draw_interactive_editor_figure():
 
     selected_type = st.session_state.editor_selected_type
     selected_index = int(st.session_state.editor_selected_index)
-    selected_vertex_index = int(st.session_state.get("editor_selected_vertex_index", 0))
+    selected_vertex_index = _get_safe_selected_vertex_index()
 
     # Conduits
     for idx, cond in enumerate(st.session_state.placed_conduits):
@@ -969,6 +1000,48 @@ def draw_interactive_editor_figure():
                     weight="bold",
                     ha="center",
                     va="bottom",
+                    zorder=5,
+                )
+
+    # Workflow path
+    if "path_points" in st.session_state and len(st.session_state.path_points) >= 2:
+        _normalize_workflow_df()
+        wdf = _workflow_df()
+
+        wx = [float(v) for v in wdf["X Coordinate"].tolist()]
+        wy = [float(v) for v in wdf["Y Coordinate"].tolist()]
+
+        ax.plot(
+            wx,
+            wy,
+            color="#808080",
+            lw=3.0,
+            zorder=3,
+        )
+
+        selected_w_idx = _get_safe_workflow_point_index()
+
+        for p_idx, (px, py) in enumerate(zip(wx, wy)):
+            is_sel = (
+                st.session_state.editor_selected_type == "workflow"
+                and p_idx == selected_w_idx
+            )
+            ax.scatter(
+                [px],
+                [py],
+                color="#FFD700" if not is_sel else "#FF00FF",
+                s=25 if not is_sel else 75,
+                zorder=4,
+                edgecolors="black",
+            )
+            if st.session_state.editor_show_labels:
+                ax.text(
+                    px,
+                    py + 1.0,
+                    f"W{p_idx+1}",
+                    color="white",
+                    fontsize=7,
+                    ha="center",
                     zorder=5,
                 )
 
@@ -1129,7 +1202,7 @@ def render_interactive_editor_controls():
 
         st.selectbox(
             "Object Type",
-            options=["machine", "lighting", "conduit", "crane"],
+            options=["machine", "lighting", "conduit", "crane", "workflow"],
             key="editor_selected_type",
             on_change=_on_object_type_change,
         )
@@ -1162,16 +1235,34 @@ def render_interactive_editor_controls():
                 _, _, cond = result
                 point_count = len(cond.get("x", []))
                 if point_count > 0:
-                    safe_vidx = _get_safe_selected_vertex_index()
                     vertex_options = list(range(point_count))
                     st.selectbox(
                         "Selected Conduit Vertex",
                         options=vertex_options,
-                        index=safe_vidx,
+                        index=_get_safe_selected_vertex_index(),
                         format_func=lambda i: f"P{i+1}",
                         key="editor_selected_vertex_index",
                         on_change=_on_selected_vertex_change,
                     )
+
+        if st.session_state.editor_selected_type == "workflow":
+            _normalize_workflow_df()
+            point_count = _workflow_point_count()
+
+            if point_count > 0:
+                workflow_options = list(range(point_count))
+                st.selectbox(
+                    "Selected Workflow Point",
+                    options=workflow_options,
+                    index=_get_safe_workflow_point_index(),
+                    format_func=lambda i: f"W{i+1}",
+                    key="editor_workflow_selected_point_index",
+                    on_change=lambda: st.session_state.update(
+                        {"editor_prime_inputs": True}
+                    ),
+                )
+            else:
+                st.info("No workflow points available.")
 
         st.checkbox("Snap to Grid", key="editor_snap_enabled")
         st.number_input(
@@ -1261,6 +1352,57 @@ def render_interactive_editor_controls():
                 if st.button("Delete Selected Vertex", use_container_width=True):
                     apply_delete_conduit_vertex()
 
+        if st.session_state.editor_selected_type == "workflow":
+            st.markdown("**Workflow Point Edit**")
+            st.number_input("Workflow X (ft)", step=0.5, key="editor_workflow_x_input")
+            st.number_input("Workflow Y (ft)", step=0.5, key="editor_workflow_y_input")
+            st.number_input(
+                "Workflow Safety Standoff (ft)",
+                min_value=0.0,
+                step=0.5,
+                key="editor_workflow_standoff_input",
+            )
+            st.number_input(
+                "Workflow Movement Speed",
+                min_value=0.0,
+                step=0.5,
+                key="editor_workflow_speed_input",
+            )
+
+            if st.button("Apply Workflow Point", use_container_width=True):
+                apply_workflow_point_update()
+
+            st.markdown("**Nudge Selected Workflow Point**")
+            wf1, wf2, wf3 = st.columns(3)
+            with wf2:
+                if st.button("⬆ Workflow Up", use_container_width=True):
+                    apply_workflow_point_nudge(
+                        0.0, float(st.session_state.editor_move_step_ft)
+                    )
+            with wf1:
+                if st.button("⬅ Workflow Left", use_container_width=True):
+                    apply_workflow_point_nudge(
+                        -float(st.session_state.editor_move_step_ft), 0.0
+                    )
+            with wf2:
+                if st.button("⬇ Workflow Down", use_container_width=True):
+                    apply_workflow_point_nudge(
+                        0.0, -float(st.session_state.editor_move_step_ft)
+                    )
+            with wf3:
+                if st.button("➡ Workflow Right", use_container_width=True):
+                    apply_workflow_point_nudge(
+                        float(st.session_state.editor_move_step_ft), 0.0
+                    )
+
+            wf_a1, wf_a2 = st.columns(2)
+            with wf_a1:
+                if st.button("Add Workflow Point After Selected", use_container_width=True):
+                    apply_add_workflow_point()
+            with wf_a2:
+                if st.button("Delete Selected Workflow Point", use_container_width=True):
+                    apply_delete_workflow_point()
+
     status_msg = str(st.session_state.get("editor_status_msg", "")).strip()
     if status_msg:
         st.info(status_msg)
@@ -1288,11 +1430,31 @@ def render_interactive_editor_controls():
 
             if obj_type == "conduit":
                 st.write(f"**Points:** {len(obj.get('x', []))}")
-                vidx = int(st.session_state.get("editor_selected_vertex_index", 0))
+                vidx = _get_safe_selected_vertex_index()
                 if len(obj.get("x", [])) > vidx:
                     st.write(
                         f"**Selected Vertex:** P{vidx+1} "
                         f"({float(obj['x'][vidx]):.2f}, {float(obj['y'][vidx]):.2f})"
+                    )
+
+            if obj_type == "workflow":
+                _normalize_workflow_df()
+                wdf = _workflow_df()
+                if len(wdf) > 0:
+                    widx = _get_safe_workflow_point_index()
+                    st.write(f"**Points:** {len(wdf)}")
+                    st.write(
+                        f"**Selected Point:** W{widx+1} "
+                        f"({float(wdf.iloc[widx]['X Coordinate']):.2f}, "
+                        f"{float(wdf.iloc[widx]['Y Coordinate']):.2f})"
+                    )
+                    st.write(
+                        f"**Standoff:** "
+                        f"{float(wdf.iloc[widx]['Safety Standoff (ft)']):.2f} ft"
+                    )
+                    st.write(
+                        f"**Movement Speed:** "
+                        f"{float(wdf.iloc[widx]['Movement Speed']):.2f}"
                     )
 
 
