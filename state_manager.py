@@ -309,6 +309,10 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_pending_dx_ft = 0.0
     if "editor_pending_dy_ft" not in st.session_state:
         st.session_state.editor_pending_dy_ft = 0.0
+    if "editor_pending_dx_ft_input" not in st.session_state:
+        st.session_state.editor_pending_dx_ft_input = 0.0
+    if "editor_pending_dy_ft_input" not in st.session_state:
+        st.session_state.editor_pending_dy_ft_input = 0.0
     if "editor_status_msg" not in st.session_state:
         st.session_state.editor_status_msg = ""
 
