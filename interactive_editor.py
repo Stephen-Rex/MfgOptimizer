@@ -52,7 +52,48 @@ def _get_selected_object():
 
     return obj_type, idx, objs[idx], objs
 
+def _object_center(obj_type, obj):
+    if obj_type == "machine":
+        return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
+    if obj_type == "lighting":
+        return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
+    return None, None
 
+
+def _select_nearest_object(obj_type, pick_x, pick_y):
+    objs = _get_object_list(obj_type)
+    if not objs:
+        st.session_state.editor_status_msg = f"No {obj_type} objects available."
+        return
+
+    best_idx = None
+    best_dist_sq = None
+
+    for idx, obj in enumerate(objs):
+        ox, oy = _object_center(obj_type, obj)
+        if ox is None or oy is None:
+            continue
+
+        dx = float(ox) - float(pick_x)
+        dy = float(oy) - float(pick_y)
+        dist_sq = dx * dx + dy * dy
+
+        if best_dist_sq is None or dist_sq < best_dist_sq:
+            best_dist_sq = dist_sq
+            best_idx = idx
+
+    if best_idx is None:
+        st.session_state.editor_status_msg = "No selectable object found."
+        return
+
+    st.session_state.editor_selected_index = int(best_idx)
+    sync_selected_object_inputs()
+
+    st.session_state.editor_status_msg = (
+        f"Selected nearest {obj_type}: "
+        f"{_get_object_label(obj_type, best_idx, objs[best_idx])}"
+    )
+    
 def _set_selected_xy(x, y):
     obj_type, idx, obj, objs = _get_selected_object()
     if obj is None:
