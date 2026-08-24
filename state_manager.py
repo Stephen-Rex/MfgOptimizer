@@ -325,6 +325,11 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_coord_y_input = 0.0
     if "editor_clear_coord_inputs" not in st.session_state:
         st.session_state.editor_clear_coord_inputs = False
+    if "editor_pick_x_input" not in st.session_state:
+        st.session_state.editor_pick_x_input = 0.0
+    if "editor_pick_y_input" not in st.session_state:
+        st.session_state.editor_pick_y_input = 0.0
+    
 
     if "placed_machines" not in st.session_state:
         st.session_state.placed_machines = [
