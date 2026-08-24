@@ -431,7 +431,9 @@ def _add_conduit_vertex_after_selected():
 
     obj["x"] = x_vals
     obj["y"] = y_vals
-    st.session_state.editor_selected_vertex_index = insert_at
+
+    # Defer widget-key update until next rerun
+    st.session_state.editor_pending_vertex_index = insert_at
 
     st.session_state.editor_status_msg = (
         f"Inserted conduit vertex P{insert_at+1} for {obj.get('id', idx)}."
@@ -466,7 +468,9 @@ def _delete_selected_conduit_vertex():
     obj["x"] = x_vals
     obj["y"] = y_vals
 
-    st.session_state.editor_selected_vertex_index = max(0, min(vidx, len(x_vals) - 1))
+    st.session_state.editor_pending_vertex_index = max(
+        0, min(vidx, len(x_vals) - 1)
+    )
     st.session_state.editor_status_msg = (
         f"Deleted conduit vertex P{vidx+1} for {obj.get('id', idx)}."
     )
