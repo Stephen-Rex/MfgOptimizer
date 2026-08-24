@@ -470,42 +470,82 @@ def draw_asme_drawing(
           lw=1.5,
           zorder=4,
       )
-      if show_locator_dims:
-        # Reference point = machine anchor (current x,y)
+            if show_locator_dims:
         x_ft = float(m['x'])
         y_ft = float(m['y'])
         w_ft = float(m.get('Width', 0.0))
         h_ft = float(m.get('Height', 0.0))
+        so_ft = float(m.get('Standoff', 0.0))
 
-        # Dimension line style
+        half_w_in = mw_in / 2.0
+        half_h_in = mh_in / 2.0
+        so_in = so_ft * S
+
+        # Keep dimensions outside both footprint and safety envelope
+        clear_pad_in = max(0.18, 0.6 * so_in, 0.12 * max(mw_in, mh_in))
+        ext_gap_in = 0.08
+        tick_half = 0.06
+
+        # Stacked spacing so machine dimensions do not overlap each other
+        stack_pitch = 0.28
+        x_stack = idx * stack_pitch
+        y_stack = idx * stack_pitch
+
+        # Baseline dimension locations
+        # X dimension goes below machine / envelope
+        x_dim_y = (my_in - half_h_in - so_in - clear_pad_in) - x_stack
+
+        # Y dimension goes left of machine / envelope
+        y_dim_x = (mx_in - half_w_in - so_in - clear_pad_in) - y_stack
+
         dim_color = '#00E5FF'
         ext_color = '#AAAAAA'
         txt_color = '#FFFFFF'
 
-        # X locator dimension: from left floor boundary to machine x
-        x_dim_y = O_y - 0.8
-        ax.plot([O_x, mx_in], [x_dim_y, x_dim_y], color=dim_color, lw=1.0, zorder=6)
-        ax.plot([O_x, O_x], [x_dim_y + 0.1, O_y], color=ext_color, lw=0.8, zorder=6)
-        ax.plot([mx_in, mx_in], [x_dim_y + 0.1, my_in], color=ext_color, lw=0.8, zorder=6)
+        # ----- X locator dimension -----
+        # Dimension from left floor boundary to machine centerline X
+        _draw_dim_line(ax, O_x, x_dim_y, mx_in, x_dim_y, color=dim_color, lw=1.0, z=7)
+
+        # Extension at floor left boundary
+        _draw_ext_line(ax, O_x, O_y, O_x, x_dim_y + ext_gap_in, color=ext_color, lw=0.8, z=6)
+
+        # Extension at machine centerline, starting below footprint/envelope
+        x_ext_top = my_in - half_h_in - so_in - ext_gap_in
+        _draw_ext_line(ax, mx_in, x_ext_top, mx_in, x_dim_y + ext_gap_in, color=ext_color, lw=0.8, z=6)
+
+        # Ticks
+        _draw_tick(ax, O_x, x_dim_y, 0.04, 0.04, color=dim_color, lw=1.0, z=7)
+        _draw_tick(ax, mx_in, x_dim_y, 0.04, 0.04, color=dim_color, lw=1.0, z=7)
+
         ax.text(
             (O_x + mx_in) / 2.0,
-            x_dim_y - 0.15,
+            x_dim_y - 0.08,
             f"X = {x_ft:.1f} ft",
             fontsize=6,
             color=txt_color,
             ha='center',
             va='top',
-            zorder=7,
-            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.5),
+            zorder=8,
+            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.55, pad=1.2),
         )
 
-        # Y locator dimension: from bottom floor boundary to machine y
-        y_dim_x = O_x - 0.8
-        ax.plot([y_dim_x, y_dim_x], [O_y, my_in], color=dim_color, lw=1.0, zorder=6)
-        ax.plot([y_dim_x + 0.1, O_x], [O_y, O_y], color=ext_color, lw=0.8, zorder=6)
-        ax.plot([y_dim_x + 0.1, mx_in], [my_in, my_in], color=ext_color, lw=0.8, zorder=6)
+        # ----- Y locator dimension -----
+        # Dimension from bottom floor boundary to machine centerline Y
+        _draw_dim_line(ax, y_dim_x, O_y, y_dim_x, my_in, color=dim_color, lw=1.0, z=7)
+
+        # Extension at floor bottom boundary
+        _draw_ext_line(ax, O_x, O_y, y_dim_x + ext_gap_in, O_y, color=ext_color, lw=0.8, z=6)
+
+        # Extension at machine centerline, starting left of footprint/envelope
+        y_ext_right = mx_in - half_w_in - so_in - ext_gap_in
+        _draw_ext_line(ax, y_ext_right, my_in, y_dim_x + ext_gap_in, my_in, color=ext_color, lw=0.8, z=6)
+
+        # Ticks
+        _draw_tick(ax, y_dim_x, O_y, 0.04, 0.04, color=dim_color, lw=1.0, z=7)
+        _draw_tick(ax, y_dim_x, my_in, 0.04, 0.04, color=dim_color, lw=1.0, z=7)
+
         ax.text(
-            y_dim_x - 0.1,
+            y_dim_x - 0.08,
             (O_y + my_in) / 2.0,
             f"Y = {y_ft:.1f} ft",
             fontsize=6,
@@ -513,22 +553,22 @@ def draw_asme_drawing(
             ha='right',
             va='center',
             rotation=90,
-            zorder=7,
-            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.5),
+            zorder=8,
+            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.55, pad=1.2),
         )
 
-        # Footprint note above machine
+        # Optional footprint callout above machine
         ax.text(
-            mx_in + mw_in / 2.0,
-            my_in + mh_in + 0.15,
+            mx_in,
+            my_in + half_h_in + so_in + 0.12,
             f"{w_ft:.1f}' x {h_ft:.1f}'",
             fontsize=6,
             color='#FFD700',
             ha='center',
             va='bottom',
-            zorder=7,
-            bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.45, pad=1.2),
-        )  
+            zorder=8,
+            bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.45, pad=1.0),
+        )
       ax.add_patch(rect)
       m_label = f'M{idx+1}'
       ax.text(
