@@ -910,12 +910,12 @@ def render_interactive_editor_controls():
                 _, _, cond = result
                 point_count = len(cond.get("x", []))
                 if point_count > 0:
-                    vidx = _get_safe_selected_vertex_index()
+                    safe_vidx = _get_safe_selected_vertex_index()
                     vertex_options = list(range(point_count))
                     st.selectbox(
                         "Selected Conduit Vertex",
                         options=vertex_options,
-                        index=int(st.session_state.editor_selected_vertex_index),
+                        index=safe_vidx,
                         format_func=lambda i: f"P{i+1}",
                         key="editor_selected_vertex_index",
                         on_change=_on_selected_vertex_change,
