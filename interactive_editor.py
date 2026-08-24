@@ -93,7 +93,9 @@ def _get_object_label(obj_type, obj, idx):
 
     if obj_type == "conduit":
         label = str(obj.get("label", "")).strip()
-        return f"{obj_id} - {label}" if label else obj_id
+        points = len(obj.get("x", []))
+        suffix = f"{label} ({points} pts)".strip()
+        return f"{obj_id} - {suffix}" if suffix else obj_id
 
     if obj_type == "crane":
         make = str(obj.get("make", "")).strip()
@@ -150,6 +152,27 @@ def _object_center(obj_type, obj):
     return 0.0, 0.0
 
 
+def _normalize_selected_vertex_index():
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_selected_vertex_index = 0
+        return
+
+    obj_type, _, obj = result
+    if obj_type != "conduit":
+        st.session_state.editor_selected_vertex_index = 0
+        return
+
+    point_count = len(obj.get("x", []))
+    if point_count <= 0:
+        st.session_state.editor_selected_vertex_index = 0
+        return
+
+    idx = int(st.session_state.get("editor_selected_vertex_index", 0))
+    idx = max(0, min(idx, point_count - 1))
+    st.session_state.editor_selected_vertex_index = idx
+
+
 def _prime_editor_inputs_from_selection():
     result = _get_selected_object()
     if result == (None, None, None):
@@ -159,6 +182,8 @@ def _prime_editor_inputs_from_selection():
         st.session_state["editor_box_ll_y_input"] = 0.0
         st.session_state["editor_box_ur_x_input"] = 0.0
         st.session_state["editor_box_ur_y_input"] = 0.0
+        st.session_state["editor_vertex_x_input"] = 0.0
+        st.session_state["editor_vertex_y_input"] = 0.0
         return
 
     obj_type, _, obj = result
@@ -172,6 +197,18 @@ def _prime_editor_inputs_from_selection():
         st.session_state["editor_box_ll_y_input"] = float(obj.get("ll_y", 0.0))
         st.session_state["editor_box_ur_x_input"] = float(obj.get("ur_x", 0.0))
         st.session_state["editor_box_ur_y_input"] = float(obj.get("ur_y", 0.0))
+
+    if obj_type == "conduit":
+        _normalize_selected_vertex_index()
+        vx = obj.get("x", [])
+        vy = obj.get("y", [])
+        if vx and vy and len(vx) == len(vy):
+            vidx = int(st.session_state.editor_selected_vertex_index)
+            st.session_state["editor_vertex_x_input"] = float(vx[vidx])
+            st.session_state["editor_vertex_y_input"] = float(vy[vidx])
+        else:
+            st.session_state["editor_vertex_x_input"] = 0.0
+            st.session_state["editor_vertex_y_input"] = 0.0
 
 
 def _set_selected_xy(new_x, new_y):
@@ -305,6 +342,143 @@ def _set_selected_crane_box(ll_x, ll_y, ur_x, ur_y):
     )
 
 
+def _set_selected_conduit_vertex(new_x, new_y):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No conduit selected."
+        return
+
+    obj_type, idx, obj = result
+    if obj_type != "conduit":
+        st.session_state.editor_status_msg = "Vertex editing applies to conduits only."
+        return
+
+    x_vals = [float(v) for v in obj.get("x", [])]
+    y_vals = [float(v) for v in obj.get("y", [])]
+
+    if len(x_vals) < 2 or len(x_vals) != len(y_vals):
+        st.session_state.editor_status_msg = "Selected conduit has invalid point data."
+        return
+
+    _normalize_selected_vertex_index()
+    vidx = int(st.session_state.editor_selected_vertex_index)
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    new_x = float(new_x)
+    new_y = float(new_y)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    x_vals[vidx] = new_x
+    y_vals[vidx] = new_y
+
+    obj["x"] = x_vals
+    obj["y"] = y_vals
+
+    st.session_state.editor_status_msg = (
+        f"Updated conduit vertex P{vidx+1} for {obj.get('id', idx)} "
+        f"to X={new_x:.2f} ft, Y={new_y:.2f} ft."
+    )
+
+
+def _add_conduit_vertex_after_selected():
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No conduit selected."
+        return
+
+    obj_type, idx, obj = result
+    if obj_type != "conduit":
+        st.session_state.editor_status_msg = "Vertex editing applies to conduits only."
+        return
+
+    x_vals = [float(v) for v in obj.get("x", [])]
+    y_vals = [float(v) for v in obj.get("y", [])]
+
+    if len(x_vals) < 2 or len(x_vals) != len(y_vals):
+        st.session_state.editor_status_msg = "Selected conduit has invalid point data."
+        return
+
+    _normalize_selected_vertex_index()
+    vidx = int(st.session_state.editor_selected_vertex_index)
+
+    if vidx < len(x_vals) - 1:
+        new_x = (x_vals[vidx] + x_vals[vidx + 1]) / 2.0
+        new_y = (y_vals[vidx] + y_vals[vidx + 1]) / 2.0
+        insert_at = vidx + 1
+    else:
+        if len(x_vals) >= 2:
+            dx = x_vals[-1] - x_vals[-2]
+            dy = y_vals[-1] - y_vals[-2]
+        else:
+            dx = 5.0
+            dy = 0.0
+        new_x = x_vals[-1] + dx * 0.5
+        new_y = y_vals[-1] + dy * 0.5
+        insert_at = len(x_vals)
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    x_vals.insert(insert_at, new_x)
+    y_vals.insert(insert_at, new_y)
+
+    obj["x"] = x_vals
+    obj["y"] = y_vals
+    st.session_state.editor_selected_vertex_index = insert_at
+
+    st.session_state.editor_status_msg = (
+        f"Inserted conduit vertex P{insert_at+1} for {obj.get('id', idx)}."
+    )
+
+
+def _delete_selected_conduit_vertex():
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No conduit selected."
+        return
+
+    obj_type, idx, obj = result
+    if obj_type != "conduit":
+        st.session_state.editor_status_msg = "Vertex editing applies to conduits only."
+        return
+
+    x_vals = [float(v) for v in obj.get("x", [])]
+    y_vals = [float(v) for v in obj.get("y", [])]
+
+    if len(x_vals) <= 2 or len(x_vals) != len(y_vals):
+        st.session_state.editor_status_msg = (
+            "Cannot delete vertex: a conduit must retain at least two points."
+        )
+        return
+
+    _normalize_selected_vertex_index()
+    vidx = int(st.session_state.editor_selected_vertex_index)
+
+    x_vals.pop(vidx)
+    y_vals.pop(vidx)
+
+    obj["x"] = x_vals
+    obj["y"] = y_vals
+
+    st.session_state.editor_selected_vertex_index = max(0, min(vidx, len(x_vals) - 1))
+    st.session_state.editor_status_msg = (
+        f"Deleted conduit vertex P{vidx+1} for {obj.get('id', idx)}."
+    )
+
+
 def apply_editor_coordinate_update():
     try:
         new_x = float(st.session_state.editor_coord_x_input)
@@ -346,6 +520,57 @@ def apply_crane_box_update():
     st.rerun()
 
 
+def apply_conduit_vertex_update():
+    try:
+        vx = float(st.session_state.editor_vertex_x_input)
+        vy = float(st.session_state.editor_vertex_y_input)
+    except Exception:
+        st.session_state.editor_status_msg = "Invalid conduit vertex input."
+        return
+
+    _set_selected_conduit_vertex(vx, vy)
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
+def apply_conduit_vertex_nudge(dx, dy):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No conduit selected."
+        return
+
+    obj_type, _, obj = result
+    if obj_type != "conduit":
+        st.session_state.editor_status_msg = "Vertex nudge applies to conduits only."
+        return
+
+    _normalize_selected_vertex_index()
+    vidx = int(st.session_state.editor_selected_vertex_index)
+    x_vals = obj.get("x", [])
+    y_vals = obj.get("y", [])
+    if len(x_vals) <= vidx or len(y_vals) <= vidx:
+        st.session_state.editor_status_msg = "Invalid conduit vertex selection."
+        return
+
+    vx = float(x_vals[vidx]) + dx
+    vy = float(y_vals[vidx]) + dy
+    _set_selected_conduit_vertex(vx, vy)
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
+def apply_add_conduit_vertex():
+    _add_conduit_vertex_after_selected()
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
+def apply_delete_conduit_vertex():
+    _delete_selected_conduit_vertex()
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
+
+
 def _select_nearest_object(obj_type, pick_x, pick_y):
     items = _get_object_list(obj_type)
     if not items:
@@ -367,6 +592,7 @@ def _select_nearest_object(obj_type, pick_x, pick_y):
         return
 
     st.session_state.editor_selected_index = best_idx
+    st.session_state.editor_selected_vertex_index = 0
     sel_obj = items[best_idx]
     st.session_state.editor_status_msg = (
         f"Selected nearest {obj_type}: "
@@ -397,6 +623,7 @@ def apply_pick_selection():
 
 def _on_object_type_change():
     st.session_state.editor_selected_index = 0
+    st.session_state.editor_selected_vertex_index = 0
     st.session_state.editor_prime_inputs = True
 
 
@@ -406,7 +633,12 @@ def _on_selected_object_change():
 
     if selected_label in labels:
         st.session_state.editor_selected_index = labels.index(selected_label)
+        st.session_state.editor_selected_vertex_index = 0
         st.session_state.editor_prime_inputs = True
+
+
+def _on_selected_vertex_change():
+    st.session_state.editor_prime_inputs = True
 
 
 def draw_interactive_editor_figure():
@@ -445,6 +677,7 @@ def draw_interactive_editor_figure():
 
     selected_type = st.session_state.editor_selected_type
     selected_index = int(st.session_state.editor_selected_index)
+    selected_vertex_index = int(st.session_state.get("editor_selected_vertex_index", 0))
 
     # Conduits
     for idx, cond in enumerate(st.session_state.placed_conduits):
@@ -459,13 +692,28 @@ def draw_interactive_editor_figure():
                 lw=2.0 if not is_selected else 3.0,
                 zorder=3,
             )
-            ax.scatter(
-                xs,
-                ys,
-                color="#FFD700" if not is_selected else "#FFFFFF",
-                s=20 if not is_selected else 35,
-                zorder=4,
-            )
+
+            for p_idx, (px, py) in enumerate(zip(xs, ys)):
+                is_sel_vertex = is_selected and p_idx == selected_vertex_index
+                ax.scatter(
+                    [px],
+                    [py],
+                    color="#FFD700" if not is_sel_vertex else "#FF00FF",
+                    s=20 if not is_sel_vertex else 70,
+                    zorder=4,
+                    edgecolors="black",
+                )
+                if st.session_state.editor_show_labels:
+                    ax.text(
+                        px,
+                        py + 1.0,
+                        f"P{p_idx+1}",
+                        color="white",
+                        fontsize=7,
+                        ha="center",
+                        zorder=5,
+                    )
+
             if st.session_state.editor_show_labels:
                 cx, cy = _object_center("conduit", cond)
                 ax.text(
@@ -591,7 +839,6 @@ def draw_interactive_editor_figure():
                 zorder=6,
             )
 
-    # Pick marker
     if "editor_last_pick_x" in st.session_state and "editor_last_pick_y" in st.session_state:
         px = float(st.session_state.editor_last_pick_x)
         py = float(st.session_state.editor_last_pick_y)
@@ -665,6 +912,23 @@ def render_interactive_editor_controls():
         else:
             st.info("No objects available for the selected type.")
 
+        if st.session_state.editor_selected_type == "conduit":
+            result = _get_selected_object()
+            if result != (None, None, None):
+                _, _, cond = result
+                point_count = len(cond.get("x", []))
+                if point_count > 0:
+                    _normalize_selected_vertex_index()
+                    vertex_options = list(range(point_count))
+                    st.selectbox(
+                        "Selected Conduit Vertex",
+                        options=vertex_options,
+                        index=int(st.session_state.editor_selected_vertex_index),
+                        format_func=lambda i: f"P{i+1}",
+                        key="editor_selected_vertex_index",
+                        on_change=_on_selected_vertex_change,
+                    )
+
         st.checkbox("Snap to Grid", key="editor_snap_enabled")
         st.number_input(
             "Snap/Grid Increment (ft)",
@@ -722,6 +986,37 @@ def render_interactive_editor_controls():
             if st.button("Apply Crane Box", use_container_width=True):
                 apply_crane_box_update()
 
+        if st.session_state.editor_selected_type == "conduit":
+            st.markdown("**Conduit Vertex Edit**")
+            st.number_input("Vertex X (ft)", step=0.5, key="editor_vertex_x_input")
+            st.number_input("Vertex Y (ft)", step=0.5, key="editor_vertex_y_input")
+
+            if st.button("Apply Vertex Coordinates", use_container_width=True):
+                apply_conduit_vertex_update()
+
+            st.markdown("**Nudge Selected Vertex**")
+            v1, v2, v3 = st.columns(3)
+            with v2:
+                if st.button("⬆ Vertex Up", use_container_width=True):
+                    apply_conduit_vertex_nudge(0.0, float(st.session_state.editor_move_step_ft))
+            with v1:
+                if st.button("⬅ Vertex Left", use_container_width=True):
+                    apply_conduit_vertex_nudge(-float(st.session_state.editor_move_step_ft), 0.0)
+            with v2:
+                if st.button("⬇ Vertex Down", use_container_width=True):
+                    apply_conduit_vertex_nudge(0.0, -float(st.session_state.editor_move_step_ft))
+            with v3:
+                if st.button("➡ Vertex Right", use_container_width=True):
+                    apply_conduit_vertex_nudge(float(st.session_state.editor_move_step_ft), 0.0)
+
+            a1, a2 = st.columns(2)
+            with a1:
+                if st.button("Add Vertex After Selected", use_container_width=True):
+                    apply_add_conduit_vertex()
+            with a2:
+                if st.button("Delete Selected Vertex", use_container_width=True):
+                    apply_delete_conduit_vertex()
+
     status_msg = str(st.session_state.get("editor_status_msg", "")).strip()
     if status_msg:
         st.info(status_msg)
@@ -738,11 +1033,23 @@ def render_interactive_editor_controls():
             st.write(f"**Center Y:** {cy:.2f} ft")
 
             if obj_type == "crane":
-                st.write(f"**LL:** ({float(obj.get('ll_x', 0.0)):.2f}, {float(obj.get('ll_y', 0.0)):.2f})")
-                st.write(f"**UR:** ({float(obj.get('ur_x', 0.0)):.2f}, {float(obj.get('ur_y', 0.0)):.2f})")
+                st.write(
+                    f"**LL:** ({float(obj.get('ll_x', 0.0)):.2f}, "
+                    f"{float(obj.get('ll_y', 0.0)):.2f})"
+                )
+                st.write(
+                    f"**UR:** ({float(obj.get('ur_x', 0.0)):.2f}, "
+                    f"{float(obj.get('ur_y', 0.0)):.2f})"
+                )
 
             if obj_type == "conduit":
                 st.write(f"**Points:** {len(obj.get('x', []))}")
+                vidx = int(st.session_state.get("editor_selected_vertex_index", 0))
+                if len(obj.get("x", [])) > vidx:
+                    st.write(
+                        f"**Selected Vertex:** P{vidx+1} "
+                        f"({float(obj['x'][vidx]):.2f}, {float(obj['y'][vidx]):.2f})"
+                    )
 
 
 def render_interactive_editor():
