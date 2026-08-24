@@ -1,18 +1,20 @@
 # interactive_editor.py
-import matplotlib.pyplot as plt
-import numpy as np
+import math
 import streamlit as st
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
-def _snap_value(val, snap_ft, snap_enabled=True):
-    if not snap_enabled or snap_ft <= 0:
-        return float(val)
-    return round(float(val) / float(snap_ft)) * float(snap_ft)
+def _snap_value(value, snap_ft, enabled=True):
+    if not enabled:
+        return float(value)
+    snap_ft = max(float(snap_ft), 0.01)
+    return round(float(value) / snap_ft) * snap_ft
 
 
-def _clamp_to_floor(x, y):
-    x = min(max(float(x), 0.0), float(st.session_state.floor_w))
-    y = min(max(float(y), 0.0), float(st.session_state.floor_h))
+def _clamp_to_floor(x, y, floor_w, floor_h):
+    x = max(0.0, min(float(floor_w), float(x)))
+    y = max(0.0, min(float(floor_h), float(y)))
     return x, y
 
 
@@ -21,459 +23,460 @@ def _get_object_list(obj_type):
         return st.session_state.placed_machines
     if obj_type == "lighting":
         return st.session_state.placed_lighting
-    if obj_type == "conduit":
-        return st.session_state.placed_conduits
-    if obj_type == "crane":
-        return st.session_state.placed_cranes
     return []
 
 
-def _get_object_label(obj_type, idx, obj):
+def _get_object_label(obj_type, obj, idx):
+    obj_id = obj.get("id", f"{obj_type[:1].upper()}-{idx+1:03d}")
+
     if obj_type == "machine":
-        return f"M{idx+1}: {obj.get('Make', '')} {obj.get('Model', '')}"
+        make = str(obj.get("Make", "")).strip()
+        model = str(obj.get("Model", "")).strip()
+        if make or model:
+            return f"{obj_id} - {make} {model}".strip()
+        return obj_id
+
     if obj_type == "lighting":
-        return f"L{idx+1}: {obj.get('Make', '')} {obj.get('Brand', '')}"
-    if obj_type == "conduit":
-        return f"CND{idx+1}: {obj.get('label', 'Run')}"
-    if obj_type == "crane":
-        return f"CR{idx+1}: {obj.get('make', '')} {obj.get('model', '')}"
-    return f"{obj_type} {idx+1}"
+        make = str(obj.get("Make", "")).strip()
+        fixture_type = str(obj.get("Type", "")).strip()
+        if make or fixture_type:
+            return f"{obj_id} - {make} {fixture_type}".strip()
+        return obj_id
+
+    return obj_id
 
 
 def _get_selected_object():
     obj_type = st.session_state.editor_selected_type
+    items = _get_object_list(obj_type)
+
+    if not items:
+        return None, None, None
+
     idx = int(st.session_state.editor_selected_index)
-    objs = _get_object_list(obj_type)
+    if idx < 0:
+        idx = 0
+    if idx >= len(items):
+        idx = len(items) - 1
+        st.session_state.editor_selected_index = idx
 
-    if not objs:
-        return obj_type, idx, None, objs
-    if idx < 0 or idx >= len(objs):
-        return obj_type, idx, None, objs
+    return obj_type, idx, items[idx]
 
-    return obj_type, idx, objs[idx], objs
+
+def _set_selected_xy(new_x, new_y):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No object selected."
+        return
+
+    obj_type, idx, obj = result
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    new_x = float(new_x)
+    new_y = float(new_y)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    obj["x"] = new_x
+    obj["y"] = new_y
+
+    st.session_state.editor_coord_x_input = float(new_x)
+    st.session_state.editor_coord_y_input = float(new_y)
+
+    st.session_state.editor_status_msg = (
+        f"Moved {obj_type} {obj.get('id', idx)} to "
+        f"X={new_x:.2f} ft, Y={new_y:.2f} ft."
+    )
+
+
+def apply_editor_nudge(dx, dy):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No object selected."
+        return
+
+    _, _, obj = result
+    cur_x = float(obj.get("x", 0.0))
+    cur_y = float(obj.get("y", 0.0))
+    _set_selected_xy(cur_x + dx, cur_y + dy)
+
+
+def apply_editor_coordinate_update():
+    try:
+        new_x = float(st.session_state.editor_coord_x_input)
+        new_y = float(st.session_state.editor_coord_y_input)
+        _set_selected_xy(new_x, new_y)
+    except Exception:
+        st.session_state.editor_status_msg = "Invalid coordinate input."
+
+
+def sync_selected_object_inputs():
+    result = _get_selected_object()
+    if result == (None, None, None):
+        return
+
+    _, _, obj = result
+    st.session_state.editor_coord_x_input = float(obj.get("x", 0.0))
+    st.session_state.editor_coord_y_input = float(obj.get("y", 0.0))
+
 
 def _object_center(obj_type, obj):
-    if obj_type == "machine":
+    if obj_type in ["machine", "lighting"]:
         return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
-    if obj_type == "lighting":
-        return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
-    return None, None
+    return 0.0, 0.0
 
 
 def _select_nearest_object(obj_type, pick_x, pick_y):
-    objs = _get_object_list(obj_type)
-    if not objs:
+    items = _get_object_list(obj_type)
+    if not items:
         st.session_state.editor_status_msg = f"No {obj_type} objects available."
         return
 
     best_idx = None
-    best_dist_sq = None
+    best_dist = None
 
-    for idx, obj in enumerate(objs):
+    for idx, obj in enumerate(items):
         ox, oy = _object_center(obj_type, obj)
-        if ox is None or oy is None:
-            continue
-
-        dx = float(ox) - float(pick_x)
-        dy = float(oy) - float(pick_y)
-        dist_sq = dx * dx + dy * dy
-
-        if best_dist_sq is None or dist_sq < best_dist_sq:
-            best_dist_sq = dist_sq
+        d = math.sqrt((ox - pick_x) ** 2 + (oy - pick_y) ** 2)
+        if best_dist is None or d < best_dist:
+            best_dist = d
             best_idx = idx
 
     if best_idx is None:
-        st.session_state.editor_status_msg = "No selectable object found."
+        st.session_state.editor_status_msg = f"Could not select a {obj_type}."
         return
 
-    st.session_state.editor_selected_index = int(best_idx)
+    st.session_state.editor_selected_type = obj_type
+    st.session_state.editor_selected_index = best_idx
     sync_selected_object_inputs()
 
+    sel_obj = items[best_idx]
     st.session_state.editor_status_msg = (
         f"Selected nearest {obj_type}: "
-        f"{_get_object_label(obj_type, best_idx, objs[best_idx])}"
+        f"{sel_obj.get('id', best_idx)} "
+        f"at distance {best_dist:.2f} ft."
     )
-    
-def _set_selected_xy(x, y):
-    obj_type, idx, obj, objs = _get_selected_object()
-    if obj is None:
-        st.session_state.editor_status_msg = "No selected object available."
-        return
 
-    if obj_type not in ["machine", "lighting"]:
-        st.session_state.editor_status_msg = (
-            "Direct coordinate editing is currently enabled for machines and lighting only."
-        )
-        return
-
-    snap_enabled = bool(st.session_state.editor_snap_enabled)
-    snap_ft = float(st.session_state.editor_snap_ft)
-
-    x = _snap_value(x, snap_ft, snap_enabled)
-    y = _snap_value(y, snap_ft, snap_enabled)
-    x, y = _clamp_to_floor(x, y)
-
-    obj["x"] = x
-    obj["y"] = y
-
-    if obj_type == "machine":
-        st.session_state.editor_status_msg = (
-            f"Updated machine M{idx+1} to ({x:.1f}, {y:.1f}) ft."
-        )
-    else:
-        st.session_state.editor_status_msg = (
-            f"Updated lighting L{idx+1} to ({x:.1f}, {y:.1f}) ft."
-        )
-
-
-def apply_editor_nudge(dx, dy):
-    obj_type, idx, obj, objs = _get_selected_object()
-    if obj is None:
-        st.session_state.editor_status_msg = "No objects available for editing."
-        return
-
-    if obj_type not in ["machine", "lighting"]:
-        st.session_state.editor_status_msg = (
-            "Phase 2A nudge controls currently support machines and lighting only."
-        )
-        return
-
-    new_x = float(obj["x"]) + float(dx)
-    new_y = float(obj["y"]) + float(dy)
-    _set_selected_xy(new_x, new_y)
-
-    st.session_state.editor_clear_pending_move = True
-    st.session_state.editor_clear_coord_inputs = True
-
-
-def apply_editor_coordinate_update():
-    x = float(st.session_state.get("editor_coord_x_input", 0.0))
-    y = float(st.session_state.get("editor_coord_y_input", 0.0))
-    _set_selected_xy(x, y)
-    st.session_state.editor_clear_coord_inputs = True
-
-
-def sync_selected_object_inputs():
-    obj_type, idx, obj, objs = _get_selected_object()
-    if obj is None:
-        return
-
-    if obj_type in ["machine", "lighting"]:
-        st.session_state["editor_coord_x_input"] = float(obj.get("x", 0.0))
-        st.session_state["editor_coord_y_input"] = float(obj.get("y", 0.0))
 
 def apply_pick_selection():
+    try:
+        pick_x = float(st.session_state.editor_pick_x_input)
+        pick_y = float(st.session_state.editor_pick_y_input)
+    except Exception:
+        st.session_state.editor_status_msg = "Invalid pick coordinate input."
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+    pick_x, pick_y = _clamp_to_floor(pick_x, pick_y, floor_w, floor_h)
+
+    st.session_state.editor_pick_x_input = pick_x
+    st.session_state.editor_pick_y_input = pick_y
+    st.session_state.editor_last_pick_x = pick_x
+    st.session_state.editor_last_pick_y = pick_y
+
     obj_type = st.session_state.editor_selected_type
-    pick_x = float(st.session_state.get("editor_pick_x_input", 0.0))
-    pick_y = float(st.session_state.get("editor_pick_y_input", 0.0))
-
-    pick_x = min(max(pick_x, 0.0), float(st.session_state.floor_w))
-    pick_y = min(max(pick_y, 0.0), float(st.session_state.floor_h))
-
     _select_nearest_object(obj_type, pick_x, pick_y)
 
+
 def render_interactive_editor_controls():
-    if st.session_state.get("editor_clear_pending_move", False):
-        st.session_state["editor_pending_dx_ft_input"] = 0.0
-        st.session_state["editor_pending_dy_ft_input"] = 0.0
-        st.session_state["editor_clear_pending_move"] = False
+    st.subheader("Interactive 2D Layout Editor Controls")
 
-    st.subheader("Interactive 2D Editor Controls")
-    st.markdown(
-        "Phase 2A editor supports precise interactive editing for machines and "
-        "lighting using selection, direct coordinate editing, and nudge controls."
-    )
+    ctrl_col1, ctrl_col2 = st.columns([1, 1])
 
-    top1, top2, top3, top4 = st.columns(4)
+    with ctrl_col1:
+        st.checkbox(
+            "Enable Editor",
+            key="editor_enabled",
+        )
 
-    with top1:
         st.selectbox(
             "Object Type",
-            ["machine", "lighting"],
+            options=["machine", "lighting"],
             key="editor_selected_type",
+            on_change=sync_selected_object_inputs,
         )
 
-    objs = _get_object_list(st.session_state.editor_selected_type)
-    obj_options = list(range(len(objs))) if objs else [0]
+        items = _get_object_list(st.session_state.editor_selected_type)
+        if items:
+            labels = [
+                _get_object_label(st.session_state.editor_selected_type, obj, idx)
+                for idx, obj in enumerate(items)
+            ]
 
-    with top2:
-        selected_idx_before = st.session_state.get("editor_selected_index", 0)
-        st.selectbox(
-            "Selected Object",
-            obj_options,
-            format_func=lambda i: (
-                _get_object_label(
-                    st.session_state.editor_selected_type, i, objs[i]
-                )
-                if objs and i < len(objs)
-                else "No objects available"
-            ),
-            key="editor_selected_index",
-        )
+            current_idx = int(st.session_state.editor_selected_index)
+            if current_idx >= len(labels):
+                current_idx = 0
+                st.session_state.editor_selected_index = 0
 
-    with top3:
-        st.checkbox("Enable Grid Snap", key="editor_snap_enabled")
+            selected_label = st.selectbox(
+                "Selected Object",
+                options=labels,
+                index=current_idx,
+                key="editor_selected_label_select",
+            )
+            st.session_state.editor_selected_index = labels.index(selected_label)
+            sync_selected_object_inputs()
+        else:
+            st.info("No objects available for the selected type.")
+
+        st.checkbox("Snap to Grid", key="editor_snap_enabled")
         st.number_input(
-            "Snap Increment (ft)",
+            "Snap/Grid Increment (ft)",
             min_value=0.1,
-            max_value=20.0,
             step=0.1,
             key="editor_snap_ft",
         )
+        st.checkbox("Show Grid", key="editor_show_grid")
+        st.checkbox("Show Labels", key="editor_show_labels")
 
-    with top4:
-        st.checkbox("Show Editor Grid", key="editor_show_grid")
-        st.checkbox("Show Editor Labels", key="editor_show_labels")
+    with ctrl_col2:
+        st.markdown("**Direct Coordinate Edit**")
 
-    selected_idx_after = st.session_state.get("editor_selected_index", 0)
-    if selected_idx_after != selected_idx_before or st.session_state.get(
-        "editor_clear_coord_inputs", False
-    ):
-        sync_selected_object_inputs()
-        st.session_state["editor_clear_coord_inputs"] = False
-
-    obj_type, idx, obj, objs = _get_selected_object()
-
-    st.markdown("### Pick Nearest Object by Floor Coordinate")
-
-    pick_col1, pick_col2, pick_col3 = st.columns([1, 1, 1])
-
-    with pick_col1:
-        st.number_input(
-            "Pick X (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_w),
-            step=0.5,
-            key="editor_pick_x_input",
-        )
-
-    with pick_col2:
-        st.number_input(
-            "Pick Y (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_h),
-            step=0.5,
-            key="editor_pick_y_input",
-        )
-
-    with pick_col3:
-        st.write("")
-        st.write("")
-        if st.button("Select Nearest Object", key="editor_pick_btn"):
-            apply_pick_selection()
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
-    
-    
-    
-    
-    st.markdown("### Selected Object Position")
-
-    pos1, pos2, pos3 = st.columns([1, 1, 1])
-
-    with pos1:
         st.number_input(
             "Selected X (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_w),
             step=0.5,
             key="editor_coord_x_input",
         )
-
-    with pos2:
         st.number_input(
             "Selected Y (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_h),
             step=0.5,
             key="editor_coord_y_input",
         )
 
-    with pos3:
-        st.write("")
-        st.write("")
-        if st.button(
-            "Apply Coordinates",
-            type="primary",
-            key="editor_apply_coord_btn",
-        ):
+        if st.button("Apply Coordinates", use_container_width=True):
             apply_editor_coordinate_update()
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    st.markdown("### Nudge Controls")
-
-    step_col1, step_col2 = st.columns([1, 3])
-    with step_col1:
+        st.markdown("**Nudge Selected Object**")
         st.number_input(
             "Nudge Step (ft)",
             min_value=0.1,
-            max_value=25.0,
             step=0.1,
             key="editor_move_step_ft",
         )
 
-    step_ft = float(st.session_state.editor_move_step_ft)
+        n1, n2, n3 = st.columns(3)
+        with n2:
+            if st.button("⬆ Up", use_container_width=True):
+                apply_editor_nudge(0.0, float(st.session_state.editor_move_step_ft))
 
-    nrow1 = st.columns([1, 1, 1])
-    with nrow1[1]:
-        if st.button("⬆️ Up", key="editor_nudge_up_btn"):
-            apply_editor_nudge(0.0, step_ft)
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        with n1:
+            if st.button("⬅ Left", use_container_width=True):
+                apply_editor_nudge(-float(st.session_state.editor_move_step_ft), 0.0)
 
-    nrow2 = st.columns([1, 1, 1])
-    with nrow2[0]:
-        if st.button("⬅️ Left", key="editor_nudge_left_btn"):
-            apply_editor_nudge(-step_ft, 0.0)
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
-    with nrow2[1]:
-        if st.button("⏺ Center Sync", key="editor_sync_btn"):
-            sync_selected_object_inputs()
-            st.session_state.editor_status_msg = "Coordinate inputs synced to selected object."
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
-    with nrow2[2]:
-        if st.button("➡️ Right", key="editor_nudge_right_btn"):
-            apply_editor_nudge(step_ft, 0.0)
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        with n2:
+            if st.button("⬇ Down", use_container_width=True):
+                apply_editor_nudge(0.0, -float(st.session_state.editor_move_step_ft))
 
-    nrow3 = st.columns([1, 1, 1])
-    with nrow3[1]:
-        if st.button("⬇️ Down", key="editor_nudge_down_btn"):
-            apply_editor_nudge(0.0, -step_ft)
-            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+        with n3:
+            if st.button("➡ Right", use_container_width=True):
+                apply_editor_nudge(float(st.session_state.editor_move_step_ft), 0.0)
 
-    if obj_type == "machine" and obj is not None:
-        st.markdown("### Selected Machine Info")
-        st.write(f"**Make/Model:** {obj.get('Make', '')} {obj.get('Model', '')}")
-        st.write(
-            f"**Footprint:** {float(obj.get('Width', 0.0)):.1f} ft x "
-            f"{float(obj.get('Height', 0.0)):.1f} ft"
+        st.markdown("**Pick Nearest Object by Floor Coordinate**")
+        st.number_input(
+            "Pick X (ft)",
+            step=0.5,
+            key="editor_pick_x_input",
         )
-        st.write(f"**Standoff:** {float(obj.get('Standoff', 0.0)):.1f} ft")
+        st.number_input(
+            "Pick Y (ft)",
+            step=0.5,
+            key="editor_pick_y_input",
+        )
 
-    elif obj_type == "lighting" and obj is not None:
-        st.markdown("### Selected Lighting Info")
-        st.write(f"**Fixture:** {obj.get('Make', '')} {obj.get('Brand', '')}")
-        st.write(f"**Type:** {obj.get('Type', '')}")
-        st.write(f"**Wattage:** {float(obj.get('Wattage', 0.0)):.1f} W")
+        if st.button("Select Nearest Object", use_container_width=True):
+            apply_pick_selection()
 
-    if st.session_state.get("editor_status_msg"):
-        st.info(st.session_state.editor_status_msg)
+    status_msg = str(st.session_state.get("editor_status_msg", "")).strip()
+    if status_msg:
+        st.info(status_msg)
+
+    result = _get_selected_object()
+    if result != (None, None, None):
+        obj_type, idx, obj = result
+        with st.expander("Selected Object Details", expanded=True):
+            st.write(f"**Type:** {obj_type}")
+            st.write(f"**ID:** {obj.get('id', idx)}")
+            st.write(f"**X:** {float(obj.get('x', 0.0)):.2f} ft")
+            st.write(f"**Y:** {float(obj.get('y', 0.0)):.2f} ft")
+
+            if obj_type == "machine":
+                st.write(f"**Make:** {obj.get('Make', '')}")
+                st.write(f"**Model:** {obj.get('Model', '')}")
+                st.write(f"**Width:** {float(obj.get('Width', 0.0)):.2f} ft")
+                st.write(f"**Height:** {float(obj.get('Height', 0.0)):.2f} ft")
+                st.write(f"**Standoff:** {float(obj.get('Standoff', 0.0)):.2f} ft")
+
+            elif obj_type == "lighting":
+                st.write(f"**Make:** {obj.get('Make', '')}")
+                st.write(f"**Type:** {obj.get('Type', '')}")
+                st.write(f"**Wattage:** {obj.get('Wattage', '')}")
+                st.write(f"**Lux Target:** {obj.get('LuxTarget', '')}")
 
 
 def draw_interactive_editor_figure():
     floor_w = float(st.session_state.floor_w)
     floor_h = float(st.session_state.floor_h)
 
-    fig, ax = plt.subplots(figsize=(10, 6.5))
+    fig, ax = plt.subplots(figsize=(12, 6.5))
     fig.patch.set_facecolor("#0B1E2D")
     ax.set_facecolor("#0B1E2D")
 
     # Floor boundary
-    ax.plot(
-        [0, floor_w, floor_w, 0, 0],
-        [0, 0, floor_h, floor_h, 0],
-        color="#39FF14",
-        lw=2,
-        zorder=1,
+    floor_rect = patches.Rectangle(
+        (0, 0),
+        floor_w,
+        floor_h,
+        fill=False,
+        edgecolor="#39FF14",
+        linewidth=2.0,
+        zorder=2,
     )
+    ax.add_patch(floor_rect)
 
+    # Grid
     if st.session_state.editor_show_grid:
-        for xg in np.arange(0, floor_w + 0.001, 10.0):
-            ax.plot([xg, xg], [0, floor_h], color="#444444", lw=0.5, linestyle=":")
-        for yg in np.arange(0, floor_h + 0.001, 10.0):
-            ax.plot([0, floor_w], [yg, yg], color="#444444", lw=0.5, linestyle=":")
+        grid_step = float(st.session_state.editor_snap_ft)
+        if grid_step <= 0:
+            grid_step = 1.0
+
+        x = 0.0
+        while x <= floor_w:
+            ax.plot([x, x], [0, floor_h], color="#1F3B4D", lw=0.7, zorder=1)
+            x += grid_step
+
+        y = 0.0
+        while y <= floor_h:
+            ax.plot([0, floor_w], [y, y], color="#1F3B4D", lw=0.7, zorder=1)
+            y += grid_step
 
     selected_type = st.session_state.editor_selected_type
-    selected_idx = int(st.session_state.editor_selected_index)
+    selected_index = int(st.session_state.editor_selected_index)
 
     # Machines
     for idx, m in enumerate(st.session_state.placed_machines):
-        x = float(m["x"])
-        y = float(m["y"])
-        w = float(m.get("Width", 10.0))
-        h = float(m.get("Height", 8.0))
-        is_selected = selected_type == "machine" and idx == selected_idx
+        mx = float(m.get("x", 0.0))
+        my = float(m.get("y", 0.0))
+        mw = float(m.get("Width", 0.0))
+        mh = float(m.get("Height", 0.0))
+        so = float(m.get("Standoff", 0.0))
 
-        rect = plt.Rectangle(
-            (x - w / 2.0, y - h / 2.0),
-            w,
-            h,
-            fill=True,
-            color="#00A8E8" if not is_selected else "#FF6B6B",
-            alpha=0.75,
-            edgecolor="white",
-            lw=2 if is_selected else 1,
-            zorder=3,
+        is_selected = selected_type == "machine" and idx == selected_index
+
+        rect = patches.Rectangle(
+            (mx - mw / 2.0, my - mh / 2.0),
+            mw,
+            mh,
+            facecolor="#87CEEB" if not is_selected else "#00E5FF",
+            edgecolor="white" if not is_selected else "#FFD700",
+            linewidth=1.5 if not is_selected else 2.5,
+            alpha=0.9,
+            zorder=4,
         )
         ax.add_patch(rect)
 
+        standoff_circle = patches.Circle(
+            (mx, my),
+            radius=max(mw, mh) / 2.0 + so,
+            fill=False,
+            edgecolor="#FF6666" if not is_selected else "#FFD700",
+            linestyle=":",
+            linewidth=1.0 if not is_selected else 1.8,
+            zorder=3,
+        )
+        ax.add_patch(standoff_circle)
+
         if st.session_state.editor_show_labels:
+            label = m.get("id", f"M-{idx+1:03d}")
             ax.text(
-                x,
-                y,
-                f"M{idx+1}",
-                color="white",
-                fontsize=8,
+                mx,
+                my,
+                label,
                 ha="center",
                 va="center",
-                zorder=4,
+                color="white",
+                fontsize=8,
+                weight="bold",
+                zorder=5,
             )
 
     # Lighting
     for idx, l in enumerate(st.session_state.placed_lighting):
-        x = float(l["x"])
-        y = float(l["y"])
-        is_selected = selected_type == "lighting" and idx == selected_idx
+        lx = float(l.get("x", 0.0))
+        ly = float(l.get("y", 0.0))
 
-        ax.scatter(
-            [x],
-            [y],
-            s=120 if is_selected else 70,
-            c="#FFD700" if not is_selected else "#FF8C00",
-            edgecolors="black",
-            zorder=4,
+        is_selected = selected_type == "lighting" and idx == selected_index
+
+        ax.plot(
+            lx,
+            ly,
+            marker="o",
+            markersize=10 if not is_selected else 13,
+            color="gold" if not is_selected else "#00E5FF",
+            markeredgecolor="black" if not is_selected else "#FFD700",
+            markeredgewidth=1.0 if not is_selected else 1.8,
+            zorder=5,
         )
 
         if st.session_state.editor_show_labels:
+            label = l.get("id", f"L-{idx+1:03d}")
             ax.text(
-                x + 1.0,
-                y + 1.0,
-                f"L{idx+1}",
-                color="#FFD700",
+                lx + 1.0,
+                ly + 1.0,
+                label,
+                color="gold" if not is_selected else "#00E5FF",
                 fontsize=8,
-                zorder=5,
+                weight="bold",
+                zorder=6,
             )
-            
-    pick_x = float(st.session_state.get("editor_pick_x_input", 0.0))
-    pick_y = float(st.session_state.get("editor_pick_y_input", 0.0))
 
-    ax.scatter(
-        [pick_x],
-        [pick_y],
-        s=40,
-        c="#FFFFFF",
-        marker="x",
-        zorder=6,
-    )
-    ax.set_xlim(-5, floor_w + 5)
-    ax.set_ylim(-5, floor_h + 5)
+    # Pick marker
+    if (
+        "editor_last_pick_x" in st.session_state
+        and "editor_last_pick_y" in st.session_state
+    ):
+        px = float(st.session_state.editor_last_pick_x)
+        py = float(st.session_state.editor_last_pick_y)
+
+        ax.plot(
+            px,
+            py,
+            marker="x",
+            markersize=12,
+            color="#FF00FF",
+            markeredgewidth=2.0,
+            zorder=7,
+        )
+        ax.text(
+            px + 1.0,
+            py + 1.0,
+            "Pick",
+            color="#FF00FF",
+            fontsize=8,
+            weight="bold",
+            zorder=7,
+        )
+
+    ax.set_xlim(0, floor_w)
+    ax.set_ylim(0, floor_h)
     ax.set_aspect("equal")
     ax.set_xlabel("X (ft)", color="white")
     ax.set_ylabel("Y (ft)", color="white")
     ax.tick_params(colors="white")
-
     for spine in ax.spines.values():
         spine.set_color("white")
 
-    ax.set_title("Interactive 2D Editor - Phase 2A", color="white")
+    ax.set_title("Interactive 2D Layout Editor", color="white", fontsize=14)
     return fig
 
 
 def render_interactive_editor():
     render_interactive_editor_controls()
+
     fig = draw_interactive_editor_figure()
     st.pyplot(fig, use_container_width=True)
-    st.caption(
-        "Phase 2A note: this editor now supports improved interactive editing "
-        "for machines and lighting using direct coordinate edits and nudge "
-        "controls. True pointer drag/drop requires a custom interactive canvas layer."
-    )
