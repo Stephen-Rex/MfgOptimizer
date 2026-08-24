@@ -317,6 +317,14 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_clear_pending_move = False    
     if "editor_status_msg" not in st.session_state:
         st.session_state.editor_status_msg = ""
+    if "editor_move_step_ft" not in st.session_state:
+        st.session_state.editor_move_step_ft = 1.0
+    if "editor_coord_x_input" not in st.session_state:
+        st.session_state.editor_coord_x_input = 0.0
+    if "editor_coord_y_input" not in st.session_state:
+        st.session_state.editor_coord_y_input = 0.0
+    if "editor_clear_coord_inputs" not in st.session_state:
+        st.session_state.editor_clear_coord_inputs = False
 
     if "placed_machines" not in st.session_state:
         st.session_state.placed_machines = [
