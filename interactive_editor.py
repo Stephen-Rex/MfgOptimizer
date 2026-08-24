@@ -175,8 +175,7 @@ def apply_pick_selection():
     floor_h = float(st.session_state.floor_h)
     pick_x, pick_y = _clamp_to_floor(pick_x, pick_y, floor_w, floor_h)
 
-    st.session_state.editor_pick_x_input = pick_x
-    st.session_state.editor_pick_y_input = pick_y
+    # Store only in non-widget session keys
     st.session_state.editor_last_pick_x = pick_x
     st.session_state.editor_last_pick_y = pick_y
 
