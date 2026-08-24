@@ -163,6 +163,7 @@ def apply_imported_layout():
 
             # Minimal schema handling
             schema_version = imported_data.get("schema_version", "1.0")
+            st.session_state.schema_version = schema_version
 
             for key in [
                 "designer_name",
@@ -289,27 +290,27 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     if "dwg_num" not in st.session_state:
         st.session_state.dwg_num = "FFO-001"
 
-      # Interactive 2D Editor State
+    # Interactive 2D Editor State
     if "editor_enabled" not in st.session_state:
-      st.session_state.editor_enabled = False
+        st.session_state.editor_enabled = False
     if "editor_selected_type" not in st.session_state:
-      st.session_state.editor_selected_type = "machine"
+        st.session_state.editor_selected_type = "machine"
     if "editor_selected_index" not in st.session_state:
-      st.session_state.editor_selected_index = 0
+        st.session_state.editor_selected_index = 0
     if "editor_snap_enabled" not in st.session_state:
-      st.session_state.editor_snap_enabled = True
+        st.session_state.editor_snap_enabled = True
     if "editor_snap_ft" not in st.session_state:
-      st.session_state.editor_snap_ft = 1.0
+        st.session_state.editor_snap_ft = 1.0
     if "editor_show_grid" not in st.session_state:
-      st.session_state.editor_show_grid = True
+        st.session_state.editor_show_grid = True
     if "editor_show_labels" not in st.session_state:
-      st.session_state.editor_show_labels = True
+        st.session_state.editor_show_labels = True
     if "editor_pending_dx_ft" not in st.session_state:
-      st.session_state.editor_pending_dx_ft = 0.0
+        st.session_state.editor_pending_dx_ft = 0.0
     if "editor_pending_dy_ft" not in st.session_state:
-      st.session_state.editor_pending_dy_ft = 0.0
+        st.session_state.editor_pending_dy_ft = 0.0
     if "editor_status_msg" not in st.session_state:
-      st.session_state.editor_status_msg = ""
+        st.session_state.editor_status_msg = ""
 
     if "placed_machines" not in st.session_state:
         st.session_state.placed_machines = [
@@ -363,15 +364,17 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         ]
 
     if "placed_conduits" not in st.session_state:
-     st.session_state.placed_conduits = [{
-        "id": "C-001",
-        "label": "Power Main",
-        "utility_type": "electrical",
-        "x": [40.0, 100.0],
-        "y": [60.0, 45.0],
-        "depth_in": 36,
-        "warning_tape": True,
-    }]
+        st.session_state.placed_conduits = [
+            {
+                "id": "C-001",
+                "label": "Power Main",
+                "utility_type": "electrical",
+                "x": [40.0, 100.0],
+                "y": [60.0, 45.0],
+                "depth_in": 36,
+                "warning_tape": True,
+            }
+        ]
 
     if "placed_cranes" not in st.session_state:
         st.session_state.placed_cranes = [
@@ -407,13 +410,15 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.machine_flows = []
 
     if "path_points" not in st.session_state:
-      st.session_state.path_points = pd.DataFrame({
-        "Point": [1, 2, 3],
-        "X Coordinate": [20.00, 70.00, 150.00],
-        "Y Coordinate": [80.00, 50.00, 25.00],
-        "Safety Standoff (ft)": [5.00, 5.00, 5.00],
-        "Movement Speed": [5.00, 5.00, 5.00],
-        "Movement Mode": ["human", "human", "human"],
-    })
+        st.session_state.path_points = pd.DataFrame(
+            {
+                "Point": [1, 2, 3],
+                "X Coordinate": [20.00, 70.00, 150.00],
+                "Y Coordinate": [80.00, 50.00, 25.00],
+                "Safety Standoff (ft)": [5.00, 5.00, 5.00],
+                "Movement Speed": [5.00, 5.00, 5.00],
+                "Movement Mode": ["human", "human", "human"],
+            }
+        )
 
     ensure_object_ids()
