@@ -359,6 +359,45 @@ with tab_reports:
         mime="application/json",
         type="primary",
     )
+    st.subheader("Architectural Drawing Exports")
+
+    full_fig = build_full_layout_figure()
+    machine_fig = build_machine_layout_figure()
+    utility_fig = build_utility_layout_figure()
+
+    draw_col1, draw_col2, draw_col3 = st.columns(3)
+
+    with draw_col1:
+        st.caption("Full Layout Drawing")
+        st.pyplot(full_fig, use_container_width=True)
+        st.download_button(
+            label="⬇️ Download Full Layout PNG",
+            data=fig_to_png_bytes(full_fig),
+            file_name=f"{st.session_state.dwg_num}_full_layout.png",
+            mime="image/png",
+        )
+    
+    with draw_col2:
+        st.caption("Machine Drawing")
+        st.pyplot(machine_fig, use_container_width=True)
+        st.download_button(
+            label="⬇️ Download Machine Drawing PNG",
+            data=fig_to_png_bytes(machine_fig),
+            file_name=f"{st.session_state.dwg_num}_machine_layout.png",
+            mime="image/png",
+        )
+    
+    with draw_col3:
+        st.caption("Utility Routing Drawing")
+        st.pyplot(utility_fig, use_container_width=True)
+        st.download_button(
+            label="⬇️ Download Utility Drawing PNG",
+            data=fig_to_png_bytes(utility_fig),
+            file_name=f"{st.session_state.dwg_num}_utility_layout.png",
+            mime="image/png",
+        )
+
+    
 
     with st.expander("Preview Full Report Bundle JSON"):
         st.code(report_json, language="json")
