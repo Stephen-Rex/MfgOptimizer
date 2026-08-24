@@ -46,16 +46,25 @@ def validate_machine_record(machine, floor_w, floor_h):
         if field not in machine:
             return False, f"Machine missing required field: {field}"
 
-    if not validate_point_in_floor(machine["x"], machine["y"], floor_w, floor_h):
+    try:
+        x = float(machine["x"])
+        y = float(machine["y"])
+        width = float(machine["Width"])
+        height = float(machine["Height"])
+        standoff = float(machine["Standoff"])
+        floor_w = float(floor_w)
+        floor_h = float(floor_h)
+    except Exception:
+        return False, "Machine fields must be numeric where applicable."
+
+    if not (0.0 <= x <= floor_w and 0.0 <= y <= floor_h):
         return False, "Machine placement must be inside the factory floor."
 
-    try:
-        if float(machine["Width"]) <= 0 or float(machine["Height"]) <= 0:
-            return False, "Machine width and height must be positive."
-        if float(machine["Standoff"]) < 0:
-            return False, "Machine standoff cannot be negative."
-    except Exception:
-        return False, "Machine dimensions/standoff must be numeric."
+    if width <= 0 or height <= 0:
+        return False, "Machine width and height must be positive."
+
+    if standoff < 0:
+        return False, "Machine standoff cannot be negative."
 
     return True, ""
 
