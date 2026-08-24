@@ -1050,6 +1050,8 @@ def render_interactive_editor_controls():
 
 
 def render_interactive_editor():
+    _apply_pending_vertex_selection_if_any()
+
     if st.session_state.get("editor_prime_inputs", True):
         _prime_editor_inputs_from_selection()
         st.session_state.editor_prime_inputs = False
