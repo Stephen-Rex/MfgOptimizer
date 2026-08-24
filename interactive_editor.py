@@ -1,8 +1,8 @@
 # interactive_editor.py
 import math
-import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import streamlit as st
 
 
 def _snap_value(value, snap_ft, enabled=True):
@@ -18,11 +18,61 @@ def _clamp_to_floor(x, y, floor_w, floor_h):
     return x, y
 
 
+def _clamp_conduit_to_floor(x_vals, y_vals, floor_w, floor_h):
+    if not x_vals or not y_vals or len(x_vals) != len(y_vals):
+        return x_vals, y_vals
+
+    min_x = min(float(x) for x in x_vals)
+    max_x = max(float(x) for x in x_vals)
+    min_y = min(float(y) for y in y_vals)
+    max_y = max(float(y) for y in y_vals)
+
+    shift_x = 0.0
+    shift_y = 0.0
+
+    if min_x < 0.0:
+        shift_x = -min_x
+    elif max_x > floor_w:
+        shift_x = floor_w - max_x
+
+    if min_y < 0.0:
+        shift_y = -min_y
+    elif max_y > floor_h:
+        shift_y = floor_h - max_y
+
+    new_x = [float(x) + shift_x for x in x_vals]
+    new_y = [float(y) + shift_y for y in y_vals]
+    return new_x, new_y
+
+
+def _clamp_crane_box(ll_x, ll_y, ur_x, ur_y, floor_w, floor_h):
+    ll_x = float(ll_x)
+    ll_y = float(ll_y)
+    ur_x = float(ur_x)
+    ur_y = float(ur_y)
+    floor_w = float(floor_w)
+    floor_h = float(floor_h)
+
+    width = max(0.1, ur_x - ll_x)
+    height = max(0.1, ur_y - ll_y)
+
+    ll_x = max(0.0, min(ll_x, floor_w - width))
+    ll_y = max(0.0, min(ll_y, floor_h - height))
+    ur_x = ll_x + width
+    ur_y = ll_y + height
+
+    return ll_x, ll_y, ur_x, ur_y
+
+
 def _get_object_list(obj_type):
     if obj_type == "machine":
         return st.session_state.placed_machines
     if obj_type == "lighting":
         return st.session_state.placed_lighting
+    if obj_type == "conduit":
+        return st.session_state.placed_conduits
+    if obj_type == "crane":
+        return st.session_state.placed_cranes
     return []
 
 
@@ -39,6 +89,16 @@ def _get_object_label(obj_type, obj, idx):
         make = str(obj.get("Make", "")).strip()
         fixture_type = str(obj.get("Type", "")).strip()
         suffix = f"{make} {fixture_type}".strip()
+        return f"{obj_id} - {suffix}" if suffix else obj_id
+
+    if obj_type == "conduit":
+        label = str(obj.get("label", "")).strip()
+        return f"{obj_id} - {label}" if label else obj_id
+
+    if obj_type == "crane":
+        make = str(obj.get("make", "")).strip()
+        model = str(obj.get("model", "")).strip()
+        suffix = f"{make} {model}".strip()
         return f"{obj_id} - {suffix}" if suffix else obj_id
 
     return obj_id
@@ -69,20 +129,49 @@ def _get_selected_object():
     return obj_type, idx, items[idx]
 
 
+def _object_center(obj_type, obj):
+    if obj_type in ["machine", "lighting"]:
+        return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
+
+    if obj_type == "conduit":
+        xs = [float(v) for v in obj.get("x", [])]
+        ys = [float(v) for v in obj.get("y", [])]
+        if xs and ys and len(xs) == len(ys):
+            return sum(xs) / len(xs), sum(ys) / len(ys)
+        return 0.0, 0.0
+
+    if obj_type == "crane":
+        ll_x = float(obj.get("ll_x", 0.0))
+        ll_y = float(obj.get("ll_y", 0.0))
+        ur_x = float(obj.get("ur_x", 0.0))
+        ur_y = float(obj.get("ur_y", 0.0))
+        return (ll_x + ur_x) / 2.0, (ll_y + ur_y) / 2.0
+
+    return 0.0, 0.0
+
+
 def _prime_editor_inputs_from_selection():
-    """
-    Safe pre-widget sync:
-    populate widget-backed values only before widgets are instantiated.
-    """
     result = _get_selected_object()
     if result == (None, None, None):
         st.session_state["editor_coord_x_input"] = 0.0
         st.session_state["editor_coord_y_input"] = 0.0
+        st.session_state["editor_box_ll_x_input"] = 0.0
+        st.session_state["editor_box_ll_y_input"] = 0.0
+        st.session_state["editor_box_ur_x_input"] = 0.0
+        st.session_state["editor_box_ur_y_input"] = 0.0
         return
 
-    _, _, obj = result
-    st.session_state["editor_coord_x_input"] = float(obj.get("x", 0.0))
-    st.session_state["editor_coord_y_input"] = float(obj.get("y", 0.0))
+    obj_type, _, obj = result
+
+    cx, cy = _object_center(obj_type, obj)
+    st.session_state["editor_coord_x_input"] = float(cx)
+    st.session_state["editor_coord_y_input"] = float(cy)
+
+    if obj_type == "crane":
+        st.session_state["editor_box_ll_x_input"] = float(obj.get("ll_x", 0.0))
+        st.session_state["editor_box_ll_y_input"] = float(obj.get("ll_y", 0.0))
+        st.session_state["editor_box_ur_x_input"] = float(obj.get("ur_x", 0.0))
+        st.session_state["editor_box_ur_y_input"] = float(obj.get("ur_y", 0.0))
 
 
 def _set_selected_xy(new_x, new_y):
@@ -102,14 +191,117 @@ def _set_selected_xy(new_x, new_y):
         new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
         new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
 
-    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+    if obj_type in ["machine", "lighting"]:
+        new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+        obj["x"] = new_x
+        obj["y"] = new_y
+        st.session_state.editor_status_msg = (
+            f"Moved {obj_type} {obj.get('id', idx)} to "
+            f"X={new_x:.2f} ft, Y={new_y:.2f} ft."
+        )
+        return
 
-    obj["x"] = new_x
-    obj["y"] = new_y
+    if obj_type == "conduit":
+        old_cx, old_cy = _object_center(obj_type, obj)
+        dx = new_x - old_cx
+        dy = new_y - old_cy
+
+        x_vals = [float(v) + dx for v in obj.get("x", [])]
+        y_vals = [float(v) + dy for v in obj.get("y", [])]
+
+        if st.session_state.editor_snap_enabled:
+            x_vals = [_snap_value(v, st.session_state.editor_snap_ft, True) for v in x_vals]
+            y_vals = [_snap_value(v, st.session_state.editor_snap_ft, True) for v in y_vals]
+
+        x_vals, y_vals = _clamp_conduit_to_floor(x_vals, y_vals, floor_w, floor_h)
+        obj["x"] = x_vals
+        obj["y"] = y_vals
+
+        new_cx, new_cy = _object_center(obj_type, obj)
+        st.session_state.editor_status_msg = (
+            f"Moved conduit {obj.get('id', idx)} to "
+            f"center X={new_cx:.2f} ft, Y={new_cy:.2f} ft."
+        )
+        return
+
+    if obj_type == "crane":
+        ll_x = float(obj.get("ll_x", 0.0))
+        ll_y = float(obj.get("ll_y", 0.0))
+        ur_x = float(obj.get("ur_x", 0.0))
+        ur_y = float(obj.get("ur_y", 0.0))
+
+        old_cx = (ll_x + ur_x) / 2.0
+        old_cy = (ll_y + ur_y) / 2.0
+        dx = new_x - old_cx
+        dy = new_y - old_cy
+
+        ll_x += dx
+        ll_y += dy
+        ur_x += dx
+        ur_y += dy
+
+        if st.session_state.editor_snap_enabled:
+            ll_x = _snap_value(ll_x, st.session_state.editor_snap_ft, True)
+            ll_y = _snap_value(ll_y, st.session_state.editor_snap_ft, True)
+            ur_x = _snap_value(ur_x, st.session_state.editor_snap_ft, True)
+            ur_y = _snap_value(ur_y, st.session_state.editor_snap_ft, True)
+
+        ll_x, ll_y, ur_x, ur_y = _clamp_crane_box(
+            ll_x, ll_y, ur_x, ur_y, floor_w, floor_h
+        )
+
+        obj["ll_x"] = ll_x
+        obj["ll_y"] = ll_y
+        obj["ur_x"] = ur_x
+        obj["ur_y"] = ur_y
+
+        st.session_state.editor_status_msg = (
+            f"Moved crane {obj.get('id', idx)} to "
+            f"center X={(ll_x + ur_x)/2.0:.2f} ft, Y={(ll_y + ur_y)/2.0:.2f} ft."
+        )
+        return
+
+
+def _set_selected_crane_box(ll_x, ll_y, ur_x, ur_y):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No object selected."
+        return
+
+    obj_type, idx, obj = result
+    if obj_type != "crane":
+        st.session_state.editor_status_msg = "Bounding box edit applies to cranes only."
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    ll_x = float(ll_x)
+    ll_y = float(ll_y)
+    ur_x = float(ur_x)
+    ur_y = float(ur_y)
+
+    if ur_x <= ll_x or ur_y <= ll_y:
+        st.session_state.editor_status_msg = (
+            "Invalid crane box: upper-right must be greater than lower-left."
+        )
+        return
+
+    if st.session_state.editor_snap_enabled:
+        ll_x = _snap_value(ll_x, st.session_state.editor_snap_ft, True)
+        ll_y = _snap_value(ll_y, st.session_state.editor_snap_ft, True)
+        ur_x = _snap_value(ur_x, st.session_state.editor_snap_ft, True)
+        ur_y = _snap_value(ur_y, st.session_state.editor_snap_ft, True)
+
+    ll_x, ll_y, ur_x, ur_y = _clamp_crane_box(ll_x, ll_y, ur_x, ur_y, floor_w, floor_h)
+
+    obj["ll_x"] = ll_x
+    obj["ll_y"] = ll_y
+    obj["ur_x"] = ur_x
+    obj["ur_y"] = ur_y
 
     st.session_state.editor_status_msg = (
-        f"Moved {obj_type} {obj.get('id', idx)} to "
-        f"X={new_x:.2f} ft, Y={new_y:.2f} ft."
+        f"Updated crane {obj.get('id', idx)} bounding box."
     )
 
 
@@ -122,6 +314,8 @@ def apply_editor_coordinate_update():
         return
 
     _set_selected_xy(new_x, new_y)
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
 
 
 def apply_editor_nudge(dx, dy):
@@ -130,16 +324,26 @@ def apply_editor_nudge(dx, dy):
         st.session_state.editor_status_msg = "No object selected."
         return
 
-    _, _, obj = result
-    cur_x = float(obj.get("x", 0.0))
-    cur_y = float(obj.get("y", 0.0))
+    obj_type, _, obj = result
+    cur_x, cur_y = _object_center(obj_type, obj)
     _set_selected_xy(cur_x + dx, cur_y + dy)
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
 
 
-def _object_center(obj_type, obj):
-    if obj_type in ["machine", "lighting"]:
-        return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
-    return 0.0, 0.0
+def apply_crane_box_update():
+    try:
+        ll_x = float(st.session_state.editor_box_ll_x_input)
+        ll_y = float(st.session_state.editor_box_ll_y_input)
+        ur_x = float(st.session_state.editor_box_ur_x_input)
+        ur_y = float(st.session_state.editor_box_ur_y_input)
+    except Exception:
+        st.session_state.editor_status_msg = "Invalid crane box input."
+        return
+
+    _set_selected_crane_box(ll_x, ll_y, ur_x, ur_y)
+    st.session_state.editor_prime_inputs = True
+    st.rerun()
 
 
 def _select_nearest_object(obj_type, pick_x, pick_y):
@@ -163,15 +367,11 @@ def _select_nearest_object(obj_type, pick_x, pick_y):
         return
 
     st.session_state.editor_selected_index = best_idx
-
     sel_obj = items[best_idx]
     st.session_state.editor_status_msg = (
         f"Selected nearest {obj_type}: "
-        f"{sel_obj.get('id', best_idx)} "
-        f"at distance {best_dist:.2f} ft."
+        f"{sel_obj.get('id', best_idx)} at distance {best_dist:.2f} ft."
     )
-
-    # Request a safe sync of coordinate input boxes on next rerun
     st.session_state.editor_prime_inputs = True
 
 
@@ -187,13 +387,11 @@ def apply_pick_selection():
     floor_h = float(st.session_state.floor_h)
     pick_x, pick_y = _clamp_to_floor(pick_x, pick_y, floor_w, floor_h)
 
-    # Store only in non-widget keys
     st.session_state.editor_last_pick_x = pick_x
     st.session_state.editor_last_pick_y = pick_y
 
     obj_type = st.session_state.editor_selected_type
     _select_nearest_object(obj_type, pick_x, pick_y)
-
     st.rerun()
 
 
@@ -219,7 +417,6 @@ def draw_interactive_editor_figure():
     fig.patch.set_facecolor("#0B1E2D")
     ax.set_facecolor("#0B1E2D")
 
-    # Floor boundary
     floor_rect = patches.Rectangle(
         (0, 0),
         floor_w,
@@ -231,7 +428,6 @@ def draw_interactive_editor_figure():
     )
     ax.add_patch(floor_rect)
 
-    # Grid
     if st.session_state.editor_show_grid:
         grid_step = float(st.session_state.editor_snap_ft)
         if grid_step <= 0:
@@ -249,6 +445,77 @@ def draw_interactive_editor_figure():
 
     selected_type = st.session_state.editor_selected_type
     selected_index = int(st.session_state.editor_selected_index)
+
+    # Conduits
+    for idx, cond in enumerate(st.session_state.placed_conduits):
+        xs = [float(v) for v in cond.get("x", [])]
+        ys = [float(v) for v in cond.get("y", [])]
+        if len(xs) >= 2 and len(xs) == len(ys):
+            is_selected = selected_type == "conduit" and idx == selected_index
+            ax.plot(
+                xs,
+                ys,
+                color="#FFA500" if not is_selected else "#00E5FF",
+                lw=2.0 if not is_selected else 3.0,
+                zorder=3,
+            )
+            ax.scatter(
+                xs,
+                ys,
+                color="#FFD700" if not is_selected else "#FFFFFF",
+                s=20 if not is_selected else 35,
+                zorder=4,
+            )
+            if st.session_state.editor_show_labels:
+                cx, cy = _object_center("conduit", cond)
+                ax.text(
+                    cx,
+                    cy,
+                    cond.get("id", f"C-{idx+1:03d}"),
+                    color="white",
+                    fontsize=8,
+                    weight="bold",
+                    ha="center",
+                    va="bottom",
+                    zorder=5,
+                )
+
+    # Cranes
+    for idx, cr in enumerate(st.session_state.placed_cranes):
+        ll_x = float(cr.get("ll_x", 0.0))
+        ll_y = float(cr.get("ll_y", 0.0))
+        ur_x = float(cr.get("ur_x", 0.0))
+        ur_y = float(cr.get("ur_y", 0.0))
+
+        is_selected = selected_type == "crane" and idx == selected_index
+
+        rect = patches.Rectangle(
+            (ll_x, ll_y),
+            ur_x - ll_x,
+            ur_y - ll_y,
+            fill=True,
+            facecolor="#A0A0A0",
+            alpha=0.25 if not is_selected else 0.35,
+            edgecolor="#D3D3D3" if not is_selected else "#FFD700",
+            linewidth=1.5 if not is_selected else 2.5,
+            linestyle="--",
+            zorder=2,
+        )
+        ax.add_patch(rect)
+
+        if st.session_state.editor_show_labels:
+            cx, cy = _object_center("crane", cr)
+            ax.text(
+                cx,
+                cy,
+                cr.get("id", f"CR-{idx+1:03d}"),
+                color="white",
+                fontsize=8,
+                weight="bold",
+                ha="center",
+                va="center",
+                zorder=5,
+            )
 
     # Machines
     for idx, m in enumerate(st.session_state.placed_machines):
@@ -284,11 +551,10 @@ def draw_interactive_editor_figure():
         ax.add_patch(standoff_circle)
 
         if st.session_state.editor_show_labels:
-            label = m.get("id", f"M-{idx+1:03d}")
             ax.text(
                 mx,
                 my,
-                label,
+                m.get("id", f"M-{idx+1:03d}"),
                 ha="center",
                 va="center",
                 color="white",
@@ -315,11 +581,10 @@ def draw_interactive_editor_figure():
         )
 
         if st.session_state.editor_show_labels:
-            label = l.get("id", f"L-{idx+1:03d}")
             ax.text(
                 lx + 1.0,
                 ly + 1.0,
-                label,
+                l.get("id", f"L-{idx+1:03d}"),
                 color="gold" if not is_selected else "#00E5FF",
                 fontsize=8,
                 weight="bold",
@@ -330,7 +595,6 @@ def draw_interactive_editor_figure():
     if "editor_last_pick_x" in st.session_state and "editor_last_pick_y" in st.session_state:
         px = float(st.session_state.editor_last_pick_x)
         py = float(st.session_state.editor_last_pick_y)
-
         ax.plot(
             px,
             py,
@@ -374,7 +638,7 @@ def render_interactive_editor_controls():
 
         st.selectbox(
             "Object Type",
-            options=["machine", "lighting"],
+            options=["machine", "lighting", "conduit", "crane"],
             key="editor_selected_type",
             on_change=_on_object_type_change,
         )
@@ -412,18 +676,9 @@ def render_interactive_editor_controls():
         st.checkbox("Show Labels", key="editor_show_labels")
 
     with ctrl_col2:
-        st.markdown("**Direct Coordinate Edit**")
-
-        st.number_input(
-            "Selected X (ft)",
-            step=0.5,
-            key="editor_coord_x_input",
-        )
-        st.number_input(
-            "Selected Y (ft)",
-            step=0.5,
-            key="editor_coord_y_input",
-        )
+        st.markdown("**Direct Coordinate Edit / Center Move**")
+        st.number_input("Selected X / Center X (ft)", step=0.5, key="editor_coord_x_input")
+        st.number_input("Selected Y / Center Y (ft)", step=0.5, key="editor_coord_y_input")
 
         if st.button("Apply Coordinates", use_container_width=True):
             apply_editor_coordinate_update()
@@ -440,37 +695,32 @@ def render_interactive_editor_controls():
         with n2:
             if st.button("⬆ Up", use_container_width=True):
                 apply_editor_nudge(0.0, float(st.session_state.editor_move_step_ft))
-                st.rerun()
-
         with n1:
             if st.button("⬅ Left", use_container_width=True):
                 apply_editor_nudge(-float(st.session_state.editor_move_step_ft), 0.0)
-                st.rerun()
-
         with n2:
             if st.button("⬇ Down", use_container_width=True):
                 apply_editor_nudge(0.0, -float(st.session_state.editor_move_step_ft))
-                st.rerun()
-
         with n3:
             if st.button("➡ Right", use_container_width=True):
                 apply_editor_nudge(float(st.session_state.editor_move_step_ft), 0.0)
-                st.rerun()
 
         st.markdown("**Pick Nearest Object by Floor Coordinate**")
-        st.number_input(
-            "Pick X (ft)",
-            step=0.5,
-            key="editor_pick_x_input",
-        )
-        st.number_input(
-            "Pick Y (ft)",
-            step=0.5,
-            key="editor_pick_y_input",
-        )
+        st.number_input("Pick X (ft)", step=0.5, key="editor_pick_x_input")
+        st.number_input("Pick Y (ft)", step=0.5, key="editor_pick_y_input")
 
         if st.button("Select Nearest Object", use_container_width=True):
             apply_pick_selection()
+
+        if st.session_state.editor_selected_type == "crane":
+            st.markdown("**Crane Bounding Box Edit**")
+            st.number_input("Lower Left X (ft)", step=0.5, key="editor_box_ll_x_input")
+            st.number_input("Lower Left Y (ft)", step=0.5, key="editor_box_ll_y_input")
+            st.number_input("Upper Right X (ft)", step=0.5, key="editor_box_ur_x_input")
+            st.number_input("Upper Right Y (ft)", step=0.5, key="editor_box_ur_y_input")
+
+            if st.button("Apply Crane Box", use_container_width=True):
+                apply_crane_box_update()
 
     status_msg = str(st.session_state.get("editor_status_msg", "")).strip()
     if status_msg:
@@ -482,30 +732,24 @@ def render_interactive_editor_controls():
         with st.expander("Selected Object Details", expanded=True):
             st.write(f"**Type:** {obj_type}")
             st.write(f"**ID:** {obj.get('id', idx)}")
-            st.write(f"**X:** {float(obj.get('x', 0.0)):.2f} ft")
-            st.write(f"**Y:** {float(obj.get('y', 0.0)):.2f} ft")
 
-            if obj_type == "machine":
-                st.write(f"**Make:** {obj.get('Make', '')}")
-                st.write(f"**Model:** {obj.get('Model', '')}")
-                st.write(f"**Width:** {float(obj.get('Width', 0.0)):.2f} ft")
-                st.write(f"**Height:** {float(obj.get('Height', 0.0)):.2f} ft")
-                st.write(f"**Standoff:** {float(obj.get('Standoff', 0.0)):.2f} ft")
+            cx, cy = _object_center(obj_type, obj)
+            st.write(f"**Center X:** {cx:.2f} ft")
+            st.write(f"**Center Y:** {cy:.2f} ft")
 
-            elif obj_type == "lighting":
-                st.write(f"**Make:** {obj.get('Make', '')}")
-                st.write(f"**Type:** {obj.get('Type', '')}")
-                st.write(f"**Wattage:** {obj.get('Wattage', '')}")
-                st.write(f"**Lux Target:** {obj.get('LuxTarget', '')}")
+            if obj_type == "crane":
+                st.write(f"**LL:** ({float(obj.get('ll_x', 0.0)):.2f}, {float(obj.get('ll_y', 0.0)):.2f})")
+                st.write(f"**UR:** ({float(obj.get('ur_x', 0.0)):.2f}, {float(obj.get('ur_y', 0.0)):.2f})")
+
+            if obj_type == "conduit":
+                st.write(f"**Points:** {len(obj.get('x', []))}")
 
 
 def render_interactive_editor():
-    # Safe pre-widget priming
     if st.session_state.get("editor_prime_inputs", True):
         _prime_editor_inputs_from_selection()
         st.session_state.editor_prime_inputs = False
 
     render_interactive_editor_controls()
-
     fig = draw_interactive_editor_figure()
-    st.pyplot(fig, use_container_width=True) 
+    st.pyplot(fig, use_container_width=True)
