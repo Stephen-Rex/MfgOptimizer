@@ -162,6 +162,15 @@ def sync_selected_object_inputs():
         st.session_state["editor_coord_x_input"] = float(obj.get("x", 0.0))
         st.session_state["editor_coord_y_input"] = float(obj.get("y", 0.0))
 
+def apply_pick_selection():
+    obj_type = st.session_state.editor_selected_type
+    pick_x = float(st.session_state.get("editor_pick_x_input", 0.0))
+    pick_y = float(st.session_state.get("editor_pick_y_input", 0.0))
+
+    pick_x = min(max(pick_x, 0.0), float(st.session_state.floor_w))
+    pick_y = min(max(pick_y, 0.0), float(st.session_state.floor_h))
+
+    _select_nearest_object(obj_type, pick_x, pick_y)
 
 def render_interactive_editor_controls():
     if st.session_state.get("editor_clear_pending_move", False):
@@ -225,6 +234,38 @@ def render_interactive_editor_controls():
 
     obj_type, idx, obj, objs = _get_selected_object()
 
+    st.markdown("### Pick Nearest Object by Floor Coordinate")
+
+    pick_col1, pick_col2, pick_col3 = st.columns([1, 1, 1])
+
+    with pick_col1:
+        st.number_input(
+            "Pick X (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_w),
+            step=0.5,
+            key="editor_pick_x_input",
+        )
+
+    with pick_col2:
+        st.number_input(
+            "Pick Y (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_h),
+            step=0.5,
+            key="editor_pick_y_input",
+        )
+
+    with pick_col3:
+        st.write("")
+        st.write("")
+        if st.button("Select Nearest Object", key="editor_pick_btn"):
+            apply_pick_selection()
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    
+    
+    
+    
     st.markdown("### Selected Object Position")
 
     pos1, pos2, pos3 = st.columns([1, 1, 1])
@@ -401,7 +442,18 @@ def draw_interactive_editor_figure():
                 fontsize=8,
                 zorder=5,
             )
+            
+    pick_x = float(st.session_state.get("editor_pick_x_input", 0.0))
+    pick_y = float(st.session_state.get("editor_pick_y_input", 0.0))
 
+    ax.scatter(
+        [pick_x],
+        [pick_y],
+        s=40,
+        c="#FFFFFF",
+        marker="x",
+        zorder=6,
+    )
     ax.set_xlim(-5, floor_w + 5)
     ax.set_ylim(-5, floor_h + 5)
     ax.set_aspect("equal")
