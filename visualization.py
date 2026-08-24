@@ -22,6 +22,7 @@ def draw_asme_drawing(
     show_safety=False,
     show_contour=False,
     show_decibel=False,
+    show_locator_dims=False,
     designer_name='FACILITY ARCHITECTS INC.',
     dwg_title='Factory Layout Blueprint',
     dwg_num='FFO-001',
@@ -460,6 +461,65 @@ def draw_asme_drawing(
           lw=1.5,
           zorder=4,
       )
+      if show_locator_dims:
+        # Reference point = machine anchor (current x,y)
+        x_ft = float(m['x'])
+        y_ft = float(m['y'])
+        w_ft = float(m.get('Width', 0.0))
+        h_ft = float(m.get('Height', 0.0))
+
+        # Dimension line style
+        dim_color = '#00E5FF'
+        ext_color = '#AAAAAA'
+        txt_color = '#FFFFFF'
+
+        # X locator dimension: from left floor boundary to machine x
+        x_dim_y = O_y - 0.8
+        ax.plot([O_x, mx_in], [x_dim_y, x_dim_y], color=dim_color, lw=1.0, zorder=6)
+        ax.plot([O_x, O_x], [x_dim_y + 0.1, O_y], color=ext_color, lw=0.8, zorder=6)
+        ax.plot([mx_in, mx_in], [x_dim_y + 0.1, my_in], color=ext_color, lw=0.8, zorder=6)
+        ax.text(
+            (O_x + mx_in) / 2.0,
+            x_dim_y - 0.15,
+            f"X = {x_ft:.1f} ft",
+            fontsize=6,
+            color=txt_color,
+            ha='center',
+            va='top',
+            zorder=7,
+            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.5),
+        )
+
+        # Y locator dimension: from bottom floor boundary to machine y
+        y_dim_x = O_x - 0.8
+        ax.plot([y_dim_x, y_dim_x], [O_y, my_in], color=dim_color, lw=1.0, zorder=6)
+        ax.plot([y_dim_x + 0.1, O_x], [O_y, O_y], color=ext_color, lw=0.8, zorder=6)
+        ax.plot([y_dim_x + 0.1, mx_in], [my_in, my_in], color=ext_color, lw=0.8, zorder=6)
+        ax.text(
+            y_dim_x - 0.1,
+            (O_y + my_in) / 2.0,
+            f"Y = {y_ft:.1f} ft",
+            fontsize=6,
+            color=txt_color,
+            ha='right',
+            va='center',
+            rotation=90,
+            zorder=7,
+            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.5),
+        )
+
+        # Footprint note above machine
+        ax.text(
+            mx_in + mw_in / 2.0,
+            my_in + mh_in + 0.15,
+            f"{w_ft:.1f}' x {h_ft:.1f}'",
+            fontsize=6,
+            color='#FFD700',
+            ha='center',
+            va='bottom',
+            zorder=7,
+            bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.45, pad=1.2),
+        )  
       ax.add_patch(rect)
       m_label = f'M{idx+1}'
       ax.text(
