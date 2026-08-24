@@ -329,6 +329,14 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_pick_x_input = 0.0
     if "editor_pick_y_input" not in st.session_state:
         st.session_state.editor_pick_y_input = 0.0
+    if "editor_box_ll_x_input" not in st.session_state:
+        st.session_state.editor_box_ll_x_input = 0.0
+    if "editor_box_ll_y_input" not in st.session_state:
+        st.session_state.editor_box_ll_y_input = 0.0
+    if "editor_box_ur_x_input" not in st.session_state:
+        st.session_state.editor_box_ur_x_input = 0.0
+    if "editor_box_ur_y_input" not in st.session_state:
+        st.session_state.editor_box_ur_y_input = 0.0    
     
 
     if "placed_machines" not in st.session_state:
