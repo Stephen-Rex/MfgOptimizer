@@ -152,25 +152,22 @@ def _object_center(obj_type, obj):
     return 0.0, 0.0
 
 
-def _normalize_selected_vertex_index():
+def _get_safe_selected_vertex_index():
     result = _get_selected_object()
     if result == (None, None, None):
-        st.session_state.editor_selected_vertex_index = 0
-        return
+        return 0
 
     obj_type, _, obj = result
     if obj_type != "conduit":
-        st.session_state.editor_selected_vertex_index = 0
-        return
+        return 0
 
     point_count = len(obj.get("x", []))
     if point_count <= 0:
-        st.session_state.editor_selected_vertex_index = 0
-        return
+        return 0
 
     idx = int(st.session_state.get("editor_selected_vertex_index", 0))
     idx = max(0, min(idx, point_count - 1))
-    st.session_state.editor_selected_vertex_index = idx
+    return idx
 
 
 def _prime_editor_inputs_from_selection():
@@ -199,11 +196,10 @@ def _prime_editor_inputs_from_selection():
         st.session_state["editor_box_ur_y_input"] = float(obj.get("ur_y", 0.0))
 
     if obj_type == "conduit":
-        _normalize_selected_vertex_index()
         vx = obj.get("x", [])
         vy = obj.get("y", [])
         if vx and vy and len(vx) == len(vy):
-            vidx = int(st.session_state.editor_selected_vertex_index)
+            vidx = _get_safe_selected_vertex_index()
             st.session_state["editor_vertex_x_input"] = float(vx[vidx])
             st.session_state["editor_vertex_y_input"] = float(vy[vidx])
         else:
@@ -360,8 +356,7 @@ def _set_selected_conduit_vertex(new_x, new_y):
         st.session_state.editor_status_msg = "Selected conduit has invalid point data."
         return
 
-    _normalize_selected_vertex_index()
-    vidx = int(st.session_state.editor_selected_vertex_index)
+    vidx = _get_safe_selected_vertex_index()
 
     floor_w = float(st.session_state.floor_w)
     floor_h = float(st.session_state.floor_h)
@@ -405,8 +400,7 @@ def _add_conduit_vertex_after_selected():
         st.session_state.editor_status_msg = "Selected conduit has invalid point data."
         return
 
-    _normalize_selected_vertex_index()
-    vidx = int(st.session_state.editor_selected_vertex_index)
+    vidx = _get_safe_selected_vertex_index()
 
     if vidx < len(x_vals) - 1:
         new_x = (x_vals[vidx] + x_vals[vidx + 1]) / 2.0
@@ -464,8 +458,7 @@ def _delete_selected_conduit_vertex():
         )
         return
 
-    _normalize_selected_vertex_index()
-    vidx = int(st.session_state.editor_selected_vertex_index)
+    vidx = _get_safe_selected_vertex_index()
 
     x_vals.pop(vidx)
     y_vals.pop(vidx)
@@ -544,8 +537,7 @@ def apply_conduit_vertex_nudge(dx, dy):
         st.session_state.editor_status_msg = "Vertex nudge applies to conduits only."
         return
 
-    _normalize_selected_vertex_index()
-    vidx = int(st.session_state.editor_selected_vertex_index)
+    vidx = _get_safe_selected_vertex_index()
     x_vals = obj.get("x", [])
     y_vals = obj.get("y", [])
     if len(x_vals) <= vidx or len(y_vals) <= vidx:
@@ -918,7 +910,7 @@ def render_interactive_editor_controls():
                 _, _, cond = result
                 point_count = len(cond.get("x", []))
                 if point_count > 0:
-                    _normalize_selected_vertex_index()
+                    vidx = _get_safe_selected_vertex_index()
                     vertex_options = list(range(point_count))
                     st.selectbox(
                         "Selected Conduit Vertex",
