@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
+import json
+import numpy as np
+import pandas as pd
+import streamlit as st
 from engine import (
     calculate_production_metrics,
     run_layout_analysis,
@@ -233,3 +237,47 @@ with tab_io:
 with tab_lib:
   render_libraries_tab(machinery_lib, lighting_lib, crane_lib)
 
+with tab_reports:
+    st.header("🧾 Project Reports")
+
+    report_bundle = build_full_report_bundle(st.session_state, active_workflow_paths)
+
+    summary_report = report_bundle["project_summary"]
+    safety_report = report_bundle["safety_report"]
+    production_report = report_bundle["production_report"]
+    utility_report = report_bundle["utility_report"]
+    machine_schedule = report_bundle["machine_schedule"]
+
+    st.subheader("Project Summary")
+    st.json(summary_report, expanded=False)
+
+    st.subheader("Safety / Spatial Warning Report")
+    if safety_report["warning_count"] > 0:
+        st.warning(f"{safety_report['warning_count']} warning(s) found.")
+        for w in safety_report["warnings"]:
+            st.write(f"- {w}")
+    else:
+        st.success("No implemented spatial/configured-rule warnings detected.")
+
+    st.subheader("Production Metrics Report")
+    st.json(production_report, expanded=False)
+
+    st.subheader("Utility Routing Report")
+    st.dataframe(pd.DataFrame(utility_report["utilities"]), use_container_width=True)
+
+    st.subheader("Machine Schedule")
+    st.dataframe(pd.DataFrame(machine_schedule["machines"]), use_container_width=True)
+
+    st.subheader("Download Report Bundle")
+    report_json = json.dumps(report_bundle, indent=2)
+
+    st.download_button(
+        label="⬇️ Download Full Report Bundle (.json)",
+        data=report_json,
+        file_name=f"factory_report_{st.session_state.dwg_num.replace(' ', '_')}.json",
+        mime="application/json",
+        type="primary",
+    )
+
+    with st.expander("Preview Full Report Bundle JSON"):
+        st.code(report_json, language="json")
