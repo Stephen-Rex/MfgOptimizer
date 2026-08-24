@@ -556,6 +556,11 @@ def apply_add_conduit_vertex():
     st.session_state.editor_prime_inputs = True
     st.rerun()
 
+def _apply_pending_vertex_selection_if_any():
+    pending_idx = st.session_state.get("editor_pending_vertex_index", None)
+    if pending_idx is not None:
+        st.session_state["editor_selected_vertex_index"] = int(pending_idx)
+        st.session_state["editor_pending_vertex_index"] = None
 
 def apply_delete_conduit_vertex():
     _delete_selected_conduit_vertex()
