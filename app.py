@@ -197,6 +197,7 @@ if viewport_mode == "📐 2D ASME Y14.1 Blueprint View":
       show_safety=st.session_state.show_safety,
       show_contour=st.session_state.show_contour,
       show_decibel=st.session_state.show_decibel,
+      show_locator_dims=st.session_state.show_locator_dims,
       designer_name=st.session_state.designer_name,
       dwg_title=st.session_state.dwg_title,
       dwg_num=st.session_state.dwg_num,
