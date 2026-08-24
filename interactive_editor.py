@@ -38,8 +38,8 @@ def _get_object_label(obj_type, idx, obj):
 def apply_editor_nudge():
   obj_type = st.session_state.editor_selected_type
   idx = int(st.session_state.editor_selected_index)
-  dx = float(st.session_state.editor_pending_dx_ft)
-  dy = float(st.session_state.editor_pending_dy_ft)
+  dx = float(st.session_state.get("editor_pending_dx_ft_input", 0.0))
+  dy = float(st.session_state.get("editor_pending_dy_ft_input", 0.0))
 
   snap_enabled = bool(st.session_state.editor_snap_enabled)
   snap_ft = float(st.session_state.editor_snap_ft)
@@ -122,6 +122,8 @@ def apply_editor_nudge():
 
   st.session_state.editor_pending_dx_ft = 0.0
   st.session_state.editor_pending_dy_ft = 0.0
+  st.session_state.editor_pending_dx_ft_input = 0.0
+  st.session_state.editor_pending_dy_ft_input = 0.0
 
 
 def render_interactive_editor_controls():
@@ -181,7 +183,7 @@ def render_interactive_editor_controls():
         min_value=-100.0,
         max_value=100.0,
         step=0.5,
-        key="editor_pending_dx_ft",
+        key="editor_pending_dx_ft_input",
     )
   with ncol2:
     st.number_input(
@@ -189,7 +191,7 @@ def render_interactive_editor_controls():
         min_value=-100.0,
         max_value=100.0,
         step=0.5,
-        key="editor_pending_dy_ft",
+        key="editor_pending_dy_ft_input",
     )
   with ncol3:
     st.write("")
