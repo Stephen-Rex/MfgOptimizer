@@ -271,6 +271,8 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.show_contour = False
     if "show_decibel" not in st.session_state:
         st.session_state.show_decibel = False
+    if "show_locator_dims" not in st.session_state:
+        st.session_state.show_locator_dims = False
 
     if "designer_name" not in st.session_state:
         st.session_state.designer_name = "Facility Architects Inc."
