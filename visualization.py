@@ -470,7 +470,7 @@ def draw_asme_drawing(
           lw=1.5,
           zorder=4,
       )
-            if show_locator_dims:
+      if show_locator_dims:
         x_ft = float(m['x'])
         y_ft = float(m['y'])
         w_ft = float(m.get('Width', 0.0))
