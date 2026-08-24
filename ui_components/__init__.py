@@ -2,6 +2,7 @@
 from .conduit import render_conduit_tab
 from .crane import render_crane_tab
 from .dimensions import render_dimensions_tab
+from .editor import render_editor_tab
 from .import_export import render_import_export_tab
 from .libraries import render_libraries_tab
 from .lighting import render_lighting_tab
