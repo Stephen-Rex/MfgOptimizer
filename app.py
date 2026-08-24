@@ -51,28 +51,37 @@ viewport_mode = st.radio(
 # Extract workflow path points from session state for Drawing
 active_workflow_paths = []
 if len(st.session_state.path_points) > 0:
-  try:
-    px = [
-        float(v)
-        for v in st.session_state.path_points["X Coordinate"].tolist()
-    ]
-    py = [
-        float(v)
-        for v in st.session_state.path_points["Y Coordinate"].tolist()
-    ]
-    p_so = [
-        float(v)
-        for v in st.session_state.path_points["Safety Standoff (ft)"].tolist()
-    ]
-    if len(px) >= 2:
-      active_workflow_paths.append({
-          "x": px,
-          "y": py,
-          "standoffs": p_so,
-          "width_ft": float(st.session_state.path_width_ft),
-      })
-  except Exception:
-    pass
+    try:
+        px = [float(v) for v in st.session_state.path_points["X Coordinate"].tolist()]
+        py = [float(v) for v in st.session_state.path_points["Y Coordinate"].tolist()]
+        p_so = [
+            float(v)
+            for v in st.session_state.path_points["Safety Standoff (ft)"].tolist()
+        ]
+        p_speed = [
+            float(v)
+            for v in st.session_state.path_points["Movement Speed"].tolist()
+        ]
+
+        if "Movement Mode" in st.session_state.path_points.columns:
+            p_mode_list = st.session_state.path_points["Movement Mode"].astype(str).tolist()
+            movement_mode = p_mode_list[0] if len(p_mode_list) > 0 else "human"
+        else:
+            movement_mode = "human"
+
+        if len(px) >= 2:
+            avg_speed = sum(p_speed) / len(p_speed) if len(p_speed) > 0 else 5.0
+            active_workflow_paths.append({
+                "id": "WF-001",
+                "x": px,
+                "y": py,
+                "standoffs": p_so,
+                "width_ft": float(st.session_state.path_width_ft),
+                "speed_fpm": float(avg_speed),
+                "movement_mode": movement_mode,
+            })
+    except Exception:
+        pass
 
 if viewport_mode == "📐 2D ASME Y14.1 Blueprint View":
   st.header("📐 Live ASME Y14.1 Blueprint View")
@@ -127,17 +136,23 @@ warnings = run_layout_analysis(
     st.session_state.placed_machines,
     st.session_state.placed_conduits,
     st.session_state.placed_cranes,
+    active_workflow_paths,
 )
 
-stat1, stat2, stat3 = st.columns(3)
+stat1, stat2, stat3, stat4 = st.columns(4)
 with stat1:
-  st.metric("Line Bottleneck", metrics.get("Bottleneck Machine", "N/A"))
+    st.metric("Line Bottleneck", metrics.get("Bottleneck Machine", "N/A"))
 with stat2:
-  st.metric("Line Balance Index", metrics.get("Line Balance Efficiency", "N/A"))
+    st.metric("Line Balance Index", metrics.get("Line Balance Efficiency", "N/A"))
 with stat3:
-  st.metric(
-      "UDP Power Sleep Savings", metrics.get("UDP Switch-Off Savings", "N/A")
-  )
+    st.metric(
+        "Finished Assemblies / Hr",
+        metrics.get("Estimated Finished Assemblies / Hr", "N/A"),
+    )
+with stat4:
+    st.metric(
+        "UDP Power Sleep Savings", metrics.get("UDP Switch-Off Savings", "N/A")
+    )
 
 if warnings:
   st.error("⚠️ Spatial & Regulatory Warnings Found:")
