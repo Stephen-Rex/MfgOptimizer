@@ -50,6 +50,7 @@ def render_import_export_tab():
             "placed_cranes": st.session_state.placed_cranes,
             "machine_flows": st.session_state.machine_flows,
             "path_points": st.session_state.path_points.to_dict(orient="records"),
+            "show_locator_dims": st.session_state.show_locator_dims,
         }
 
         export_str = json.dumps(export_data, indent=2)
