@@ -1,5 +1,6 @@
 # ui_components/machinery.py
 import streamlit as st
+from state_manager import validate_machine_record
 
 
 def render_machinery_tab(machinery_lib):
