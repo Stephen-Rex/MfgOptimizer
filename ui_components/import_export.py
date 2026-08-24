@@ -51,6 +51,13 @@ def render_import_export_tab():
             "machine_flows": st.session_state.machine_flows,
             "path_points": st.session_state.path_points.to_dict(orient="records"),
             "show_locator_dims": st.session_state.show_locator_dims,
+            "editor_enabled": st.session_state.editor_enabled,
+            "editor_selected_type": st.session_state.editor_selected_type,
+            "editor_selected_index": st.session_state.editor_selected_index,
+            "editor_snap_enabled": st.session_state.editor_snap_enabled,
+            "editor_snap_ft": st.session_state.editor_snap_ft,
+            "editor_show_grid": st.session_state.editor_show_grid,
+            "editor_show_labels": st.session_state.editor_show_labels,
         }
 
         export_str = json.dumps(export_data, indent=2)
