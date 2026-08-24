@@ -10,6 +10,12 @@ def _snap_value(val, snap_ft, snap_enabled=True):
     return round(float(val) / float(snap_ft)) * float(snap_ft)
 
 
+def _clamp_to_floor(x, y):
+    x = min(max(float(x), 0.0), float(st.session_state.floor_w))
+    y = min(max(float(y), 0.0), float(st.session_state.floor_h))
+    return x, y
+
+
 def _get_object_list(obj_type):
     if obj_type == "machine":
         return st.session_state.placed_machines
@@ -34,111 +40,89 @@ def _get_object_label(obj_type, idx, obj):
     return f"{obj_type} {idx+1}"
 
 
-def apply_editor_nudge():
+def _get_selected_object():
     obj_type = st.session_state.editor_selected_type
     idx = int(st.session_state.editor_selected_index)
+    objs = _get_object_list(obj_type)
 
-    dx = float(st.session_state.get("editor_pending_dx_ft_input", 0.0))
-    dy = float(st.session_state.get("editor_pending_dy_ft_input", 0.0))
+    if not objs:
+        return obj_type, idx, None, objs
+    if idx < 0 or idx >= len(objs):
+        return obj_type, idx, None, objs
+
+    return obj_type, idx, objs[idx], objs
+
+
+def _set_selected_xy(x, y):
+    obj_type, idx, obj, objs = _get_selected_object()
+    if obj is None:
+        st.session_state.editor_status_msg = "No selected object available."
+        return
+
+    if obj_type not in ["machine", "lighting"]:
+        st.session_state.editor_status_msg = (
+            "Direct coordinate editing is currently enabled for machines and lighting only."
+        )
+        return
 
     snap_enabled = bool(st.session_state.editor_snap_enabled)
     snap_ft = float(st.session_state.editor_snap_ft)
 
-    objs = _get_object_list(obj_type)
-    if not objs:
-        st.session_state.editor_status_msg = "No objects available for editing."
-        st.session_state.editor_clear_pending_move = True
-        return
+    x = _snap_value(x, snap_ft, snap_enabled)
+    y = _snap_value(y, snap_ft, snap_enabled)
+    x, y = _clamp_to_floor(x, y)
 
-    if idx < 0 or idx >= len(objs):
-        st.session_state.editor_status_msg = "Selected object index is out of range."
-        st.session_state.editor_clear_pending_move = True
-        return
-
-    obj = objs[idx]
+    obj["x"] = x
+    obj["y"] = y
 
     if obj_type == "machine":
-        new_x = _snap_value(float(obj["x"]) + dx, snap_ft, snap_enabled)
-        new_y = _snap_value(float(obj["y"]) + dy, snap_ft, snap_enabled)
-
-        new_x = min(max(new_x, 0.0), float(st.session_state.floor_w))
-        new_y = min(max(new_y, 0.0), float(st.session_state.floor_h))
-
-        obj["x"] = new_x
-        obj["y"] = new_y
-
         st.session_state.editor_status_msg = (
-            f"Moved machine M{idx+1} to ({new_x:.1f}, {new_y:.1f}) ft."
+            f"Updated machine M{idx+1} to ({x:.1f}, {y:.1f}) ft."
         )
-
-    elif obj_type == "lighting":
-        new_x = _snap_value(float(obj["x"]) + dx, snap_ft, snap_enabled)
-        new_y = _snap_value(float(obj["y"]) + dy, snap_ft, snap_enabled)
-
-        new_x = min(max(new_x, 0.0), float(st.session_state.floor_w))
-        new_y = min(max(new_y, 0.0), float(st.session_state.floor_h))
-
-        obj["x"] = new_x
-        obj["y"] = new_y
-
-        st.session_state.editor_status_msg = (
-            f"Moved lighting L{idx+1} to ({new_x:.1f}, {new_y:.1f}) ft."
-        )
-
-    elif obj_type == "conduit":
-        new_x = []
-        new_y = []
-
-        for x_val, y_val in zip(obj.get("x", []), obj.get("y", [])):
-            nx = _snap_value(float(x_val) + dx, snap_ft, snap_enabled)
-            ny = _snap_value(float(y_val) + dy, snap_ft, snap_enabled)
-
-            nx = min(max(nx, 0.0), float(st.session_state.floor_w))
-            ny = min(max(ny, 0.0), float(st.session_state.floor_h))
-
-            new_x.append(nx)
-            new_y.append(ny)
-
-        obj["x"] = new_x
-        obj["y"] = new_y
-
-        st.session_state.editor_status_msg = (
-            f"Shifted conduit CND{idx+1} by ({dx:.1f}, {dy:.1f}) ft."
-        )
-
-    elif obj_type == "crane":
-        if all(k in obj for k in ["ll_x", "ll_y", "ur_x", "ur_y"]):
-            ll_x = _snap_value(float(obj["ll_x"]) + dx, snap_ft, snap_enabled)
-            ll_y = _snap_value(float(obj["ll_y"]) + dy, snap_ft, snap_enabled)
-            ur_x = _snap_value(float(obj["ur_x"]) + dx, snap_ft, snap_enabled)
-            ur_y = _snap_value(float(obj["ur_y"]) + dy, snap_ft, snap_enabled)
-
-            ll_x = min(max(ll_x, 0.0), float(st.session_state.floor_w))
-            ur_x = min(max(ur_x, 0.0), float(st.session_state.floor_w))
-            ll_y = min(max(ll_y, 0.0), float(st.session_state.floor_h))
-            ur_y = min(max(ur_y, 0.0), float(st.session_state.floor_h))
-
-            obj["ll_x"] = min(ll_x, ur_x)
-            obj["ur_x"] = max(ll_x, ur_x)
-            obj["ll_y"] = min(ll_y, ur_y)
-            obj["ur_y"] = max(ll_y, ur_y)
-
-            st.session_state.editor_status_msg = (
-                f"Shifted crane CR{idx+1} by ({dx:.1f}, {dy:.1f}) ft."
-            )
-        else:
-            st.session_state.editor_status_msg = (
-                "Crane editor currently supports ll_x/ll_y/ur_x/ur_y records only."
-            )
     else:
-        st.session_state.editor_status_msg = "Unsupported object type."
+        st.session_state.editor_status_msg = (
+            f"Updated lighting L{idx+1} to ({x:.1f}, {y:.1f}) ft."
+        )
 
-    # Defer clearing widget-backed values until next rerun before widgets render
+
+def apply_editor_nudge(dx, dy):
+    obj_type, idx, obj, objs = _get_selected_object()
+    if obj is None:
+        st.session_state.editor_status_msg = "No objects available for editing."
+        return
+
+    if obj_type not in ["machine", "lighting"]:
+        st.session_state.editor_status_msg = (
+            "Phase 2A nudge controls currently support machines and lighting only."
+        )
+        return
+
+    new_x = float(obj["x"]) + float(dx)
+    new_y = float(obj["y"]) + float(dy)
+    _set_selected_xy(new_x, new_y)
+
     st.session_state.editor_clear_pending_move = True
+    st.session_state.editor_clear_coord_inputs = True
+
+
+def apply_editor_coordinate_update():
+    x = float(st.session_state.get("editor_coord_x_input", 0.0))
+    y = float(st.session_state.get("editor_coord_y_input", 0.0))
+    _set_selected_xy(x, y)
+    st.session_state.editor_clear_coord_inputs = True
+
+
+def sync_selected_object_inputs():
+    obj_type, idx, obj, objs = _get_selected_object()
+    if obj is None:
+        return
+
+    if obj_type in ["machine", "lighting"]:
+        st.session_state["editor_coord_x_input"] = float(obj.get("x", 0.0))
+        st.session_state["editor_coord_y_input"] = float(obj.get("y", 0.0))
 
 
 def render_interactive_editor_controls():
-    # Clear widget values before widgets are instantiated on rerun
     if st.session_state.get("editor_clear_pending_move", False):
         st.session_state["editor_pending_dx_ft_input"] = 0.0
         st.session_state["editor_pending_dy_ft_input"] = 0.0
@@ -146,24 +130,24 @@ def render_interactive_editor_controls():
 
     st.subheader("Interactive 2D Editor Controls")
     st.markdown(
-        "Phase 1 editor: select an object class, choose an object, and move it "
-        "using controlled offsets. This establishes the state model for later "
-        "drag-and-drop support."
+        "Phase 2A editor supports precise interactive editing for machines and "
+        "lighting using selection, direct coordinate editing, and nudge controls."
     )
 
-    col1, col2, col3 = st.columns(3)
+    top1, top2, top3, top4 = st.columns(4)
 
-    with col1:
+    with top1:
         st.selectbox(
             "Object Type",
-            ["machine", "lighting", "conduit", "crane"],
+            ["machine", "lighting"],
             key="editor_selected_type",
         )
 
     objs = _get_object_list(st.session_state.editor_selected_type)
     obj_options = list(range(len(objs))) if objs else [0]
 
-    with col2:
+    with top2:
+        selected_idx_before = st.session_state.get("editor_selected_index", 0)
         st.selectbox(
             "Selected Object",
             obj_options,
@@ -177,7 +161,7 @@ def render_interactive_editor_controls():
             key="editor_selected_index",
         )
 
-    with col3:
+    with top3:
         st.checkbox("Enable Grid Snap", key="editor_snap_enabled")
         st.number_input(
             "Snap Increment (ft)",
@@ -187,39 +171,109 @@ def render_interactive_editor_controls():
             key="editor_snap_ft",
         )
 
-    dcol1, dcol2, dcol3 = st.columns(3)
-    with dcol1:
+    with top4:
         st.checkbox("Show Editor Grid", key="editor_show_grid")
-    with dcol2:
         st.checkbox("Show Editor Labels", key="editor_show_labels")
-    with dcol3:
-        st.checkbox("Editor Mode Enabled", key="editor_enabled")
 
-    ncol1, ncol2, ncol3 = st.columns([1, 1, 1])
-    with ncol1:
+    selected_idx_after = st.session_state.get("editor_selected_index", 0)
+    if selected_idx_after != selected_idx_before or st.session_state.get(
+        "editor_clear_coord_inputs", False
+    ):
+        sync_selected_object_inputs()
+        st.session_state["editor_clear_coord_inputs"] = False
+
+    obj_type, idx, obj, objs = _get_selected_object()
+
+    st.markdown("### Selected Object Position")
+
+    pos1, pos2, pos3 = st.columns([1, 1, 1])
+
+    with pos1:
         st.number_input(
-            "Move ΔX (ft)",
-            min_value=-100.0,
-            max_value=100.0,
+            "Selected X (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_w),
             step=0.5,
-            key="editor_pending_dx_ft_input",
+            key="editor_coord_x_input",
         )
-    with ncol2:
+
+    with pos2:
         st.number_input(
-            "Move ΔY (ft)",
-            min_value=-100.0,
-            max_value=100.0,
+            "Selected Y (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_h),
             step=0.5,
-            key="editor_pending_dy_ft_input",
+            key="editor_coord_y_input",
         )
-    with ncol3:
+
+    with pos3:
         st.write("")
         st.write("")
-        if st.button("Apply Move", type="primary", key="editor_apply_move_btn"):
-            apply_editor_nudge()
+        if st.button(
+            "Apply Coordinates",
+            type="primary",
+            key="editor_apply_coord_btn",
+        ):
+            apply_editor_coordinate_update()
             st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-    if st.session_state.editor_status_msg:
+    st.markdown("### Nudge Controls")
+
+    step_col1, step_col2 = st.columns([1, 3])
+    with step_col1:
+        st.number_input(
+            "Nudge Step (ft)",
+            min_value=0.1,
+            max_value=25.0,
+            step=0.1,
+            key="editor_move_step_ft",
+        )
+
+    step_ft = float(st.session_state.editor_move_step_ft)
+
+    nrow1 = st.columns([1, 1, 1])
+    with nrow1[1]:
+        if st.button("⬆️ Up", key="editor_nudge_up_btn"):
+            apply_editor_nudge(0.0, step_ft)
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    nrow2 = st.columns([1, 1, 1])
+    with nrow2[0]:
+        if st.button("⬅️ Left", key="editor_nudge_left_btn"):
+            apply_editor_nudge(-step_ft, 0.0)
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    with nrow2[1]:
+        if st.button("⏺ Center Sync", key="editor_sync_btn"):
+            sync_selected_object_inputs()
+            st.session_state.editor_status_msg = "Coordinate inputs synced to selected object."
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+    with nrow2[2]:
+        if st.button("➡️ Right", key="editor_nudge_right_btn"):
+            apply_editor_nudge(step_ft, 0.0)
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    nrow3 = st.columns([1, 1, 1])
+    with nrow3[1]:
+        if st.button("⬇️ Down", key="editor_nudge_down_btn"):
+            apply_editor_nudge(0.0, -step_ft)
+            st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
+
+    if obj_type == "machine" and obj is not None:
+        st.markdown("### Selected Machine Info")
+        st.write(f"**Make/Model:** {obj.get('Make', '')} {obj.get('Model', '')}")
+        st.write(
+            f"**Footprint:** {float(obj.get('Width', 0.0)):.1f} ft x "
+            f"{float(obj.get('Height', 0.0)):.1f} ft"
+        )
+        st.write(f"**Standoff:** {float(obj.get('Standoff', 0.0)):.1f} ft")
+
+    elif obj_type == "lighting" and obj is not None:
+        st.markdown("### Selected Lighting Info")
+        st.write(f"**Fixture:** {obj.get('Make', '')} {obj.get('Brand', '')}")
+        st.write(f"**Type:** {obj.get('Type', '')}")
+        st.write(f"**Wattage:** {float(obj.get('Wattage', 0.0)):.1f} W")
+
+    if st.session_state.get("editor_status_msg"):
         st.info(st.session_state.editor_status_msg)
 
 
@@ -240,7 +294,6 @@ def draw_interactive_editor_figure():
         zorder=1,
     )
 
-    # Grid
     if st.session_state.editor_show_grid:
         for xg in np.arange(0, floor_w + 0.001, 10.0):
             ax.plot([xg, xg], [0, floor_h], color="#444444", lw=0.5, linestyle=":")
@@ -254,8 +307,8 @@ def draw_interactive_editor_figure():
     for idx, m in enumerate(st.session_state.placed_machines):
         x = float(m["x"])
         y = float(m["y"])
-        w = float(m["Width"])
-        h = float(m["Height"])
+        w = float(m.get("Width", 10.0))
+        h = float(m.get("Height", 8.0))
         is_selected = selected_type == "machine" and idx == selected_idx
 
         rect = plt.Rectangle(
@@ -292,69 +345,21 @@ def draw_interactive_editor_figure():
         ax.scatter(
             [x],
             [y],
-            s=90 if is_selected else 60,
+            s=120 if is_selected else 70,
             c="#FFD700" if not is_selected else "#FF8C00",
             edgecolors="black",
             zorder=4,
         )
 
         if st.session_state.editor_show_labels:
-            ax.text(x + 1.0, y + 1.0, f"L{idx+1}", color="#FFD700", fontsize=8)
-
-    # Conduits
-    for idx, c in enumerate(st.session_state.placed_conduits):
-        xs = [float(v) for v in c.get("x", [])]
-        ys = [float(v) for v in c.get("y", [])]
-
-        if len(xs) >= 2:
-            is_selected = selected_type == "conduit" and idx == selected_idx
-
-            ax.plot(
-                xs,
-                ys,
-                color="#FFA500" if not is_selected else "#FF4040",
-                lw=2.5 if is_selected else 2.0,
-                zorder=2,
+            ax.text(
+                x + 1.0,
+                y + 1.0,
+                f"L{idx+1}",
+                color="#FFD700",
+                fontsize=8,
+                zorder=5,
             )
-            ax.scatter(xs, ys, c="white", s=20, zorder=3)
-
-            if st.session_state.editor_show_labels:
-                ax.text(xs[0], ys[0] + 2.0, f"CND{idx+1}", color="#FFA500", fontsize=8)
-
-    # Cranes
-    for idx, cr in enumerate(st.session_state.placed_cranes):
-        if all(k in cr for k in ["ll_x", "ll_y", "ur_x", "ur_y"]):
-            x0 = float(cr["ll_x"])
-            y0 = float(cr["ll_y"])
-            x1 = float(cr["ur_x"])
-            y1 = float(cr["ur_y"])
-            is_selected = selected_type == "crane" and idx == selected_idx
-
-            rect = plt.Rectangle(
-                (min(x0, x1), min(y0, y1)),
-                abs(x1 - x0),
-                abs(y1 - y0),
-                fill=True,
-                color="#999999" if not is_selected else "#FF66CC",
-                alpha=0.25,
-                edgecolor="#DDDDDD",
-                lw=2 if is_selected else 1.2,
-                linestyle="--",
-                zorder=2,
-            )
-            ax.add_patch(rect)
-
-            if st.session_state.editor_show_labels:
-                ax.text(
-                    (x0 + x1) / 2.0,
-                    (y0 + y1) / 2.0,
-                    f"CR{idx+1}",
-                    color="white",
-                    fontsize=8,
-                    ha="center",
-                    va="center",
-                    zorder=3,
-                )
 
     ax.set_xlim(-5, floor_w + 5)
     ax.set_ylim(-5, floor_h + 5)
@@ -366,7 +371,7 @@ def draw_interactive_editor_figure():
     for spine in ax.spines.values():
         spine.set_color("white")
 
-    ax.set_title("Interactive 2D Editor - Phase 1", color="white")
+    ax.set_title("Interactive 2D Editor - Phase 2A", color="white")
     return fig
 
 
@@ -375,6 +380,7 @@ def render_interactive_editor():
     fig = draw_interactive_editor_figure()
     st.pyplot(fig, use_container_width=True)
     st.caption(
-        "Phase 1 note: this editor currently uses selection + offset movement. "
-        "Direct pointer drag/drop is planned for the next phase."
+        "Phase 2A note: this editor now supports improved interactive editing "
+        "for machines and lighting using direct coordinate edits and nudge "
+        "controls. True pointer drag/drop requires a custom interactive canvas layer."
     )
