@@ -1665,42 +1665,32 @@ def render_interactive_editor():
 
     render_interactive_editor_controls()
 
-    view_mode = st.radio(
-        "Editor View Surface",
-        ["Legacy Matplotlib Editor", "Phase 3 Interactive Canvas"],
-        horizontal=True,
-        key="editor_surface_mode",
+    # Phase 3C: remove legacy Matplotlib editor surface from visible workflow
+    fig = build_interactive_canvas_figure()
+    selected_points = plotly_events(
+        fig,
+        click_event=True,
+        hover_event=False,
+        select_event=False,
+        override_height=650,
+        override_width="100%",
+        key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
     )
 
-    if view_mode == "Legacy Matplotlib Editor":
-        fig = draw_interactive_editor_figure()
-        st.pyplot(fig, use_container_width=True)
-    else:
-        fig = build_interactive_canvas_figure()
-        selected_points = plotly_events(
-            fig,
-            click_event=True,
-            hover_event=False,
-            select_event=False,
-            override_height=650,
-            override_width="100%",
-            key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
-        )
+    if selected_points:
+        _apply_canvas_click_selection(selected_points)
+        if st.session_state.get("editor_drag_armed", False):
+            _apply_canvas_click_to_drop(selected_points)
+        st.rerun()
 
-        if selected_points:
-            _apply_canvas_click_selection(selected_points)
-            if st.session_state.get("editor_drag_armed", False):
-                _apply_canvas_click_to_drop(selected_points)
-            st.rerun()
+    st.caption(
+        "Phase 3 canvas: click objects to select them directly. "
+        "Move mode and precision editing will be refined in Phase 3C."
+    )
 
-        st.caption(
-            "Phase 3 canvas: click objects to select them. "
-            "If drag is armed, clicked coordinates also update the drop target."
-        )
-
-        phase3_msg = st.session_state.get("editor_phase3_status", "")
-        if phase3_msg:
-            st.info(phase3_msg)        
+    phase3_msg = st.session_state.get("editor_phase3_status", "")
+    if phase3_msg:
+        st.info(phase3_msg)  
 
 def arm_editor_drag():
     st.session_state.editor_drag_armed = True
