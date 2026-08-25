@@ -1828,6 +1828,7 @@ def _apply_canvas_click_selection(point_data):
         return
 
     clicked = point_data[0]
+    st.session_state.editor_phase3_status = f"Clicked payload: {clicked}"    
 
     customdata = clicked.get("customdata", None)
     x_val = clicked.get("x", None)
