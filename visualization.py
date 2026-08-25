@@ -14,6 +14,69 @@ def _draw_ext_line(ax, x1, y1, x2, y2, color='#AAAAAA', lw=0.8, z=6):
 def _draw_tick(ax, x, y, dx, dy, color='#00E5FF', lw=1.0, z=7):
   ax.plot([x - dx, x + dx], [y - dy, y + dy], color=color, lw=lw, zorder=z)
 
+def _draw_point_locator_dims(
+    ax,
+    O_x,
+    O_y,
+    S,
+    pt_x_ft,
+    pt_y_ft,
+    idx=0,
+    prefix="P",
+    dim_color="#66FFFF",
+    ext_color="#AAAAAA",
+    txt_color="#FFFFFF",
+    base_x_offset_in=0.45,
+    base_y_offset_in=0.45,
+    stack_pitch_in=0.22,
+):
+  """Draw X/Y locator dimensions from drawing origin to a point."""
+  px_in = O_x + float(pt_x_ft) * S
+  py_in = O_y + float(pt_y_ft) * S
+
+  x_dim_y = O_y - base_x_offset_in - (idx * stack_pitch_in)
+  y_dim_x = O_x - base_y_offset_in - (idx * stack_pitch_in)
+
+  # X dimension
+  _draw_dim_line(ax, O_x, x_dim_y, px_in, x_dim_y, color=dim_color, lw=0.8, z=7)
+  _draw_ext_line(ax, O_x, O_y, O_x, x_dim_y + 0.05, color=ext_color, lw=0.7, z=6)
+  _draw_ext_line(ax, px_in, py_in, px_in, x_dim_y + 0.05, color=ext_color, lw=0.7, z=6)
+  _draw_tick(ax, O_x, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+  _draw_tick(ax, px_in, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+
+  ax.text(
+      (O_x + px_in) / 2.0,
+      x_dim_y - 0.05,
+      f"{prefix}{idx+1} X = {float(pt_x_ft):.1f} ft",
+      fontsize=5.3,
+      color=txt_color,
+      ha="center",
+      va="top",
+      zorder=8,
+      bbox=dict(facecolor="#222222", edgecolor="none", alpha=0.5, pad=0.8),
+  )
+
+  # Y dimension
+  _draw_dim_line(ax, y_dim_x, O_y, y_dim_x, py_in, color=dim_color, lw=0.8, z=7)
+  _draw_ext_line(ax, O_x, O_y, y_dim_x + 0.05, O_y, color=ext_color, lw=0.7, z=6)
+  _draw_ext_line(ax, px_in, py_in, y_dim_x + 0.05, py_in, color=ext_color, lw=0.7, z=6)
+  _draw_tick(ax, y_dim_x, O_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+  _draw_tick(ax, y_dim_x, py_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+
+  ax.text(
+      y_dim_x - 0.05,
+      (O_y + py_in) / 2.0,
+      f"{prefix}{idx+1} Y = {float(pt_y_ft):.1f} ft",
+      fontsize=5.3,
+      color=txt_color,
+      ha="right",
+      va="center",
+      rotation=90,
+      zorder=8,
+      bbox=dict(facecolor="#222222", edgecolor="none", alpha=0.5, pad=0.8),
+  )
+
+
 def _machine_occ_box(m, O_x, O_y, S, include_standoff=True):
   mx_in = O_x + float(m['x']) * S
   my_in = O_y + float(m['y']) * S
@@ -417,27 +480,27 @@ def draw_asme_drawing(
     points_per_data_inch = (fig_w / data_width) * 72.0
 
     for path in workflow_paths:
-      x_pts = np.array(path['x'])
-      y_pts = np.array(path['y'])
-      standoffs = path.get('standoffs', [5.0] * len(x_pts))
+      x_pts = np.array(path["x"], dtype=float)
+      y_pts = np.array(path["y"], dtype=float)
+      standoffs = path.get("standoffs", [5.0] * len(x_pts))
 
       if len(x_pts) >= 2:
         x_in = O_x + x_pts * S
         y_in = O_y + y_pts * S
 
-        bar_width_ft = path.get('width_ft', 1.0)
+        bar_width_ft = path.get("width_ft", 1.0)
         bar_lw_pts = bar_width_ft * S * points_per_data_inch
 
         ax.plot(
             x_in,
             y_in,
-            color='#808080',
+            color="#808080",
             lw=max(1.5, bar_lw_pts),
             alpha=0.85,
-            solid_capstyle='round',
-            solid_joinstyle='round',
+            solid_capstyle="round",
+            solid_joinstyle="round",
             zorder=2,
-            label='Workflow Path',
+            label="Workflow Path",
         )
 
         dx = np.diff(x_pts)
@@ -461,7 +524,7 @@ def draw_asme_drawing(
             vx_n[i] /= v_len
             vy_n[i] /= v_len
 
-        st_in = np.array(standoffs) * S
+        st_in = np.array(standoffs, dtype=float) * S
         left_x = x_in + vx_n * st_in
         left_y = y_in + vy_n * st_in
         right_x = x_in - vx_n * st_in
@@ -470,36 +533,63 @@ def draw_asme_drawing(
         ax.plot(
             left_x,
             left_y,
-            color='#FFD700',
-            linestyle=':',
+            color="#FFD700",
+            linestyle=":",
             lw=1.5,
             zorder=3,
-            label='Safety Standoff Envelope',
+            label="Safety Standoff Envelope",
         )
         ax.plot(
             right_x,
             right_y,
-            color='#FFD700',
-            linestyle=':',
+            color="#FFD700",
+            linestyle=":",
             lw=1.5,
             zorder=3,
         )
 
         ax.scatter(
-            x_in, y_in, color='#FFD700', s=25, zorder=4, edgecolor='black'
+            x_in,
+            y_in,
+            color="#FFD700",
+            s=25,
+            zorder=4,
+            edgecolor="black",
         )
-        for idx, (px, py) in enumerate(zip(x_in, y_in)):
+
+        for p_idx, (px, py) in enumerate(zip(x_in, y_in)):
           ax.text(
               px,
               py + 0.12,
-              f'P{idx+1}',
-              color='#FFFFFF',
+              f"W{p_idx+1}",
+              color="#FFFFFF",
               fontsize=6,
-              weight='bold',
-              ha='center',
+              weight="bold",
+              ha="center",
               zorder=5,
           )
 
+        # Per-vertex locator dimensions for workflow points
+        if show_locator_dims and bool(st.session_state.get("workflow_dim_visible", True)):
+          for p_idx, (vx_ft, vy_ft) in enumerate(zip(x_pts, y_pts)):
+            _draw_point_locator_dims(
+                ax,
+                O_x,
+                O_y,
+                S,
+                float(vx_ft),
+                float(vy_ft),
+                idx=p_idx,
+                prefix="W",
+                dim_color="#FFD700",
+                ext_color="#AAAAAA",
+                txt_color="#FFFFFF",
+                base_x_offset_in=0.85,
+                base_y_offset_in=0.85,
+                stack_pitch_in=0.18,
+            )
+
+        # Workflow centroid annotation box
         if show_locator_dims and bool(st.session_state.get("workflow_dim_visible", True)):
           cx_ft = float(np.mean(x_pts))
           cy_ft = float(np.mean(y_pts))
@@ -520,20 +610,22 @@ def draw_asme_drawing(
           if show_length:
             total_len = 0.0
             for i in range(1, len(x_pts)):
-              dx = float(x_pts[i]) - float(x_pts[i - 1])
-              dy = float(y_pts[i]) - float(y_pts[i - 1])
-              total_len += np.sqrt(dx**2 + dy**2)
+              seg_dx = float(x_pts[i]) - float(x_pts[i - 1])
+              seg_dy = float(y_pts[i]) - float(y_pts[i - 1])
+              total_len += np.sqrt(seg_dx**2 + seg_dy**2)
             note_lines.append(f"Len: {total_len:.1f} ft")
 
           if show_metadata:
             mode = path.get("movement_mode", "human")
             speed = path.get("speed_fpm", None)
             width = path.get("width_ft", None)
+
             meta = [str(mode)]
             if speed is not None:
               meta.append(f"{float(speed):.1f} spd")
             if width is not None:
               meta.append(f"{float(width):.1f} ft wide")
+
             note_lines.append(" / ".join(meta))
 
           ax.text(
@@ -541,9 +633,9 @@ def draw_asme_drawing(
               cy_in + label_y_offset_in,
               "\n".join(note_lines),
               fontsize=5.5,
-              color='#FFFFFF',
-              ha='center',
-              va='center',
+              color="#FFFFFF",
+              ha="center",
+              va="center",
               zorder=8,
               bbox=dict(
                   facecolor="#222222",
@@ -559,6 +651,29 @@ def draw_asme_drawing(
       cx_in = [O_x + val * S for val in cond["x"]]
       cy_in = [O_y + val * S for val in cond["y"]]
       ax.plot(cx_in, cy_in, color="#FFA500", linestyle="-", lw=2, zorder=3)
+
+      if show_locator_dims and bool(cond.get("dim_visible", True)):
+        xs_ft = [float(v) for v in cond.get("x", [])]
+        ys_ft = [float(v) for v in cond.get("y", [])]
+
+        if len(xs_ft) == len(ys_ft):
+          for p_idx, (vx_ft, vy_ft) in enumerate(zip(xs_ft, ys_ft)):
+            _draw_point_locator_dims(
+                ax,
+                O_x,
+                O_y,
+                S,
+                vx_ft,
+                vy_ft,
+                idx=p_idx,
+                prefix="C",
+                dim_color="#FFA500",
+                ext_color="#AAAAAA",
+                txt_color="#FFFFFF",
+                base_x_offset_in=0.55,
+                base_y_offset_in=0.55,
+                stack_pitch_in=0.18,
+            )
 
       if show_locator_dims and bool(cond.get("dim_visible", True)):
         xs_ft = [float(v) for v in cond.get("x", [])]
