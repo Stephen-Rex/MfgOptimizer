@@ -19,6 +19,13 @@ def _clamp_to_floor(x, y, floor_w, floor_h):
     y = max(0.0, min(float(floor_h), float(y)))
     return x, y
 
+def arm_editor_drag():
+    st.session_state.editor_drag_armed = True
+    st.session_state.editor_phase3_status = "Drag armed. Select a drop point to place the selected item."
+
+def cancel_editor_drag():
+    st.session_state.editor_drag_armed = False
+    st.session_state.editor_phase3_status = "Drag cancelled."
 
 def _clamp_conduit_to_floor(x_vals, y_vals, floor_w, floor_h):
     if not x_vals or not y_vals or len(x_vals) != len(y_vals):
