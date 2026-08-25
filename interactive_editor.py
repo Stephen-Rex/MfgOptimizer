@@ -1617,6 +1617,39 @@ def render_interactive_editor_controls():
                         f"{float(wdf.iloc[widx]['Movement Speed']):.2f}"
                     )
 
+def _apply_pending_canvas_selection_if_any():
+    pending_type = st.session_state.get("editor_pending_selected_type", None)
+    pending_index = st.session_state.get("editor_pending_selected_index", None)
+    pending_vertex = st.session_state.get("editor_pending_selected_vertex_index", None)
+    pending_workflow_point = st.session_state.get("editor_pending_workflow_selected_point_index", None)
+    pending_status = st.session_state.get("editor_pending_phase3_status", None)
+
+    if pending_type is None and pending_index is None:
+        return
+
+    if pending_type is not None:
+        st.session_state.editor_selected_type = pending_type
+
+    if pending_index is not None:
+        st.session_state.editor_selected_index = int(pending_index)
+
+    if pending_vertex is not None:
+        st.session_state.editor_selected_vertex_index = int(pending_vertex)
+
+    if pending_workflow_point is not None:
+        st.session_state.editor_workflow_selected_point_index = int(pending_workflow_point)
+
+    if pending_status is not None:
+        st.session_state.editor_phase3_status = str(pending_status)
+
+    st.session_state.editor_prime_inputs = True
+
+    st.session_state.editor_pending_selected_type = None
+    st.session_state.editor_pending_selected_index = None
+    st.session_state.editor_pending_selected_vertex_index = None
+    st.session_state.editor_pending_workflow_selected_point_index = None
+    st.session_state.editor_pending_phase3_status = None
+
 
 def render_interactive_editor():
     _apply_pending_vertex_selection_if_any()
