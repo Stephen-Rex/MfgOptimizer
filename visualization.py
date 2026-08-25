@@ -913,7 +913,6 @@ if show_lighting:
                     zorder=8,
                     bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.4, pad=0.8),
                 )
-              )
 
   ax.set_xlim(-1, width_in + 1)
   ax.set_ylim(-1, height_in + 1)
