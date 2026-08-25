@@ -152,8 +152,8 @@ def build_interactive_canvas_figure():
         #        hoverinfo="skip",
         #        customdata=[["machine", idx, mid, -1]] * 5,
         #    )
-        )
-        _register_trace("machine", idx, -1, mid)
+        #)
+        #_register_trace("machine", idx, -1, mid)
 
         fig.add_trace(
             go.Scatter(
