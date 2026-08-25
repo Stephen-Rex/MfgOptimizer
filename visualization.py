@@ -547,17 +547,63 @@ def draw_asme_drawing(
               zorder=8,
               bbox=dict(facecolor='#222222', edgecolor='gold', alpha=0.55, pad=1.0),
           )
-
-
-
-
   
   # Draw conduits
   if show_electrical:
     for cond in conduits:
-      cx_in = [O_x + val * S for val in cond['x']]
-      cy_in = [O_y + val * S for val in cond['y']]
-      ax.plot(cx_in, cy_in, color='#FFA500', linestyle='-', lw=2, zorder=3)
+      cx_in = [O_x + val * S for val in cond["x"]]
+      cy_in = [O_y + val * S for val in cond["y"]]
+      ax.plot(cx_in, cy_in, color="#FFA500", linestyle="-", lw=2, zorder=3)
+
+      if show_locator_dims and bool(cond.get("dim_visible", True)):
+        xs_ft = [float(v) for v in cond.get("x", [])]
+        ys_ft = [float(v) for v in cond.get("y", [])]
+
+        if len(xs_ft) >= 2 and len(xs_ft) == len(ys_ft):
+          cx_ft = sum(xs_ft) / len(xs_ft)
+          cy_ft = sum(ys_ft) / len(ys_ft)
+          cx_note = O_x + cx_ft * S
+          cy_note = O_y + cy_ft * S
+
+          label_x_offset_in = float(cond.get("dim_label_x_offset_ft", 0.0)) * S
+          label_y_offset_in = float(cond.get("dim_label_y_offset_ft", 0.0)) * S
+          show_length = bool(cond.get("dim_show_length", True))
+          show_metadata = bool(cond.get("dim_show_metadata", True))
+
+          note_lines = [str(cond.get("label", cond.get("id", "Conduit")))]
+
+          if show_length:
+            total_len = 0.0
+            for i in range(1, len(xs_ft)):
+              dx = xs_ft[i] - xs_ft[i - 1]
+              dy = ys_ft[i] - ys_ft[i - 1]
+              total_len += np.sqrt(dx**2 + dy**2)
+            note_lines.append(f"Len: {total_len:.1f} ft")
+
+          if show_metadata:
+            utility_type = str(cond.get("utility_type", "electrical"))
+            depth = cond.get("depth_in", None)
+            if depth is not None:
+              note_lines.append(f"{utility_type} / {depth} in")
+            else:
+              note_lines.append(utility_type)
+
+          ax.text(
+              cx_note + label_x_offset_in,
+              cy_note + label_y_offset_in,
+              "\n".join(note_lines),
+              fontsize=5.5,
+              color="#FFFFFF",
+              ha="center",
+              va="center",
+              zorder=8,
+              bbox=dict(
+                  facecolor="#222222",
+                  edgecolor="orange",
+                  alpha=0.55,
+                  pad=1.0,
+              ),
+          )
 
   # Draw machines with M1, M2...
   if show_machines:
