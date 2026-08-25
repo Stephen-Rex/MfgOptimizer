@@ -1824,11 +1824,6 @@ def apply_drag_drop():
     st.session_state.editor_phase3_status = "Drop applied."
 
 def _apply_canvas_click_selection(point_data):
-    """
-    point_data is expected to come from plotly_events() and include customdata.
-    customdata format:
-      [entity_type, object_index, object_id, sub_index]
-    """
     if not point_data:
         return
 
@@ -1844,7 +1839,9 @@ def _apply_canvas_click_selection(point_data):
         st.session_state.editor_last_pick_y = float(y_val)
 
     if not customdata or len(customdata) < 4:
-        st.session_state.editor_phase3_status = "Canvas click received, but no selectable object metadata was found."
+        st.session_state.editor_phase3_status = (
+            "Canvas click received, but no selectable object metadata was found."
+        )
         return
 
     entity_type = str(customdata[0])
@@ -1856,44 +1853,64 @@ def _apply_canvas_click_selection(point_data):
         st.session_state.editor_selected_index = obj_index
         st.session_state.editor_selected_vertex_index = 0
         st.session_state.editor_workflow_selected_point_index = 0
+        st.session_state.editor_phase3_status = f"Canvas selected machine {obj_index}."
 
     elif entity_type == "lighting":
         st.session_state.editor_selected_type = "lighting"
         st.session_state.editor_selected_index = obj_index
         st.session_state.editor_selected_vertex_index = 0
         st.session_state.editor_workflow_selected_point_index = 0
+        st.session_state.editor_phase3_status = f"Canvas selected lighting {obj_index}."
 
     elif entity_type == "conduit":
         st.session_state.editor_selected_type = "conduit"
         st.session_state.editor_selected_index = obj_index
         st.session_state.editor_selected_vertex_index = 0
         st.session_state.editor_workflow_selected_point_index = 0
+        st.session_state.editor_phase3_status = f"Canvas selected conduit {obj_index}."
 
     elif entity_type == "conduit_vertex":
         st.session_state.editor_selected_type = "conduit"
         st.session_state.editor_selected_index = obj_index
-        st.session_state.editor_pending_vertex_index = sub_index
+        st.session_state.editor_selected_vertex_index = sub_index
         st.session_state.editor_workflow_selected_point_index = 0
+        st.session_state.editor_phase3_status = (
+            f"Canvas selected conduit {obj_index} vertex {sub_index}."
+        )
 
     elif entity_type == "workflow":
         st.session_state.editor_selected_type = "workflow"
         st.session_state.editor_selected_index = 0
+        st.session_state.editor_selected_vertex_index = 0
+        if sub_index >= 0:
+            st.session_state.editor_workflow_selected_point_index = sub_index
+        st.session_state.editor_phase3_status = "Canvas selected workflow."
 
     elif entity_type == "workflow_point":
         st.session_state.editor_selected_type = "workflow"
         st.session_state.editor_selected_index = 0
-        st.session_state.editor_pending_workflow_point_index = sub_index
+        st.session_state.editor_selected_vertex_index = 0
+        st.session_state.editor_workflow_selected_point_index = sub_index
+        st.session_state.editor_phase3_status = (
+            f"Canvas selected workflow point {sub_index}."
+        )
 
     elif entity_type == "crane":
         st.session_state.editor_selected_type = "crane"
         st.session_state.editor_selected_index = obj_index
         st.session_state.editor_selected_vertex_index = 0
         st.session_state.editor_workflow_selected_point_index = 0
+        st.session_state.editor_phase3_status = f"Canvas selected crane {obj_index}."
+
+    else:
+        st.session_state.editor_phase3_status = (
+            f"Canvas click received unknown entity type: {entity_type}"
+        )
+        return
 
     st.session_state.editor_prime_inputs = True
-    st.session_state.editor_phase3_status = (
-        f"Canvas selected {entity_type}."
-    )
+    st.session_state.editor_canvas_refresh_token += 1
+    
 
 def _apply_canvas_click_to_drop(point_data):
     if not point_data:
