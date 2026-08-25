@@ -294,8 +294,9 @@ def build_interactive_canvas_figure():
                 y=[cy],
                 mode="markers+text",
                 marker=dict(
-                    size=14 if is_selected else 10,
+                    size=16 if is_selected else 12,
                     color="#BBBBBB" if not is_selected else "#00E5FF",
+                    symbol="square",
                     line=dict(
                         color="white" if not is_selected else "#FFD700",
                         width=1.5,
