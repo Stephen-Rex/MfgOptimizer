@@ -510,73 +510,6 @@ def _begin_move_from_current_selection():
         "Move mode: destination click expected."
     )
 
-def _apply_move_to_click(point_data):
-    if not point_data:
-        return False
-
-    clicked = point_data[0]
-    x_val = clicked.get("x", None)
-    y_val = clicked.get("y", None)
-
-    if x_val is None or y_val is None:
-        return False
-
-    floor_w = float(st.session_state.floor_w)
-    floor_h = float(st.session_state.floor_h)
-    x_val, y_val = _clamp_to_floor(float(x_val), float(y_val), floor_w, floor_h)
-
-    move_type = st.session_state.get("editor_move_selected_type", "")
-    move_index = int(st.session_state.get("editor_move_selected_index", -1))
-    move_vertex = int(st.session_state.get("editor_move_selected_vertex_index", -1))
-    move_wpt = int(st.session_state.get("editor_move_selected_workflow_point_index", -1))
-
-    if move_index < 0 and move_type != "workflow":
-        return False
-
-    # Reapply stored selection context before moving
-    if move_type:
-        st.session_state.editor_selected_type = move_type
-    if move_index >= 0:
-        st.session_state.editor_selected_index = move_index
-    if move_vertex >= 0:
-        st.session_state.editor_selected_vertex_index = move_vertex
-    if move_wpt >= 0:
-        st.session_state.editor_workflow_selected_point_index = move_wpt
-
-    if move_type in ["machine", "lighting"]:
-        _set_selected_xy(x_val, y_val)
-
-    elif move_type == "crane":
-        _set_selected_crane_center_xy(x_val, y_val)
-
-    elif move_type == "workflow":
-        _set_selected_workflow_point_xy(x_val, y_val)
-
-    elif move_type == "conduit":
-        if move_vertex >= 0:
-            _set_selected_conduit_vertex_xy(x_val, y_val)
-        else:
-            st.session_state.editor_phase3_status = (
-                "Move mode for conduit requires a selected conduit vertex."
-            )
-            st.session_state.editor_move_awaiting_target = False
-            return False
-
-    else:
-        st.session_state.editor_phase3_status = f"Unsupported move type: {move_type}"
-        st.session_state.editor_move_awaiting_target = False
-        return False
-
-    st.session_state.editor_last_pick_x = x_val
-    st.session_state.editor_last_pick_y = y_val
-    st.session_state.editor_move_awaiting_target = False
-    st.session_state.editor_phase3_status = (
-        f"Moved selected {move_type} to X={x_val:.2f} ft, Y={y_val:.2f} ft."
-    )
-    st.session_state.editor_canvas_refresh_token += 1
-    return True
-
-
 def _object_center(obj_type, obj):
     if obj_type in ["machine", "lighting"]:
         return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
@@ -1777,37 +1710,38 @@ def _apply_pending_canvas_selection_if_any():
     pending_type = st.session_state.get("editor_pending_selected_type", None)
     pending_index = st.session_state.get("editor_pending_selected_index", None)
     pending_vertex = st.session_state.get("editor_pending_selected_vertex_index", None)
-    pending_workflow_point = st.session_state.get("editor_pending_workflow_selected_point_index", None)
+    pending_workflow_point = st.session_state.get(
+        "editor_pending_workflow_selected_point_index", None
+    )
     pending_status = st.session_state.get("editor_pending_phase3_status", None)
 
     if pending_type is None and pending_index is None:
         return
 
     if pending_type is not None:
-        st.session_state.editor_phase3_status = (
-            f"Pending selected type was {pending_type}, but assignment was skipped for debug."
-        )
+        st.session_state["editor_selected_type"] = pending_type
 
     if pending_index is not None:
-        st.session_state.editor_selected_index = int(pending_index)
+        st.session_state["editor_selected_index"] = int(pending_index)
 
     if pending_vertex is not None:
-        st.session_state.editor_selected_vertex_index = int(pending_vertex)
+        st.session_state["editor_selected_vertex_index"] = int(pending_vertex)
 
     if pending_workflow_point is not None:
-        st.session_state.editor_workflow_selected_point_index = int(pending_workflow_point)
+        st.session_state["editor_workflow_selected_point_index"] = int(
+            pending_workflow_point
+        )
 
     if pending_status is not None:
-        st.session_state.editor_phase3_status = str(pending_status)
+        st.session_state["editor_phase3_status"] = str(pending_status)
 
-    st.session_state.editor_prime_inputs = True
+    st.session_state["editor_prime_inputs"] = True
 
-    st.session_state.editor_pending_selected_type = None
-    st.session_state.editor_pending_selected_index = None
-    st.session_state.editor_pending_selected_vertex_index = None
-    st.session_state.editor_pending_workflow_selected_point_index = None
-    st.session_state.editor_pending_phase3_status = None
-
+    st.session_state["editor_pending_selected_type"] = None
+    st.session_state["editor_pending_selected_index"] = None
+    st.session_state["editor_pending_selected_vertex_index"] = None
+    st.session_state["editor_pending_workflow_selected_point_index"] = None
+    st.session_state["editor_pending_phase3_status"] = None
 
 def render_interactive_editor():
     _apply_pending_canvas_selection_if_any()
