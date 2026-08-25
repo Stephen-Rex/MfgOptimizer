@@ -580,6 +580,21 @@ def draw_asme_drawing(
         x_dim_y = max(-0.5, x_dim_y)
         y_dim_x = max(-0.5, y_dim_x)
 
+        # Editable per-machine dimension overrides are stored in feet and converted
+        # into drawing-space units using scale factor S.
+        dim_visible = bool(m.get("dim_visible", True))
+        dim_x_line_offset_in = float(m.get("dim_x_line_offset_ft", 0.0)) * S
+        dim_y_line_offset_in = float(m.get("dim_y_line_offset_ft", 0.0)) * S
+        dim_x_text_offset_in = float(m.get("dim_x_text_offset_ft", 0.0)) * S
+        dim_y_text_offset_in = float(m.get("dim_y_text_offset_ft", 0.0)) * S
+        dim_show_footprint = bool(m.get("dim_show_footprint", True))
+
+        if not dim_visible:
+            continue
+
+        x_dim_y -= dim_x_line_offset_in
+        y_dim_x -= dim_y_line_offset_in
+        
         # ----- X locator dimension -----
         _draw_dim_line(
             ax,
@@ -626,7 +641,7 @@ def draw_asme_drawing(
 
         ax.text(
             (O_x + mx_in) / 2.0,
-            x_dim_y - 0.08,
+            x_dim_y - 0.08 - dim_x_text_offset_in,
             f"X = {x_ft:.1f} ft",
             fontsize=6,
             color=txt_color,
@@ -686,7 +701,7 @@ def draw_asme_drawing(
         )
 
         ax.text(
-            y_dim_x - 0.08,
+            y_dim_x - 0.08 - dim_y_text_offset_in,
             (O_y + my_in) / 2.0,
             f"Y = {y_ft:.1f} ft",
             fontsize=6,
@@ -704,24 +719,25 @@ def draw_asme_drawing(
         )
 
         # Optional footprint callout above machine
-        ax.text(
-            mx_in,
-            my_in + half_h_in + so_in + 0.12,
-            f"{w_ft:.1f}' x {h_ft:.1f}'",
-            fontsize=6,
-            color='#FFD700',
-            ha='center',
-            va='bottom',
-            zorder=8,
-            bbox=dict(
-                facecolor='#111111',
-                edgecolor='none',
-                alpha=0.45,
-                pad=1.0,
-            ),
-        )
-
-      
+        if dim_show_footprint:
+            ax.text(
+                mx_in,
+                my_in + half_h_in + so_in + 0.12,
+                f"{w_ft:.1f}' x {h_ft:.1f}'",
+                fontsize=6,
+                color='#FFD700',
+                ha='center',
+                va='bottom',
+                vzorder=8,
+                bbox=dict(
+                    facecolor='#111111',
+                    edgecolor='none',
+                    alpha=0.45,
+                    pad=1.0,
+                ),
+            )
+          
+     
       ax.add_patch(rect)
       m_label = f'M{idx+1}'
       ax.text(
