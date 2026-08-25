@@ -139,6 +139,77 @@ def ensure_object_ids():
                 item["id"] = generate_next_id("CR", st.session_state.placed_cranes)
 
 
+def ensure_machine_dimension_fields():
+    """Backfill editable machine dimension override fields in feet."""
+    if "placed_machines" not in st.session_state:
+        return
+
+    for item in st.session_state.placed_machines:
+        if "dim_visible" not in item:
+            item["dim_visible"] = True
+        if "dim_x_line_offset_ft" not in item:
+            item["dim_x_line_offset_ft"] = 0.0
+        if "dim_y_line_offset_ft" not in item:
+            item["dim_y_line_offset_ft"] = 0.0
+        if "dim_x_text_offset_ft" not in item:
+            item["dim_x_text_offset_ft"] = 0.0
+        if "dim_y_text_offset_ft" not in item:
+            item["dim_y_text_offset_ft"] = 0.0
+        if "dim_show_footprint" not in item:
+            item["dim_show_footprint"] = True
+
+
+def ensure_lighting_dimension_fields():
+    """Backfill editable lighting annotation override fields in feet."""
+    if "placed_lighting" not in st.session_state:
+        return
+
+    for item in st.session_state.placed_lighting:
+        if "dim_visible" not in item:
+            item["dim_visible"] = True
+        if "dim_x_line_offset_ft" not in item:
+            item["dim_x_line_offset_ft"] = 0.0
+        if "dim_y_line_offset_ft" not in item:
+            item["dim_y_line_offset_ft"] = 0.0
+        if "dim_x_text_offset_ft" not in item:
+            item["dim_x_text_offset_ft"] = 0.0
+        if "dim_y_text_offset_ft" not in item:
+            item["dim_y_text_offset_ft"] = 0.0
+        if "dim_show_fixture_note" not in item:
+            item["dim_show_fixture_note"] = True
+
+
+def ensure_conduit_dimension_fields():
+    """Backfill editable conduit annotation fields in feet."""
+    if "placed_conduits" not in st.session_state:
+        return
+
+    for item in st.session_state.placed_conduits:
+        if "dim_visible" not in item:
+            item["dim_visible"] = True
+        if "dim_label_x_offset_ft" not in item:
+            item["dim_label_x_offset_ft"] = 0.0
+        if "dim_label_y_offset_ft" not in item:
+            item["dim_label_y_offset_ft"] = 0.0
+        if "dim_show_length" not in item:
+            item["dim_show_length"] = True
+        if "dim_show_metadata" not in item:
+            item["dim_show_metadata"] = True
+
+
+def ensure_workflow_dimension_fields():
+    """Backfill workflow annotation settings stored in session state, in feet."""
+    if "workflow_dim_visible" not in st.session_state:
+        st.session_state.workflow_dim_visible = True
+    if "workflow_dim_label_x_offset_ft" not in st.session_state:
+        st.session_state.workflow_dim_label_x_offset_ft = 0.0
+    if "workflow_dim_label_y_offset_ft" not in st.session_state:
+        st.session_state.workflow_dim_label_y_offset_ft = 0.0
+    if "workflow_dim_show_length" not in st.session_state:
+        st.session_state.workflow_dim_show_length = True
+    if "workflow_dim_show_metadata" not in st.session_state:
+        st.session_state.workflow_dim_show_metadata = True
+
 def on_crane_select_change(crane_lib):
     """Callback function to update crane input fields when library dropdown changes."""
     if "crane_lib_select_add" in st.session_state:
@@ -191,9 +262,14 @@ def apply_imported_layout():
                 "editor_snap_ft",
                 "editor_show_grid",
                 "editor_show_labels",
+                "workflow_dim_visible",
+                "workflow_dim_label_x_offset_ft",
+                "workflow_dim_label_y_offset_ft",
+                "workflow_dim_show_length",
+                "workflow_dim_show_metadata",
             ]:
-                if key in imported_data:
-                    st.session_state[key] = imported_data[key]
+            if key in imported_data:
+                st.session_state[key] = imported_data[key]
 
             if "floor_w" in imported_data:
                 st.session_state.floor_w = float(imported_data["floor_w"])
@@ -205,6 +281,11 @@ def apply_imported_layout():
                 st.session_state.path_points = pd.DataFrame(imported_data["path_points"])
 
             ensure_object_ids()
+            ensure_machine_dimension_fields()
+            ensure_lighting_dimension_fields()
+            ensure_conduit_dimension_fields()
+            ensure_workflow_dimension_fields()
+            
 
             # Validate imported objects
             for m in st.session_state.placed_machines:
@@ -469,3 +550,7 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         )
 
     ensure_object_ids()
+    ensure_machine_dimension_fields()
+    ensure_lighting_dimension_fields()
+    ensure_conduit_dimension_fields()
+    ensure_workflow_dimension_fields()
