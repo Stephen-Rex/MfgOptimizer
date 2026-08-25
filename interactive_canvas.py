@@ -406,8 +406,8 @@ def build_interactive_canvas_figure():
 
 def apply_canvas_pick(x_ft, y_ft):
     """
-    Phase 3A fallback pick logic from typed/clicked coordinates.
-    Selects nearest object or nearest editable vertex/point based on current mode.
+    Internal fallback selection helper for Phase 3 canvas clicks when
+    direct trace metadata is unavailable.
     """
     x_ft = float(x_ft)
     y_ft = float(y_ft)
