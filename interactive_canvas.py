@@ -385,7 +385,7 @@ def build_interactive_canvas_figure():
             showgrid=False,
             zeroline=False,
         ),
-        dragmode="pan",
+        dragmode=False,
     )
 
     return fig
