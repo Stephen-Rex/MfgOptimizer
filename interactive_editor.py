@@ -1823,23 +1823,49 @@ def apply_drag_drop():
     st.session_state.editor_drag_armed = False
     st.session_state.editor_phase3_status = "Drop applied."
 
+
 def _apply_canvas_click_selection(point_data):
     if not point_data:
         return
 
     clicked = point_data[0]
-    st.session_state.editor_phase3_status = f"Clicked payload: {clicked}"    
 
     customdata = clicked.get("customdata", None)
     x_val = clicked.get("x", None)
     y_val = clicked.get("y", None)
+    curve_number = clicked.get("curveNumber", None)
 
     if x_val is not None:
         st.session_state.editor_last_pick_x = float(x_val)
     if y_val is not None:
         st.session_state.editor_last_pick_y = float(y_val)
 
-    if not customdata or len(customdata) < 4:
+    entity_type = None
+    obj_index = None
+    sub_index = -1
+
+    # First choice: direct customdata if the event wrapper provides it
+    if customdata and len(customdata) >= 4:
+        entity_type = str(customdata[0])
+        obj_index = int(customdata[1])
+        sub_index = int(customdata[3])
+
+    # Second choice: trace map via curveNumber
+    elif curve_number is not None:
+        trace_map = st.session_state.get("editor_trace_map", [])
+        try:
+            curve_idx = int(curve_number)
+        except Exception:
+            curve_idx = -1
+
+        if 0 <= curve_idx < len(trace_map):
+            trace_info = trace_map[curve_idx]
+            entity_type = str(trace_info.get("entity_type", ""))
+            obj_index = int(trace_info.get("obj_index", 0))
+            sub_index = int(trace_info.get("sub_index", -1))
+
+    # Final fallback: nearest-object selection by coordinates
+    if entity_type is None or obj_index is None:
         if x_val is not None and y_val is not None:
             apply_canvas_pick(float(x_val), float(y_val))
             st.session_state.editor_phase3_status = (
@@ -1853,9 +1879,9 @@ def _apply_canvas_click_selection(point_data):
             )
         return
 
-    entity_type = str(customdata[0])
-    obj_index = int(customdata[1])
-    sub_index = int(customdata[3])
+    if entity_type == "pick_marker":
+        st.session_state.editor_phase3_status = "Clicked pick marker."
+        return
 
     if entity_type == "machine":
         st.session_state.editor_selected_type = "machine"
@@ -1912,9 +1938,16 @@ def _apply_canvas_click_selection(point_data):
         st.session_state.editor_phase3_status = f"Canvas selected crane {obj_index}."
 
     else:
-        st.session_state.editor_phase3_status = (
-            f"Canvas click received unknown entity type: {entity_type}"
-        )
+        if x_val is not None and y_val is not None:
+            apply_canvas_pick(float(x_val), float(y_val))
+            st.session_state.editor_phase3_status = (
+                f"Unknown trace entity '{entity_type}'; used nearest-object fallback "
+                f"at X={float(x_val):.2f}, Y={float(y_val):.2f}."
+            )
+        else:
+            st.session_state.editor_phase3_status = (
+                f"Canvas click received unknown entity type: {entity_type}"
+            )
         return
 
     st.session_state.editor_prime_inputs = True
