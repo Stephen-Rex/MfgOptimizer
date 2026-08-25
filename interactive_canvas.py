@@ -233,6 +233,7 @@ def build_interactive_canvas_figure():
         )
 
         selected_wpt = int(st.session_state.get("editor_workflow_selected_point_index", 0))
+        selected_wpt = max(0, min(selected_wpt, len(xs) - 1)) if len(xs) > 0 else 0
         for p_idx, (px, py) in enumerate(zip(xs, ys)):
             p_selected = is_selected and selected_wpt == p_idx
             fig.add_trace(
