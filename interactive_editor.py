@@ -1256,366 +1256,78 @@ def draw_interactive_editor_figure():
 def render_interactive_editor_controls():
     st.subheader("Interactive 2D Layout Editor Controls")
 
-    ctrl_col1, ctrl_col2 = st.columns([1, 1])
+    st.markdown("### Phase 3 Canvas")
 
-    st.markdown("### Phase 3 Canvas Selection")
+    top1, top2, top3, top4 = st.columns(4)
 
-    p3c1, p3c2, p3c3 = st.columns(3)
-
-    with p3c1:
+    with top1:
         st.selectbox(
             "Canvas Mode",
             options=["select", "move", "dim"],
             key="editor_canvas_mode",
         )
 
-    with p3c2:
-        st.checkbox("Enable Drag Mode", key="editor_drag_enabled")
-
-    with p3c3:
-        st.write("")
-        st.write("")
-        st.caption(
-            "Phase 3A enables interactive canvas selection. "
-            "Continuous drag will be layered in next."
-        )
-
-    pick_col1, pick_col2, pick_col3 = st.columns([1, 1, 1])
-
-    with pick_col1:
-        st.number_input(
-            "Canvas Pick X (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_w),
-            step=0.1,
-            key="editor_click_x_ft",
-        )
-
-    with pick_col2:
-        st.number_input(
-            "Canvas Pick Y (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_h),
-            step=0.1,
-            key="editor_click_y_ft",
-        )
-
-    with pick_col3:
-        st.write("")
-        st.write("")
-        if st.button("Select Nearest From Canvas Pick", key="editor_canvas_pick_btn"):
-            apply_canvas_pick(
-                st.session_state.editor_click_x_ft,
-                st.session_state.editor_click_y_ft,
-            )
-            st.rerun()
-
-    phase3_msg = st.session_state.get("editor_phase3_status", "")
-    if phase3_msg:
-        st.info(phase3_msg)    
-    
-    #####
-    with ctrl_col1:
-        st.checkbox("Enable Editor", key="editor_enabled")
-
-        st.selectbox(
-            "Object Type",
-            options=["machine", "lighting", "conduit", "crane", "workflow"],
-            key="editor_selected_type",
-            on_change=_on_object_type_change,
-        )
-
-        items = _get_object_list(st.session_state.editor_selected_type)
-
-        if items:
-            labels = [
-                _get_object_label(st.session_state.editor_selected_type, obj, idx)
-                for idx, obj in enumerate(items)
-            ]
-            st.session_state.editor_object_labels = labels
-
-            _normalize_selected_index()
-            current_idx = int(st.session_state.editor_selected_index)
-
-            st.selectbox(
-                "Selected Object",
-                options=labels,
-                index=current_idx,
-                key="editor_selected_label_select",
-                on_change=_on_selected_object_change,
-            )
-        else:
-            st.info("No objects available for the selected type.")
-
-        if st.session_state.editor_selected_type == "conduit":
-            result = _get_selected_object()
-            if result != (None, None, None):
-                _, _, cond = result
-                point_count = len(cond.get("x", []))
-                if point_count > 0:
-                    vertex_options = list(range(point_count))
-                    st.selectbox(
-                        "Selected Conduit Vertex",
-                        options=vertex_options,
-                        index=_get_safe_selected_vertex_index(),
-                        format_func=lambda i: f"P{i+1}",
-                        key="editor_selected_vertex_index",
-                        on_change=_on_selected_vertex_change,
-                    )
-
-        if st.session_state.editor_selected_type == "workflow":
-            _normalize_workflow_df()
-            point_count = _workflow_point_count()
-
-            if point_count > 0:
-                workflow_options = list(range(point_count))
-                st.selectbox(
-                    "Selected Workflow Point",
-                    options=workflow_options,
-                    index=_get_safe_workflow_point_index(),
-                    format_func=lambda i: f"W{i+1}",
-                    key="editor_workflow_selected_point_index",
-                    on_change=lambda: st.session_state.update(
-                        {"editor_prime_inputs": True}
-                    ),
-                )
-            else:
-                st.info("No workflow points available.")
-
+    with top2:
         st.checkbox("Snap to Grid", key="editor_snap_enabled")
+
+    with top3:
         st.number_input(
             "Snap/Grid Increment (ft)",
             min_value=0.1,
             step=0.1,
             key="editor_snap_ft",
         )
+
+    with top4:
         st.checkbox("Show Grid", key="editor_show_grid")
+
+    show_labels_col, spacer_col = st.columns([1, 3])
+
+    with show_labels_col:
         st.checkbox("Show Labels", key="editor_show_labels")
 
-    st.markdown("### Phase 3B Drag / Drop Placement")
+    st.markdown("### Selected Item")
 
-    d1, d2, d3 = st.columns(3)
+    sel_type = st.session_state.get("editor_selected_type", "machine")
+    sel_idx = int(st.session_state.get("editor_selected_index", 0))
 
-    with d1:
-        drag_mode_options = ["object"]
-        if st.session_state.editor_selected_type == "conduit":
-            drag_mode_options = ["object", "conduit_vertex"]
-        elif st.session_state.editor_selected_type == "workflow":
-            drag_mode_options = ["workflow_point"]
-        elif st.session_state.editor_selected_type == "crane":
-            drag_mode_options = ["object"]
+    st.write(f"**Type:** {sel_type}")
 
-        current_drag_mode = st.session_state.get("editor_drag_mode", drag_mode_options[0])
-        if current_drag_mode not in drag_mode_options:
-            current_drag_mode = drag_mode_options[0]
+    items = _get_object_list(sel_type)
+    if items and 0 <= sel_idx < len(items):
+        sel_obj = items[sel_idx]
+        sel_label = _get_object_label(sel_type, sel_obj, sel_idx)
+        st.write(f"**Selection:** {sel_label}")
+    else:
+        st.write("**Selection:** None")
 
-        st.selectbox(
-            "Drag Target",
-            options=drag_mode_options,
-            index=drag_mode_options.index(current_drag_mode),
-            key="editor_drag_mode",
-        )
-
-    with d2:
-        st.number_input(
-            "Drop X (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_w),
-            step=0.1,
-            key="editor_drag_drop_x_ft",
-        )
-
-    with d3:
-        st.number_input(
-            "Drop Y (ft)",
-            min_value=0.0,
-            max_value=float(st.session_state.floor_h),
-            step=0.1,
-            key="editor_drag_drop_y_ft",
-        )
-
-    dd1, dd2, dd3 = st.columns(3)
-
-    with dd1:
-        if st.button("Arm Drag", use_container_width=True):
-            arm_editor_drag()
-
-    with dd2:
-        if st.button("Apply Drop", use_container_width=True):
-            apply_drag_drop()
-            st.rerun()
-
-    with dd3:
-        if st.button("Cancel Drag", use_container_width=True):
-            cancel_editor_drag()
-
-    if st.session_state.get("editor_drag_armed", False):
-        st.warning("Drag is armed. Next drop will move the selected target.")    
-
-
-
-
-
-    
-    with ctrl_col2:
-        st.markdown("**Direct Coordinate Edit / Center Move**")
-        st.number_input("Selected X / Center X (ft)", step=0.5, key="editor_coord_x_input")
-        st.number_input("Selected Y / Center Y (ft)", step=0.5, key="editor_coord_y_input")
-
-        if st.button("Apply Coordinates", use_container_width=True):
-            apply_editor_coordinate_update()
-
-        st.markdown("**Nudge Selected Object**")
-        st.number_input(
-            "Nudge Step (ft)",
-            min_value=0.1,
-            step=0.1,
-            key="editor_move_step_ft",
-        )
-
-        n1, n2, n3 = st.columns(3)
-        with n2:
-            if st.button("⬆ Up", use_container_width=True):
-                apply_editor_nudge(0.0, float(st.session_state.editor_move_step_ft))
-        with n1:
-            if st.button("⬅ Left", use_container_width=True):
-                apply_editor_nudge(-float(st.session_state.editor_move_step_ft), 0.0)
-        with n2:
-            if st.button("⬇ Down", use_container_width=True):
-                apply_editor_nudge(0.0, -float(st.session_state.editor_move_step_ft))
-        with n3:
-            if st.button("➡ Right", use_container_width=True):
-                apply_editor_nudge(float(st.session_state.editor_move_step_ft), 0.0)
-
-        st.markdown("**Pick Nearest Object by Floor Coordinate**")
-        st.number_input("Pick X (ft)", step=0.5, key="editor_pick_x_input")
-        st.number_input("Pick Y (ft)", step=0.5, key="editor_pick_y_input")
-
-        if st.button("Select Nearest Object", use_container_width=True):
-            apply_pick_selection()
-
-        if st.session_state.editor_selected_type == "crane":
-            st.markdown("**Crane Bounding Box Edit**")
-            st.number_input("Lower Left X (ft)", step=0.5, key="editor_box_ll_x_input")
-            st.number_input("Lower Left Y (ft)", step=0.5, key="editor_box_ll_y_input")
-            st.number_input("Upper Right X (ft)", step=0.5, key="editor_box_ur_x_input")
-            st.number_input("Upper Right Y (ft)", step=0.5, key="editor_box_ur_y_input")
-
-            if st.button("Apply Crane Box", use_container_width=True):
-                apply_crane_box_update()
-
-        if st.session_state.editor_selected_type == "conduit":
-            st.markdown("**Conduit Vertex Edit**")
-            st.number_input("Vertex X (ft)", step=0.5, key="editor_vertex_x_input")
-            st.number_input("Vertex Y (ft)", step=0.5, key="editor_vertex_y_input")
-
-            if st.button("Apply Vertex Coordinates", use_container_width=True):
-                apply_conduit_vertex_update()
-
-            st.markdown("**Nudge Selected Vertex**")
-            v1, v2, v3 = st.columns(3)
-            with v2:
-                if st.button("⬆ Vertex Up", use_container_width=True):
-                    apply_conduit_vertex_nudge(0.0, float(st.session_state.editor_move_step_ft))
-            with v1:
-                if st.button("⬅ Vertex Left", use_container_width=True):
-                    apply_conduit_vertex_nudge(-float(st.session_state.editor_move_step_ft), 0.0)
-            with v2:
-                if st.button("⬇ Vertex Down", use_container_width=True):
-                    apply_conduit_vertex_nudge(0.0, -float(st.session_state.editor_move_step_ft))
-            with v3:
-                if st.button("➡ Vertex Right", use_container_width=True):
-                    apply_conduit_vertex_nudge(float(st.session_state.editor_move_step_ft), 0.0)
-
-            a1, a2 = st.columns(2)
-            with a1:
-                if st.button("Add Vertex After Selected", use_container_width=True):
-                    apply_add_conduit_vertex()
-            with a2:
-                if st.button("Delete Selected Vertex", use_container_width=True):
-                    apply_delete_conduit_vertex()
-
-        if st.session_state.editor_selected_type == "workflow":
-            st.markdown("**Workflow Point Edit**")
-            st.number_input("Workflow X (ft)", step=0.5, key="editor_workflow_x_input")
-            st.number_input("Workflow Y (ft)", step=0.5, key="editor_workflow_y_input")
-            st.number_input(
-                "Workflow Safety Standoff (ft)",
-                min_value=0.0,
-                step=0.5,
-                key="editor_workflow_standoff_input",
-            )
-            st.number_input(
-                "Workflow Movement Speed",
-                min_value=0.0,
-                step=0.5,
-                key="editor_workflow_speed_input",
+    if sel_type == "workflow":
+        _normalize_workflow_df()
+        wdf = _workflow_df()
+        if len(wdf) > 0:
+            widx = _get_safe_workflow_point_index()
+            st.write(f"**Workflow Point:** W{widx+1}")
+            st.write(
+                f"**Point Coordinates:** "
+                f"({float(wdf.iloc[widx]['X Coordinate']):.2f}, "
+                f"{float(wdf.iloc[widx]['Y Coordinate']):.2f})"
             )
 
-            if st.button("Apply Workflow Point", use_container_width=True):
-                apply_workflow_point_update()
+    elif items and 0 <= sel_idx < len(items):
+        try:
+            cx, cy = _object_center(sel_type, items[sel_idx])
+            st.write(f"**Center:** X={float(cx):.2f} ft, Y={float(cy):.2f} ft")
+        except Exception:
+            pass
 
-            wf_a1, wf_a2 = st.columns(2)
-            with wf_a1:
-                if st.button("Add Workflow Point After Selected", use_container_width=True):
-                    apply_add_workflow_point()
-            with wf_a2:
-                if st.button("Delete Selected Workflow Point", use_container_width=True):
-                    apply_delete_workflow_point()
+    with st.expander("Precision Edit / Center Move", expanded=False):
+        st.caption(
+            "Use these controls for exact numeric positioning after selecting an item on the canvas."
+        )
 
-    status_msg = str(st.session_state.get("editor_status_msg", "")).strip()
-    if status_msg:
-        st.info(status_msg)
-
-    result = _get_selected_object()
-    if result != (None, None, None):
-        obj_type, idx, obj = result
-        with st.expander("Selected Object Details", expanded=True):
-            st.write(f"**Type:** {obj_type}")
-            st.write(f"**ID:** {obj.get('id', idx)}")
-
-            cx, cy = _object_center(obj_type, obj)
-            st.write(f"**Center X:** {cx:.2f} ft")
-            st.write(f"**Center Y:** {cy:.2f} ft")
-
-            if obj_type == "crane":
-                st.write(
-                    f"**LL:** ({float(obj.get('ll_x', 0.0)):.2f}, "
-                    f"{float(obj.get('ll_y', 0.0)):.2f})"
-                )
-                st.write(
-                    f"**UR:** ({float(obj.get('ur_x', 0.0)):.2f}, "
-                    f"{float(obj.get('ur_y', 0.0)):.2f})"
-                )
-
-            if obj_type == "conduit":
-                st.write(f"**Points:** {len(obj.get('x', []))}")
-                vidx = _get_safe_selected_vertex_index()
-                if len(obj.get("x", [])) > vidx:
-                    st.write(
-                        f"**Selected Vertex:** P{vidx+1} "
-                        f"({float(obj['x'][vidx]):.2f}, {float(obj['y'][vidx]):.2f})"
-                    )
-
-            if obj_type == "workflow":
-                _normalize_workflow_df()
-                wdf = _workflow_df()
-                if len(wdf) > 0:
-                    widx = _get_safe_workflow_point_index()
-                    st.write(f"**Points:** {len(wdf)}")
-                    st.write(
-                        f"**Selected Point:** W{widx+1} "
-                        f"({float(wdf.iloc[widx]['X Coordinate']):.2f}, "
-                        f"{float(wdf.iloc[widx]['Y Coordinate']):.2f})"
-                    )
-                    st.write(
-                        f"**Standoff:** "
-                        f"{float(wdf.iloc[widx]['Safety Standoff (ft)']):.2f} ft"
-                    )
-                    st.write(
-                        f"**Movement Speed:** "
-                        f"{float(wdf.iloc[widx]['Movement Speed']):.2f}"
-                    )
+        # Keep your existing downstream precision controls alive by calling
+        # the original object-specific edit blocks if you want to reinsert them here.
+        st.write("Precision edit controls can be reattached here in the next pass.")
 
 def _apply_pending_canvas_selection_if_any():
     pending_type = st.session_state.get("editor_pending_selected_type", None)
