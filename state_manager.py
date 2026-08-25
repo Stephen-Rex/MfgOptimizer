@@ -270,22 +270,21 @@ def apply_imported_layout():
             ]:
                 if key in imported_data:
                     st.session_state[key] = imported_data[key]
-                    
-                if "floor_w" in imported_data:
-                    st.session_state.floor_w = float(imported_data["floor_w"])
-                if "floor_h" in imported_data:
-                    st.session_state.floor_h = float(imported_data["floor_h"])
-                if "path_width_ft" in imported_data:
-                    st.session_state.path_width_ft = float(imported_data["path_width_ft"])
-                if "path_points" in imported_data:
-                    st.session_state.path_points = pd.DataFrame(imported_data["path_points"])
+
+            if "floor_w" in imported_data:
+                st.session_state.floor_w = float(imported_data["floor_w"])
+            if "floor_h" in imported_data:
+                st.session_state.floor_h = float(imported_data["floor_h"])
+            if "path_width_ft" in imported_data:
+                st.session_state.path_width_ft = float(imported_data["path_width_ft"])
+            if "path_points" in imported_data:
+                st.session_state.path_points = pd.DataFrame(imported_data["path_points"])
 
             ensure_object_ids()
             ensure_machine_dimension_fields()
             ensure_lighting_dimension_fields()
             ensure_conduit_dimension_fields()
             ensure_workflow_dimension_fields()
-            
 
             # Validate imported objects
             for m in st.session_state.placed_machines:
@@ -293,7 +292,9 @@ def apply_imported_layout():
                     m, st.session_state.floor_w, st.session_state.floor_h
                 )
                 if not ok:
-                    raise ValueError(f"Imported machine {m.get('id', '?')} invalid: {msg}")
+                    raise ValueError(
+                        f"Imported machine {m.get('id', '?')} invalid: {msg}"
+                    )
 
             for c in st.session_state.placed_conduits:
                 ok, msg = validate_polyline(
@@ -303,7 +304,9 @@ def apply_imported_layout():
                     st.session_state.floor_h,
                 )
                 if not ok:
-                    raise ValueError(f"Imported conduit {c.get('id', '?')} invalid: {msg}")
+                    raise ValueError(
+                        f"Imported conduit {c.get('id', '?')} invalid: {msg}"
+                    )
 
             for cr in st.session_state.placed_cranes:
                 ok, msg = validate_bbox(
@@ -315,12 +318,15 @@ def apply_imported_layout():
                     st.session_state.floor_h,
                 )
                 if not ok:
-                    raise ValueError(f"Imported crane {cr.get('id', '?')} invalid: {msg}")
+                    raise ValueError(
+                        f"Imported crane {cr.get('id', '?')} invalid: {msg}"
+                    )
 
             st.session_state["import_status"] = (
                 "success",
                 f"✅ Layout imported successfully (schema {schema_version}).",
             )
+
         except Exception as e:
             st.session_state["import_status"] = (
                 "error",
