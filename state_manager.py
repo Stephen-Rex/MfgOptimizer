@@ -554,6 +554,55 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
                 "Movement Mode": ["human", "human", "human"],
             }
         )
+    
+    # Phase 3 drag/canvas editor state
+    if "editor_canvas_mode" not in st.session_state:
+        st.session_state.editor_canvas_mode = "select"  # select, move, dim
+
+    if "editor_drag_enabled" not in st.session_state:
+        st.session_state.editor_drag_enabled = True
+
+    if "editor_drag_active" not in st.session_state:
+        st.session_state.editor_drag_active = False
+
+    if "editor_drag_entity_type" not in st.session_state:
+        st.session_state.editor_drag_entity_type = ""
+
+    if "editor_drag_entity_id" not in st.session_state:
+        st.session_state.editor_drag_entity_id = ""
+
+    if "editor_drag_vertex_index" not in st.session_state:
+        st.session_state.editor_drag_vertex_index = -1
+
+    if "editor_drag_dimension_target" not in st.session_state:
+        st.session_state.editor_drag_dimension_target = ""
+
+    if "editor_last_mouse_x" not in st.session_state:
+        st.session_state.editor_last_mouse_x = None
+
+    if "editor_last_mouse_y" not in st.session_state:
+        st.session_state.editor_last_mouse_y = None
+
+    if "editor_canvas_refresh_token" not in st.session_state:
+        st.session_state.editor_canvas_refresh_token = 0
+
+    if "editor_click_x_ft" not in st.session_state:
+        st.session_state.editor_click_x_ft = 0.0
+
+    if "editor_click_y_ft" not in st.session_state:
+        st.session_state.editor_click_y_ft = 0.0
+
+    if "editor_selected_dimension_kind" not in st.session_state:
+        st.session_state.editor_selected_dimension_kind = ""
+
+    if "editor_selected_dimension_owner_id" not in st.session_state:
+        st.session_state.editor_selected_dimension_owner_id = ""
+
+    if "editor_selected_dimension_axis" not in st.session_state:
+        st.session_state.editor_selected_dimension_axis = ""
+
+    if "editor_phase3_status" not in st.session_state:
+        st.session_state.editor_phase3_status = ""    
 
     ensure_object_ids()
     ensure_machine_dimension_fields()
