@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import streamlit as st
+from interactive_canvas import build_interactive_canvas_figure, apply_canvas_pick
 
 
 def _snap_value(value, snap_ft, enabled=True):
@@ -1220,6 +1221,63 @@ def render_interactive_editor_controls():
 
     ctrl_col1, ctrl_col2 = st.columns([1, 1])
 
+    st.markdown("### Phase 3 Canvas Selection")
+
+    p3c1, p3c2, p3c3 = st.columns(3)
+
+    with p3c1:
+        st.selectbox(
+            "Canvas Mode",
+            options=["select", "move", "dim"],
+            key="editor_canvas_mode",
+        )
+
+    with p3c2:
+        st.checkbox("Enable Drag Mode", key="editor_drag_enabled")
+
+    with p3c3:
+        st.write("")
+        st.write("")
+        st.caption(
+            "Phase 3A enables interactive canvas selection. "
+            "Continuous drag will be layered in next."
+        )
+
+    pick_col1, pick_col2, pick_col3 = st.columns([1, 1, 1])
+
+    with pick_col1:
+        st.number_input(
+            "Canvas Pick X (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_w),
+            step=0.1,
+            key="editor_click_x_ft",
+        )
+
+    with pick_col2:
+        st.number_input(
+            "Canvas Pick Y (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_h),
+            step=0.1,
+            key="editor_click_y_ft",
+        )
+
+    with pick_col3:
+        st.write("")
+        st.write("")
+        if st.button("Select Nearest From Canvas Pick", key="editor_canvas_pick_btn"):
+            apply_canvas_pick(
+                st.session_state.editor_click_x_ft,
+                st.session_state.editor_click_y_ft,
+            )
+            st.rerun()
+
+    phase3_msg = st.session_state.get("editor_phase3_status", "")
+    if phase3_msg:
+        st.info(phase3_msg)    
+    
+    #####
     with ctrl_col1:
         st.checkbox("Enable Editor", key="editor_enabled")
 
@@ -1468,5 +1526,26 @@ def render_interactive_editor():
         st.session_state.editor_prime_inputs = False
 
     render_interactive_editor_controls()
-    fig = draw_interactive_editor_figure()
-    st.pyplot(fig, use_container_width=True)
+
+    view_mode = st.radio(
+        "Editor View Surface",
+        ["Legacy Matplotlib Editor", "Phase 3 Interactive Canvas"],
+        horizontal=True,
+        key="editor_surface_mode",
+    )
+
+    if view_mode == "Legacy Matplotlib Editor":
+        fig = draw_interactive_editor_figure()
+        st.pyplot(fig, use_container_width=True)
+    else:
+        fig = build_interactive_canvas_figure()
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key=f"editor_canvas_plot_{st.session_state.editor_canvas_refresh_token}",
+        )
+        st.caption(
+            "Phase 3A canvas is live for visual interaction scaffolding. "
+            "Selection is coordinated through the canvas pick controls until "
+            "direct click/drag wiring is added."
+        )
