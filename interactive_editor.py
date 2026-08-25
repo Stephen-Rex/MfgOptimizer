@@ -46,6 +46,340 @@ def _clamp_conduit_to_floor(x_vals, y_vals, floor_w, floor_h):
     new_y = [float(y) + shift_y for y in y_vals]
     return new_x, new_y
 
+def _clear_move_mode_state():
+    st.session_state.editor_move_awaiting_target = False
+    st.session_state.editor_move_selected_type = ""
+    st.session_state.editor_move_selected_index = -1
+    st.session_state.editor_move_selected_vertex_index = -1
+    st.session_state.editor_move_selected_workflow_point_index = -1
+
+
+def _resolve_canvas_click(point_data):
+    """
+    Resolve a Plotly click payload into a normalized click-info dict.
+
+    Returns dict with:
+      entity_type
+      obj_index
+      sub_index
+      x
+      y
+
+    entity_type may be:
+      machine, lighting, conduit, conduit_vertex, workflow, workflow_point, crane
+    """
+    if not point_data:
+        return None
+
+    clicked = point_data[0]
+    x_val = clicked.get("x", None)
+    y_val = clicked.get("y", None)
+    customdata = clicked.get("customdata", None)
+
+    if x_val is not None:
+        st.session_state.editor_last_pick_x = float(x_val)
+        st.session_state.editor_last_mouse_x = float(x_val)
+    if y_val is not None:
+        st.session_state.editor_last_pick_y = float(y_val)
+        st.session_state.editor_last_mouse_y = float(y_val)
+
+    # Preferred path: direct customdata on click payload
+    if customdata and len(customdata) >= 4:
+        try:
+            return {
+                "entity_type": str(customdata[0]),
+                "obj_index": int(customdata[1]),
+                "sub_index": int(customdata[3]),
+                "x": float(x_val) if x_val is not None else None,
+                "y": float(y_val) if y_val is not None else None,
+            }
+        except Exception:
+            pass
+
+    # Fallback path: curveNumber -> trace map
+    curve_number = clicked.get("curveNumber", None)
+    trace_map = st.session_state.get("editor_trace_map", [])
+
+    if curve_number is not None:
+        try:
+            curve_number = int(curve_number)
+            if 0 <= curve_number < len(trace_map):
+                mapped = trace_map[curve_number]
+                return {
+                    "entity_type": str(mapped.get("entity_type", "")),
+                    "obj_index": int(mapped.get("obj_index", -1)),
+                    "sub_index": int(mapped.get("sub_index", -1)),
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+        except Exception:
+            pass
+
+    # Last resort: coordinates only
+    if x_val is not None and y_val is not None:
+        return {
+            "entity_type": None,
+            "obj_index": -1,
+            "sub_index": -1,
+            "x": float(x_val),
+            "y": float(y_val),
+        }
+
+    return None
+
+
+def _apply_selection_from_click_info(click_info):
+    if not click_info:
+        return
+
+    entity_type = click_info.get("entity_type", None)
+    obj_index = int(click_info.get("obj_index", -1))
+    sub_index = int(click_info.get("sub_index", -1))
+
+    if not entity_type:
+        x_val = click_info.get("x", None)
+        y_val = click_info.get("y", None)
+        if x_val is not None and y_val is not None:
+            apply_canvas_pick(float(x_val), float(y_val))
+            st.session_state.editor_phase3_status = (
+                f"Canvas metadata missing; fallback used at "
+                f"X={float(x_val):.2f}, Y={float(y_val):.2f}."
+            )
+        else:
+            st.session_state.editor_phase3_status = (
+                "Canvas click could not be resolved."
+            )
+        return
+
+    if entity_type == "machine":
+        st.session_state.editor_pending_selected_type = "machine"
+        st.session_state.editor_pending_selected_index = obj_index
+        st.session_state.editor_pending_selected_vertex_index = 0
+        st.session_state.editor_pending_workflow_selected_point_index = 0
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas selected machine {obj_index}."
+        )
+
+    elif entity_type == "lighting":
+        st.session_state.editor_pending_selected_type = "lighting"
+        st.session_state.editor_pending_selected_index = obj_index
+        st.session_state.editor_pending_selected_vertex_index = 0
+        st.session_state.editor_pending_workflow_selected_point_index = 0
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas selected lighting {obj_index}."
+        )
+
+    elif entity_type == "conduit":
+        st.session_state.editor_pending_selected_type = "conduit"
+        st.session_state.editor_pending_selected_index = obj_index
+        st.session_state.editor_pending_selected_vertex_index = 0
+        st.session_state.editor_pending_workflow_selected_point_index = 0
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas selected conduit {obj_index}."
+        )
+
+    elif entity_type == "conduit_vertex":
+        st.session_state.editor_pending_selected_type = "conduit"
+        st.session_state.editor_pending_selected_index = obj_index
+        st.session_state.editor_pending_selected_vertex_index = sub_index
+        st.session_state.editor_pending_workflow_selected_point_index = 0
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas selected conduit {obj_index}, vertex {sub_index}."
+        )
+
+    elif entity_type == "workflow":
+        st.session_state.editor_pending_selected_type = "workflow"
+        st.session_state.editor_pending_selected_index = 0
+        st.session_state.editor_pending_selected_vertex_index = 0
+        st.session_state.editor_pending_workflow_selected_point_index = 0
+        st.session_state.editor_pending_phase3_status = "Canvas selected workflow."
+
+    elif entity_type == "workflow_point":
+        st.session_state.editor_pending_selected_type = "workflow"
+        st.session_state.editor_pending_selected_index = 0
+        st.session_state.editor_pending_selected_vertex_index = 0
+        st.session_state.editor_pending_workflow_selected_point_index = sub_index
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas selected workflow point {sub_index}."
+        )
+
+    elif entity_type == "crane":
+        st.session_state.editor_pending_selected_type = "crane"
+        st.session_state.editor_pending_selected_index = obj_index
+        st.session_state.editor_pending_selected_vertex_index = 0
+        st.session_state.editor_pending_workflow_selected_point_index = 0
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas selected crane {obj_index}."
+        )
+
+    else:
+        st.session_state.editor_pending_phase3_status = (
+            f"Canvas click received unknown entity type: {entity_type}"
+        )
+        return
+
+    st.session_state.editor_prime_inputs = True
+    st.session_state.editor_canvas_refresh_token += 1
+
+
+def _apply_canvas_click_selection(point_data):
+    click_info = _resolve_canvas_click(point_data)
+    _apply_selection_from_click_info(click_info)
+
+
+def _begin_move_from_click_info(click_info):
+    if not click_info:
+        _clear_move_mode_state()
+        st.session_state.editor_phase3_status = "Move mode: no clickable object was found."
+        return
+
+    entity_type = click_info.get("entity_type", None)
+    obj_index = int(click_info.get("obj_index", -1))
+    sub_index = int(click_info.get("sub_index", -1))
+
+    if entity_type is None:
+        _clear_move_mode_state()
+        st.session_state.editor_phase3_status = (
+            "Move mode requires clicking a selectable object first."
+        )
+        return
+
+    # Normalize what can actually be moved
+    if entity_type == "conduit_vertex":
+        move_type = "conduit_vertex"
+        move_obj_index = obj_index
+        move_vertex_index = sub_index
+        move_workflow_point_index = -1
+    elif entity_type == "workflow_point":
+        move_type = "workflow_point"
+        move_obj_index = 0
+        move_vertex_index = -1
+        move_workflow_point_index = sub_index
+    elif entity_type in ["machine", "lighting", "conduit", "crane"]:
+        move_type = entity_type
+        move_obj_index = obj_index
+        move_vertex_index = -1
+        move_workflow_point_index = -1
+    elif entity_type == "workflow":
+        # moving whole workflow is ambiguous in current editor;
+        # use selected workflow point instead
+        move_type = "workflow_point"
+        move_obj_index = 0
+        move_vertex_index = -1
+        move_workflow_point_index = int(
+            st.session_state.get("editor_workflow_selected_point_index", 0)
+        )
+    else:
+        _clear_move_mode_state()
+        st.session_state.editor_phase3_status = (
+            f"Move mode does not support entity type: {entity_type}"
+        )
+        return
+
+    st.session_state.editor_move_awaiting_target = True
+    st.session_state.editor_move_selected_type = move_type
+    st.session_state.editor_move_selected_index = move_obj_index
+    st.session_state.editor_move_selected_vertex_index = move_vertex_index
+    st.session_state.editor_move_selected_workflow_point_index = move_workflow_point_index
+
+    st.session_state.editor_phase3_status = (
+        f"Move mode armed for {move_type}. Click destination point."
+    )
+
+
+def _apply_move_to_click(point_data):
+    click_info = _resolve_canvas_click(point_data)
+    if not click_info:
+        st.session_state.editor_phase3_status = "Move target click was not resolved."
+        return
+
+    x_val = click_info.get("x", None)
+    y_val = click_info.get("y", None)
+
+    if x_val is None or y_val is None:
+        st.session_state.editor_phase3_status = (
+            "Move target click did not include coordinates."
+        )
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+    x_val, y_val = _clamp_to_floor(float(x_val), float(y_val), floor_w, floor_h)
+
+    move_type = st.session_state.get("editor_move_selected_type", "")
+    move_index = int(st.session_state.get("editor_move_selected_index", -1))
+    move_vertex_index = int(st.session_state.get("editor_move_selected_vertex_index", -1))
+    move_workflow_point_index = int(
+        st.session_state.get("editor_move_selected_workflow_point_index", -1)
+    )
+
+    if move_type == "machine":
+        st.session_state.editor_selected_type = "machine"
+        st.session_state.editor_selected_index = move_index
+        _set_selected_xy(x_val, y_val)
+        st.session_state.editor_phase3_status = (
+            f"Moved machine {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
+        )
+
+    elif move_type == "lighting":
+        st.session_state.editor_selected_type = "lighting"
+        st.session_state.editor_selected_index = move_index
+        _set_selected_xy(x_val, y_val)
+        st.session_state.editor_phase3_status = (
+            f"Moved lighting {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
+        )
+
+    elif move_type == "conduit":
+        st.session_state.editor_selected_type = "conduit"
+        st.session_state.editor_selected_index = move_index
+        _set_selected_xy(x_val, y_val)
+        st.session_state.editor_phase3_status = (
+            f"Moved conduit {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
+        )
+
+    elif move_type == "conduit_vertex":
+        st.session_state.editor_selected_type = "conduit"
+        st.session_state.editor_selected_index = move_index
+        st.session_state.editor_pending_vertex_index = move_vertex_index
+        _apply_pending_vertex_selection_if_any()
+        _set_selected_conduit_vertex_xy(x_val, y_val)
+        st.session_state.editor_phase3_status = (
+            f"Moved conduit {move_index} vertex {move_vertex_index} "
+            f"to X={x_val:.2f}, Y={y_val:.2f}."
+        )
+
+    elif move_type == "workflow_point":
+        st.session_state.editor_selected_type = "workflow"
+        st.session_state.editor_selected_index = 0
+        st.session_state.editor_pending_workflow_point_index = move_workflow_point_index
+        _apply_pending_workflow_point_selection_if_any()
+        _set_selected_workflow_point_xy(x_val, y_val)
+        st.session_state.editor_phase3_status = (
+            f"Moved workflow point {move_workflow_point_index} "
+            f"to X={x_val:.2f}, Y={y_val:.2f}."
+        )
+
+    elif move_type == "crane":
+        st.session_state.editor_selected_type = "crane"
+        st.session_state.editor_selected_index = move_index
+        _set_selected_crane_center_xy(x_val, y_val)
+        st.session_state.editor_phase3_status = (
+            f"Moved crane {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
+        )
+
+    else:
+        st.session_state.editor_phase3_status = (
+            f"Unsupported move target type: {move_type}"
+        )
+        return
+
+    st.session_state.editor_last_mouse_x = x_val
+    st.session_state.editor_last_mouse_y = y_val
+    st.session_state.editor_prime_inputs = True
+    st.session_state.editor_canvas_refresh_token += 1
+    _clear_move_mode_state()
+
+
 
 def _clamp_crane_box(ll_x, ll_y, ur_x, ur_y, floor_w, floor_h):
     ll_x = float(ll_x)
@@ -1492,6 +1826,12 @@ def render_interactive_editor():
         "Dim = reserved for future dimension editing."
     )
 
+    if st.session_state.get("editor_canvas_mode", "select") == "move":
+        if st.session_state.get("editor_move_awaiting_target", False):
+            st.warning("Move mode active: click a destination point.")
+        else:
+            st.info("Move mode active: click an object to move.")
+    
     phase3_msg = st.session_state.get("editor_phase3_status", "")
     if phase3_msg:
         st.info(phase3_msg)
