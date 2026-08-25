@@ -244,31 +244,50 @@ def _begin_move_from_click_info(click_info):
         )
         return
 
-    # Normalize what can actually be moved
-    if entity_type == "conduit_vertex":
-        move_type = "conduit_vertex"
-        move_obj_index = obj_index
-        move_vertex_index = sub_index
-        move_workflow_point_index = -1
+    if entity_type == "machine":
+        st.session_state.editor_move_selected_type = "machine"
+        st.session_state.editor_move_selected_index = obj_index
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = -1
+
+    elif entity_type == "lighting":
+        st.session_state.editor_move_selected_type = "lighting"
+        st.session_state.editor_move_selected_index = obj_index
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = -1
+
+    elif entity_type == "conduit":
+        st.session_state.editor_move_selected_type = "conduit"
+        st.session_state.editor_move_selected_index = obj_index
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = -1
+
+    elif entity_type == "conduit_vertex":
+        st.session_state.editor_move_selected_type = "conduit_vertex"
+        st.session_state.editor_move_selected_index = obj_index
+        st.session_state.editor_move_selected_vertex_index = sub_index
+        st.session_state.editor_move_selected_workflow_point_index = -1
+
     elif entity_type == "workflow_point":
-        move_type = "workflow_point"
-        move_obj_index = 0
-        move_vertex_index = -1
-        move_workflow_point_index = sub_index
-    elif entity_type in ["machine", "lighting", "conduit", "crane"]:
-        move_type = entity_type
-        move_obj_index = obj_index
-        move_vertex_index = -1
-        move_workflow_point_index = -1
+        st.session_state.editor_move_selected_type = "workflow_point"
+        st.session_state.editor_move_selected_index = 0
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = sub_index
+
     elif entity_type == "workflow":
-        # moving whole workflow is ambiguous in current editor;
-        # use selected workflow point instead
-        move_type = "workflow_point"
-        move_obj_index = 0
-        move_vertex_index = -1
-        move_workflow_point_index = int(
+        st.session_state.editor_move_selected_type = "workflow_point"
+        st.session_state.editor_move_selected_index = 0
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = int(
             st.session_state.get("editor_workflow_selected_point_index", 0)
         )
+
+    elif entity_type == "crane":
+        st.session_state.editor_move_selected_type = "crane"
+        st.session_state.editor_move_selected_index = obj_index
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = -1
+
     else:
         _clear_move_mode_state()
         st.session_state.editor_phase3_status = (
@@ -277,15 +296,10 @@ def _begin_move_from_click_info(click_info):
         return
 
     st.session_state.editor_move_awaiting_target = True
-    st.session_state.editor_move_selected_type = move_type
-    st.session_state.editor_move_selected_index = move_obj_index
-    st.session_state.editor_move_selected_vertex_index = move_vertex_index
-    st.session_state.editor_move_selected_workflow_point_index = move_workflow_point_index
-
     st.session_state.editor_phase3_status = (
-        f"Move mode armed for {move_type}. Click destination point."
+        f"Move mode armed for {st.session_state.editor_move_selected_type} "
+        f"index {st.session_state.editor_move_selected_index}. Click destination point."
     )
-
 
 def _apply_move_to_click(point_data):
     click_info = _resolve_canvas_click(point_data)
