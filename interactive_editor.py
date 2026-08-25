@@ -314,34 +314,40 @@ def _apply_move_to_click(point_data):
     )
 
     if move_type == "machine":
-        st.session_state.editor_selected_type = "machine"
-        st.session_state.editor_selected_index = move_index
+        st.session_state["editor_selected_type"] = "machine"
+        st.session_state["editor_selected_index"] = move_index
+        st.session_state["editor_selected_vertex_index"] = 0
+        st.session_state["editor_workflow_selected_point_index"] = 0
         _set_selected_xy(x_val, y_val)
         st.session_state.editor_phase3_status = (
             f"Moved machine {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
         )
 
     elif move_type == "lighting":
-        st.session_state.editor_selected_type = "lighting"
-        st.session_state.editor_selected_index = move_index
+        st.session_state["editor_selected_type"] = "lighting"
+        st.session_state["editor_selected_index"] = move_index
+        st.session_state["editor_selected_vertex_index"] = 0
+        st.session_state["editor_workflow_selected_point_index"] = 0
         _set_selected_xy(x_val, y_val)
         st.session_state.editor_phase3_status = (
             f"Moved lighting {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
         )
 
     elif move_type == "conduit":
-        st.session_state.editor_selected_type = "conduit"
-        st.session_state.editor_selected_index = move_index
+        st.session_state["editor_selected_type"] = "conduit"
+        st.session_state["editor_selected_index"] = move_index
+        st.session_state["editor_selected_vertex_index"] = 0
+        st.session_state["editor_workflow_selected_point_index"] = 0
         _set_selected_xy(x_val, y_val)
         st.session_state.editor_phase3_status = (
             f"Moved conduit {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
         )
 
     elif move_type == "conduit_vertex":
-        st.session_state.editor_selected_type = "conduit"
-        st.session_state.editor_selected_index = move_index
-        st.session_state.editor_pending_vertex_index = move_vertex_index
-        _apply_pending_vertex_selection_if_any()
+        st.session_state["editor_selected_type"] = "conduit"
+        st.session_state["editor_selected_index"] = move_index
+        st.session_state["editor_selected_vertex_index"] = move_vertex_index
+        st.session_state["editor_workflow_selected_point_index"] = 0
         _set_selected_conduit_vertex_xy(x_val, y_val)
         st.session_state.editor_phase3_status = (
             f"Moved conduit {move_index} vertex {move_vertex_index} "
@@ -349,10 +355,10 @@ def _apply_move_to_click(point_data):
         )
 
     elif move_type == "workflow_point":
-        st.session_state.editor_selected_type = "workflow"
-        st.session_state.editor_selected_index = 0
-        st.session_state.editor_pending_workflow_point_index = move_workflow_point_index
-        _apply_pending_workflow_point_selection_if_any()
+        st.session_state["editor_selected_type"] = "workflow"
+        st.session_state["editor_selected_index"] = 0
+        st.session_state["editor_selected_vertex_index"] = 0
+        st.session_state["editor_workflow_selected_point_index"] = move_workflow_point_index
         _set_selected_workflow_point_xy(x_val, y_val)
         st.session_state.editor_phase3_status = (
             f"Moved workflow point {move_workflow_point_index} "
@@ -360,8 +366,10 @@ def _apply_move_to_click(point_data):
         )
 
     elif move_type == "crane":
-        st.session_state.editor_selected_type = "crane"
-        st.session_state.editor_selected_index = move_index
+        st.session_state["editor_selected_type"] = "crane"
+        st.session_state["editor_selected_index"] = move_index
+        st.session_state["editor_selected_vertex_index"] = 0
+        st.session_state["editor_workflow_selected_point_index"] = 0
         _set_selected_crane_center_xy(x_val, y_val)
         st.session_state.editor_phase3_status = (
             f"Moved crane {move_index} to X={x_val:.2f}, Y={y_val:.2f}."
@@ -378,7 +386,6 @@ def _apply_move_to_click(point_data):
     st.session_state.editor_prime_inputs = True
     st.session_state.editor_canvas_refresh_token += 1
     _clear_move_mode_state()
-
 
 
 def _clamp_crane_box(ll_x, ll_y, ur_x, ur_y, floor_w, floor_h):
