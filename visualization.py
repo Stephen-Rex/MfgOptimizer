@@ -843,73 +843,73 @@ def draw_asme_drawing(
           color='#FFD700',
           zorder=7,
       )
-    if show_locator_dims and bool(l.get("dim_visible", True)):
-        lx_ft = float(l["x"])
-        ly_ft = float(l["y"])
+        if show_locator_dims and bool(l.get("dim_visible", True)):
+            lx_ft = float(l["x"])
+            ly_ft = float(l["y"])
 
-        dim_x_line_offset_in = float(l.get("dim_x_line_offset_ft", 0.0)) * S
-        dim_y_line_offset_in = float(l.get("dim_y_line_offset_ft", 0.0)) * S
-        dim_x_text_offset_in = float(l.get("dim_x_text_offset_ft", 0.0)) * S
-        dim_y_text_offset_in = float(l.get("dim_y_text_offset_ft", 0.0)) * S
-        dim_show_fixture_note = bool(l.get("dim_show_fixture_note", True))
+            dim_x_line_offset_in = float(l.get("dim_x_line_offset_ft", 0.0)) * S
+            dim_y_line_offset_in = float(l.get("dim_y_line_offset_ft", 0.0)) * S
+            dim_x_text_offset_in = float(l.get("dim_x_text_offset_ft", 0.0)) * S
+            dim_y_text_offset_in = float(l.get("dim_y_text_offset_ft", 0.0)) * S
+            dim_show_fixture_note = bool(l.get("dim_show_fixture_note", True))
 
-        dim_color = '#66FFFF'
-        ext_color = '#AAAAAA'
-        txt_color = '#FFFFFF'
+            dim_color = '#66FFFF'
+            ext_color = '#AAAAAA'
+            txt_color = '#FFFFFF'
 
-        x_dim_y = O_y - 0.45 - dim_x_line_offset_in
-        y_dim_x = O_x - 0.45 - dim_y_line_offset_in
+            x_dim_y = O_y - 0.45 - dim_x_line_offset_in
+            y_dim_x = O_x - 0.45 - dim_y_line_offset_in
 
-        _draw_dim_line(ax, O_x, x_dim_y, lx_in, x_dim_y, color=dim_color, lw=0.8, z=7)
-        _draw_ext_line(ax, O_x, O_y, O_x, x_dim_y + 0.05, color=ext_color, lw=0.7, z=6)
-        _draw_ext_line(ax, lx_in, ly_in, lx_in, x_dim_y + 0.05, color=ext_color, lw=0.7, z=6)
-        _draw_tick(ax, O_x, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
-        _draw_tick(ax, lx_in, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+            _draw_dim_line(ax, O_x, x_dim_y, lx_in, x_dim_y, color=dim_color, lw=0.8, z=7)
+            _draw_ext_line(ax, O_x, O_y, O_x, x_dim_y + 0.05, color=ext_color, lw=0.7, z=6)
+            _draw_ext_line(ax, lx_in, ly_in, lx_in, x_dim_y + 0.05, color=ext_color, lw=0.7, z=6)
+            _draw_tick(ax, O_x, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+            _draw_tick(ax, lx_in, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
-        ax.text(
-            (O_x + lx_in) / 2.0,
-            x_dim_y - 0.05 - dim_x_text_offset_in,
-            f"X = {lx_ft:.1f} ft",
-            fontsize=5.5,
-            color=txt_color,
-            ha='center',
-            va='top',
-            zorder=8,
-            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.0),
-        )
+            ax.text(
+                (O_x + lx_in) / 2.0,
+                x_dim_y - 0.05 - dim_x_text_offset_in,
+                f"X = {lx_ft:.1f} ft",
+                fontsize=5.5,
+                color=txt_color,
+                ha='center',
+                va='top',
+                zorder=8,
+                bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.0),
+            )
 
-        _draw_dim_line(ax, y_dim_x, O_y, y_dim_x, ly_in, color=dim_color, lw=0.8, z=7)
-        _draw_ext_line(ax, O_x, O_y, y_dim_x + 0.05, O_y, color=ext_color, lw=0.7, z=6)
-        _draw_ext_line(ax, lx_in, ly_in, y_dim_x + 0.05, ly_in, color=ext_color, lw=0.7, z=6)
-        _draw_tick(ax, y_dim_x, O_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
-        _draw_tick(ax, y_dim_x, ly_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+            _draw_dim_line(ax, y_dim_x, O_y, y_dim_x, ly_in, color=dim_color, lw=0.8, z=7)
+            _draw_ext_line(ax, O_x, O_y, y_dim_x + 0.05, O_y, color=ext_color, lw=0.7, z=6)
+            _draw_ext_line(ax, lx_in, ly_in, y_dim_x + 0.05, ly_in, color=ext_color, lw=0.7, z=6)
+            _draw_tick(ax, y_dim_x, O_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
+            _draw_tick(ax, y_dim_x, ly_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
-        ax.text(
-            y_dim_x - 0.05 - dim_y_text_offset_in,
-            (O_y + ly_in) / 2.0,
-            f"Y = {ly_ft:.1f} ft",
-            fontsize=5.5,
-            color=txt_color,
-            ha='right',
-            va='center',
-            rotation=90,
-            zorder=8,
-            bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.0),
-        )
+            ax.text(
+                y_dim_x - 0.05 - dim_y_text_offset_in,
+                (O_y + ly_in) / 2.0,
+                f"Y = {ly_ft:.1f} ft",
+                fontsize=5.5,
+                color=txt_color,
+                ha='right',
+                va='center',
+                rotation=90,
+                zorder=8,
+                bbox=dict(facecolor='#222222', edgecolor='none', alpha=0.5, pad=1.0),
+            )
 
-        if dim_show_fixture_note:
-          fixture_note = f"{l.get('Type', 'Light')} / {float(l.get('Wattage', 0.0)):.0f}W"
-          ax.text(
-              lx_in + 0.12,
-              ly_in - 0.12,
-              fixture_note,
-              fontsize=5.5,
-              color='#FFD700',
-              ha='left',
-              va='top',
-              zorder=8,
-              bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.4, pad=0.8),
-          )
+            if dim_show_fixture_note:
+              fixture_note = f"{l.get('Type', 'Light')} / {float(l.get('Wattage', 0.0)):.0f}W"
+              ax.text(
+                  lx_in + 0.12,
+                  ly_in - 0.12,
+                  fixture_note,
+                  fontsize=5.5,
+                  color='#FFD700',
+                  ha='left',
+                  va='top',
+                  zorder=8,
+                  bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.4, pad=0.8),
+              )
 
   ax.set_xlim(-1, width_in + 1)
   ax.set_ylim(-1, height_in + 1)
