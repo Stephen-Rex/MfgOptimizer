@@ -1641,16 +1641,30 @@ def render_interactive_editor():
         st.pyplot(fig, use_container_width=True)
     else:
         fig = build_interactive_canvas_figure()
-        st.plotly_chart(
+        selected_points = plotly_events(
             fig,
-            use_container_width=True,
-            key=f"editor_canvas_plot_{st.session_state.editor_canvas_refresh_token}",
+            click_event=True,
+            hover_event=False,
+            select_event=False,
+            override_height=650,
+            override_width="100%",
+            key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
         )
+
+        if selected_points:
+            _apply_canvas_click_selection(selected_points)
+            if st.session_state.get("editor_drag_armed", False):
+                _apply_canvas_click_to_drop(selected_points)
+            st.rerun()
+
         st.caption(
-            "Phase 3A canvas is live for visual interaction scaffolding. "
-            "Selection is coordinated through the canvas pick controls until "
-            "direct click/drag wiring is added."
+            "Phase 3 canvas: click objects to select them. "
+            "If drag is armed, clicked coordinates also update the drop target."
         )
+
+        phase3_msg = st.session_state.get("editor_phase3_status", "")
+        if phase3_msg:
+            st.info(phase3_msg)        
 
 def arm_editor_drag():
     st.session_state.editor_drag_armed = True
@@ -1809,3 +1823,98 @@ def apply_drag_drop():
     st.session_state.editor_drag_armed = False
     st.session_state.editor_phase3_status = "Drop applied."
 
+def _apply_canvas_click_selection(point_data):
+    """
+    point_data is expected to come from plotly_events() and include customdata.
+    customdata format:
+      [entity_type, object_index, object_id, sub_index]
+    """
+    if not point_data:
+        return
+
+    clicked = point_data[0]
+
+    customdata = clicked.get("customdata", None)
+    x_val = clicked.get("x", None)
+    y_val = clicked.get("y", None)
+
+    if x_val is not None:
+        st.session_state.editor_last_pick_x = float(x_val)
+    if y_val is not None:
+        st.session_state.editor_last_pick_y = float(y_val)
+
+    if not customdata or len(customdata) < 4:
+        st.session_state.editor_phase3_status = "Canvas click received, but no selectable object metadata was found."
+        return
+
+    entity_type = str(customdata[0])
+    obj_index = int(customdata[1])
+    sub_index = int(customdata[3])
+
+    if entity_type == "machine":
+        st.session_state.editor_selected_type = "machine"
+        st.session_state.editor_selected_index = obj_index
+        st.session_state.editor_selected_vertex_index = 0
+        st.session_state.editor_workflow_selected_point_index = 0
+
+    elif entity_type == "lighting":
+        st.session_state.editor_selected_type = "lighting"
+        st.session_state.editor_selected_index = obj_index
+        st.session_state.editor_selected_vertex_index = 0
+        st.session_state.editor_workflow_selected_point_index = 0
+
+    elif entity_type == "conduit":
+        st.session_state.editor_selected_type = "conduit"
+        st.session_state.editor_selected_index = obj_index
+        st.session_state.editor_selected_vertex_index = 0
+        st.session_state.editor_workflow_selected_point_index = 0
+
+    elif entity_type == "conduit_vertex":
+        st.session_state.editor_selected_type = "conduit"
+        st.session_state.editor_selected_index = obj_index
+        st.session_state.editor_pending_vertex_index = sub_index
+        st.session_state.editor_workflow_selected_point_index = 0
+
+    elif entity_type == "workflow":
+        st.session_state.editor_selected_type = "workflow"
+        st.session_state.editor_selected_index = 0
+
+    elif entity_type == "workflow_point":
+        st.session_state.editor_selected_type = "workflow"
+        st.session_state.editor_selected_index = 0
+        st.session_state.editor_pending_workflow_point_index = sub_index
+
+    elif entity_type == "crane":
+        st.session_state.editor_selected_type = "crane"
+        st.session_state.editor_selected_index = obj_index
+        st.session_state.editor_selected_vertex_index = 0
+        st.session_state.editor_workflow_selected_point_index = 0
+
+    st.session_state.editor_prime_inputs = True
+    st.session_state.editor_phase3_status = (
+        f"Canvas selected {entity_type}."
+    )
+
+def _apply_canvas_click_to_drop(point_data):
+    if not point_data:
+        return
+
+    clicked = point_data[0]
+    x_val = clicked.get("x", None)
+    y_val = clicked.get("y", None)
+
+    if x_val is None or y_val is None:
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    x_val, y_val = _clamp_to_floor(float(x_val), float(y_val), floor_w, floor_h)
+
+    st.session_state.editor_drag_drop_x_ft = x_val
+    st.session_state.editor_drag_drop_y_ft = y_val
+    st.session_state.editor_last_pick_x = x_val
+    st.session_state.editor_last_pick_y = y_val
+    st.session_state.editor_phase3_status = (
+        f"Drop target set to X={x_val:.2f} ft, Y={y_val:.2f} ft."
+    )
