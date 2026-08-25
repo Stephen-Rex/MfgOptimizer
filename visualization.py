@@ -842,7 +842,7 @@ def draw_asme_drawing(
           color='#FFD700',
           zorder=7,
       )
-            if show_locator_dims and bool(l.get("dim_visible", True)):
+    if show_locator_dims and bool(l.get("dim_visible", True)):
         lx_ft = float(l["x"])
         ly_ft = float(l["y"])
 
