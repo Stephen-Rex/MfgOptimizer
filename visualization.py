@@ -545,7 +545,12 @@ def draw_asme_drawing(
               ha='center',
               va='center',
               zorder=8,
-              bbox=dict(facecolor='#222222', edgecolor='gold', alpha=0.55, pad=1.0),
+              bbox=dict(
+                  facecolor="#222222",
+                  edgecolor="gold",
+                  alpha=0.55,
+                  pad=1.0,
+              ),
           )
   
   # Draw conduits
