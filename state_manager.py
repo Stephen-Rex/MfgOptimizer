@@ -444,6 +444,23 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_workflow_speed_input = 0.0
     if "editor_pending_workflow_point_index" not in st.session_state:
         st.session_state.editor_pending_workflow_point_index = None
+    if "editor_drag_mode" not in st.session_state:
+        st.session_state.editor_drag_mode = "object"  # object, conduit_vertex, workflow_point
+
+    if "editor_drag_armed" not in st.session_state:
+        st.session_state.editor_drag_armed = False
+
+    if "editor_drag_drop_x_ft" not in st.session_state:
+        st.session_state.editor_drag_drop_x_ft = 0.0
+
+    if "editor_drag_drop_y_ft" not in st.session_state:
+        st.session_state.editor_drag_drop_y_ft = 0.0
+
+    if "editor_drag_preview_dx_ft" not in st.session_state:
+        st.session_state.editor_drag_preview_dx_ft = 0.0
+
+    if "editor_drag_preview_dy_ft" not in st.session_state:
+        st.session_state.editor_drag_preview_dy_ft = 0.0        
     
 
     if "placed_machines" not in st.session_state:
