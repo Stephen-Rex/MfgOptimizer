@@ -1628,7 +1628,9 @@ def _apply_pending_canvas_selection_if_any():
         return
 
     if pending_type is not None:
-        st.session_state.editor_selected_type = pending_type
+        st.session_state.editor_phase3_status = (
+            f"Pending selected type was {pending_type}, but assignment was skipped for debug."
+        )
 
     if pending_index is not None:
         st.session_state.editor_selected_index = int(pending_index)
