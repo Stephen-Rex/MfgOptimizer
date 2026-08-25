@@ -639,7 +639,23 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_selected_dimension_axis = ""
 
     if "editor_phase3_status" not in st.session_state:
-        st.session_state.editor_phase3_status = ""    
+        st.session_state.editor_phase3_status = ""
+
+    if "editor_move_awaiting_target" not in st.session_state:
+        st.session_state.editor_move_awaiting_target = False
+
+    if "editor_move_selected_type" not in st.session_state:
+        st.session_state.editor_move_selected_type = ""
+
+    if "editor_move_selected_index" not in st.session_state:
+        st.session_state.editor_move_selected_index = -1
+
+    if "editor_move_selected_vertex_index" not in st.session_state:
+        st.session_state.editor_move_selected_vertex_index = -1
+
+    if "editor_move_selected_workflow_point_index" not in st.session_state:
+        st.session_state.editor_move_selected_workflow_point_index = -1
+    
 
     ensure_object_ids()
     ensure_machine_dimension_fields()
