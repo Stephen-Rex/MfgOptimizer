@@ -124,6 +124,7 @@ def build_interactive_canvas_figure():
                 text=[mid],
                 textposition="top center",
                 name=mid,
+                showlegend=False,
                 customdata=[["machine", idx, mid, -1]],
                 hovertemplate=f"{mid}<br>X={mx:.2f}<br>Y={my:.2f}<extra></extra>",
             )
@@ -154,6 +155,7 @@ def build_interactive_canvas_figure():
                 text=[lid],
                 textposition="top center",
                 name=lid,
+                showlegend=False,
                 customdata=[["lighting", idx, lid, -1]],
                 hovertemplate=f"{lid}<br>X={lx:.2f}<br>Y={ly:.2f}<extra></extra>",
             )
@@ -179,6 +181,7 @@ def build_interactive_canvas_figure():
                     line=dict(color="#FFA500", width=4 if is_selected else 3),
                     marker=dict(size=8, color="#FFD700"),
                     name=cid,
+                    showlegend=False,
                     customdata=[["conduit", idx, cid, -1]] * len(xs),
                     hovertemplate=f"{cid}<extra></extra>",
                 )
@@ -223,6 +226,7 @@ def build_interactive_canvas_figure():
                 line=dict(color="#808080", width=5 if is_selected else 4),
                 marker=dict(size=8, color="#00E5FF"),
                 name="WF-001",
+                showlegend=False,
                 customdata=[["workflow", 0, "WF-001", -1]] * len(xs),
                 hovertemplate="WF-001<extra></extra>",
             )
