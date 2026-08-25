@@ -58,6 +58,11 @@ def render_import_export_tab():
             "editor_snap_ft": st.session_state.editor_snap_ft,
             "editor_show_grid": st.session_state.editor_show_grid,
             "editor_show_labels": st.session_state.editor_show_labels,
+            "workflow_dim_visible": st.session_state.workflow_dim_visible,
+            "workflow_dim_label_x_offset_ft": st.session_state.workflow_dim_label_x_offset_ft,
+            "workflow_dim_label_y_offset_ft": st.session_state.workflow_dim_label_y_offset_ft,
+            "workflow_dim_show_length": st.session_state.workflow_dim_show_length,
+            "workflow_dim_show_metadata": st.session_state.workflow_dim_show_metadata,
         }
 
         export_str = json.dumps(export_data, indent=2)
