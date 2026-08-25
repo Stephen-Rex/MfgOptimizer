@@ -140,20 +140,20 @@ def build_interactive_canvas_figure():
                 layer="below",
             )
 
-        #fig.add_trace(
-        #    go.Scatter(
-        #        x=[x0, x1, x1, x0, x0],
-        #        y=[y0, y0, y1, y1, y0],
-        #        mode="lines",
-        #        fill="toself",
-        #        fillcolor="rgba(0,0,0,0.001)",
-        #        line=dict(color="rgba(0,0,0,0)", width=0),
-        #        showlegend=False,
-        #        hoverinfo="skip",
-        #        customdata=[["machine", idx, mid, -1]] * 5,
-        #    )
-        #)
-        #_register_trace("machine", idx, -1, mid)
+        fig.add_trace(
+            go.Scatter(
+                x=[x0, x1, x1, x0, x0],
+                y=[y0, y0, y1, y1, y0],
+                mode="lines",
+                fill="toself",
+                fillcolor="rgba(0,0,0,0.001)",
+                line=dict(color="rgba(0,0,0,0)", width=0),
+                showlegend=False,
+                hoverinfo="skip",
+                customdata=[["machine", idx, mid, -1]] * 5,
+            )
+        )
+        _register_trace("machine", idx, -1, mid)
 
         fig.add_trace(
             go.Scatter(
