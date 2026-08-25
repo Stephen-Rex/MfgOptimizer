@@ -1642,7 +1642,6 @@ def render_interactive_editor():
     else:
         fig = build_interactive_canvas_figure()
         selected_points = plotly_events(
-            st.write("DEBUG selected_points:", selected_points),
             fig,
             click_event=True,
             hover_event=False,
