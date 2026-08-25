@@ -462,7 +462,9 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     if "editor_drag_preview_dy_ft" not in st.session_state:
         st.session_state.editor_drag_preview_dy_ft = 0.0
     if "editor_surface_mode" not in st.session_state:
-        st.session_state.editor_surface_mode = "Phase 3 Interactive Canvas"        
+        st.session_state.editor_surface_mode = "Phase 3 Interactive Canvas"
+    if "editor_trace_map" not in st.session_state:
+        st.session_state.editor_trace_map = []        
     
 
     if "placed_machines" not in st.session_state:
