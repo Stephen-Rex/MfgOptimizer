@@ -918,7 +918,7 @@ if show_lighting:
     ax.set_ylim(-1, height_in + 1)
     ax.set_aspect('equal')
     ax.axis('off')
-    return fig
+  return fig
 
 
 def draw_3d_asme_factory_viewport(
