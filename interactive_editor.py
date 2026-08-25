@@ -151,6 +151,12 @@ def _apply_selection_from_click_info(click_info):
             )
         return
 
+    if entity_type == "floor":
+        st.session_state.editor_phase3_status = (
+            "Floor clicked. No object selected."
+        )
+        return
+
     if entity_type == "machine":
         st.session_state["editor_selected_type"] = "machine"
         st.session_state["editor_selected_index"] = obj_index
@@ -214,7 +220,6 @@ def _apply_selection_from_click_info(click_info):
     st.session_state.editor_prime_inputs = True
     st.session_state.editor_canvas_refresh_token += 1
 
-
 def _apply_canvas_click_selection(point_data):
     click_info = _resolve_canvas_click(point_data)
     _apply_selection_from_click_info(click_info)
@@ -230,7 +235,7 @@ def _begin_move_from_click_info(click_info):
     obj_index = int(click_info.get("obj_index", -1))
     sub_index = int(click_info.get("sub_index", -1))
 
-    if entity_type is None:
+    if entity_type is None or entity_type == "floor":
         _clear_move_mode_state()
         st.session_state.editor_phase3_status = (
             "Move mode requires clicking a selectable object first."
@@ -297,14 +302,14 @@ def _begin_move_from_click_info(click_info):
 def _apply_move_to_click(point_data):
     click_info = _resolve_canvas_click(point_data)
     if not click_info:
-        st.session_state.editor_phase3_status = "Move target click was not resolved."
+        st.session_state["editor_phase3_status"] = "Move target click was not resolved."
         return
 
     x_val = click_info.get("x", None)
     y_val = click_info.get("y", None)
 
     if x_val is None or y_val is None:
-        st.session_state.editor_phase3_status = (
+        st.session_state["editor_phase3_status"] = (
             "Move target click did not include coordinates."
         )
         return
@@ -355,6 +360,7 @@ def _apply_move_to_click(point_data):
     elif move_type == "conduit_vertex":
         st.session_state["editor_selected_type"] = "conduit"
         st.session_state["editor_selected_index"] = move_index
+        st.session_state["editor_selected_vertex_index"] = move_vertex_index
         st.session_state["editor_pending_vertex_index"] = move_vertex_index
         _apply_pending_vertex_selection_if_any()
         st.session_state["editor_workflow_selected_point_index"] = 0
@@ -371,6 +377,9 @@ def _apply_move_to_click(point_data):
         st.session_state["editor_selected_type"] = "workflow"
         st.session_state["editor_selected_index"] = 0
         st.session_state["editor_selected_vertex_index"] = 0
+        st.session_state["editor_workflow_selected_point_index"] = (
+            move_workflow_point_index
+        )
         st.session_state["editor_pending_workflow_point_index"] = (
             move_workflow_point_index
         )
@@ -395,15 +404,17 @@ def _apply_move_to_click(point_data):
         )
 
     else:
-        st.session_state.editor_phase3_status = (
+        st.session_state["editor_phase3_status"] = (
             f"Unsupported move target type: {move_type}"
         )
         return
 
-    st.session_state.editor_last_mouse_x = x_val
-    st.session_state.editor_last_mouse_y = y_val
-    st.session_state.editor_prime_inputs = True
-    st.session_state.editor_canvas_refresh_token += 1
+    st.session_state["editor_last_mouse_x"] = x_val
+    st.session_state["editor_last_mouse_y"] = y_val
+    st.session_state["editor_last_pick_x"] = x_val
+    st.session_state["editor_last_pick_y"] = y_val
+    st.session_state["editor_prime_inputs"] = True
+    st.session_state["editor_canvas_refresh_token"] += 1
     _clear_move_mode_state()
 
 
