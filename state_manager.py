@@ -465,6 +465,20 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_surface_mode = "Phase 3 Interactive Canvas"
     if "editor_trace_map" not in st.session_state:
         st.session_state.editor_trace_map = []        
+    if "editor_pending_selected_type" not in st.session_state:
+        st.session_state.editor_pending_selected_type = None
+    if "editor_pending_selected_index" not in st.session_state:
+        st.session_state.editor_pending_selected_index = None
+    if "editor_pending_selected_vertex_index" not in st.session_state:
+        st.session_state.editor_pending_selected_vertex_index = None
+    if "editor_pending_workflow_selected_point_index" not in st.session_state:
+        st.session_state.editor_pending_workflow_selected_point_index = None
+    if "editor_pending_phase3_status" not in st.session_state:
+        st.session_state.editor_pending_phase3_status = None
+    if "editor_trace_map" not in st.session_state:
+        st.session_state.editor_trace_map = []
+
+
     
 
     if "placed_machines" not in st.session_state:
