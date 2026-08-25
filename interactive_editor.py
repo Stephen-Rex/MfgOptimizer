@@ -19,14 +19,6 @@ def _clamp_to_floor(x, y, floor_w, floor_h):
     y = max(0.0, min(float(floor_h), float(y)))
     return x, y
 
-def arm_editor_drag():
-    st.session_state.editor_drag_armed = True
-    st.session_state.editor_phase3_status = "Drag armed. Select a drop point to place the selected item."
-
-def cancel_editor_drag():
-    st.session_state.editor_drag_armed = False
-    st.session_state.editor_phase3_status = "Drag cancelled."
-
 def _clamp_conduit_to_floor(x_vals, y_vals, floor_w, floor_h):
     if not x_vals or not y_vals or len(x_vals) != len(y_vals):
         return x_vals, y_vals
@@ -173,6 +165,43 @@ def _object_center(obj_type, obj):
         return 0.0, 0.0
 
     return 0.0, 0.0
+
+def prime_drag_drop_from_selection():
+    result = _get_selected_object()
+    if result == (None, None, None):
+        return
+
+    obj_type, idx, obj = result
+
+    if obj_type in ["machine", "lighting"]:
+        cx = float(obj.get("x", 0.0))
+        cy = float(obj.get("y", 0.0))
+    elif obj_type == "conduit":
+        if st.session_state.get("editor_drag_mode", "object") == "conduit_vertex":
+            vx = obj.get("x", [])
+            vy = obj.get("y", [])
+            if vx and vy and len(vx) == len(vy):
+                vidx = _get_safe_selected_vertex_index()
+                cx = float(vx[vidx])
+                cy = float(vy[vidx])
+            else:
+                cx, cy = _object_center(obj_type, obj)
+        else:
+            cx, cy = _object_center(obj_type, obj)
+    elif obj_type == "workflow":
+        _normalize_workflow_df()
+        wdf = st.session_state.path_points
+        widx = _get_safe_workflow_point_index()
+        cx = float(wdf.iloc[widx]["X Coordinate"])
+        cy = float(wdf.iloc[widx]["Y Coordinate"])
+    elif obj_type == "crane":
+        cx = (float(obj.get("ll_x", 0.0)) + float(obj.get("ur_x", 0.0))) / 2.0
+        cy = (float(obj.get("ll_y", 0.0)) + float(obj.get("ur_y", 0.0))) / 2.0
+    else:
+        return
+
+    st.session_state.editor_drag_drop_x_ft = cx
+    st.session_state.editor_drag_drop_y_ft = cy
 
 
 def _get_safe_selected_vertex_index():
@@ -1362,6 +1391,71 @@ def render_interactive_editor_controls():
         st.checkbox("Show Grid", key="editor_show_grid")
         st.checkbox("Show Labels", key="editor_show_labels")
 
+    st.markdown("### Phase 3B Drag / Drop Placement")
+
+    d1, d2, d3 = st.columns(3)
+
+    with d1:
+        drag_mode_options = ["object"]
+        if st.session_state.editor_selected_type == "conduit":
+            drag_mode_options = ["object", "conduit_vertex"]
+        elif st.session_state.editor_selected_type == "workflow":
+            drag_mode_options = ["workflow_point"]
+        elif st.session_state.editor_selected_type == "crane":
+            drag_mode_options = ["object"]
+
+        current_drag_mode = st.session_state.get("editor_drag_mode", drag_mode_options[0])
+        if current_drag_mode not in drag_mode_options:
+            current_drag_mode = drag_mode_options[0]
+
+        st.selectbox(
+            "Drag Target",
+            options=drag_mode_options,
+            index=drag_mode_options.index(current_drag_mode),
+            key="editor_drag_mode",
+        )
+
+    with d2:
+        st.number_input(
+            "Drop X (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_w),
+            step=0.1,
+            key="editor_drag_drop_x_ft",
+        )
+
+    with d3:
+        st.number_input(
+            "Drop Y (ft)",
+            min_value=0.0,
+            max_value=float(st.session_state.floor_h),
+            step=0.1,
+            key="editor_drag_drop_y_ft",
+        )
+
+    dd1, dd2, dd3 = st.columns(3)
+
+    with dd1:
+        if st.button("Arm Drag", use_container_width=True):
+            arm_editor_drag()
+
+    with dd2:
+        if st.button("Apply Drop", use_container_width=True):
+            apply_drag_drop()
+            st.rerun()
+
+    with dd3:
+        if st.button("Cancel Drag", use_container_width=True):
+            cancel_editor_drag()
+
+    if st.session_state.get("editor_drag_armed", False):
+        st.warning("Drag is armed. Next drop will move the selected target.")    
+
+
+
+
+
+    
     with ctrl_col2:
         st.markdown("**Direct Coordinate Edit / Center Move**")
         st.number_input("Selected X / Center X (ft)", step=0.5, key="editor_coord_x_input")
@@ -1556,3 +1650,161 @@ def render_interactive_editor():
             "Selection is coordinated through the canvas pick controls until "
             "direct click/drag wiring is added."
         )
+
+def arm_editor_drag():
+    st.session_state.editor_drag_armed = True
+    st.session_state.editor_phase3_status = "Drag armed. Select a drop point to place the selected item."
+
+def cancel_editor_drag():
+    st.session_state.editor_drag_armed = False
+    st.session_state.editor_phase3_status = "Drag cancelled."
+
+def _set_selected_conduit_vertex_xy(new_x, new_y):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No conduit selected."
+        return
+
+    obj_type, idx, obj = result
+    if obj_type != "conduit":
+        st.session_state.editor_status_msg = "Selected object is not a conduit."
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    new_x = float(new_x)
+    new_y = float(new_y)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    vx = list(obj.get("x", []))
+    vy = list(obj.get("y", []))
+
+    if not vx or not vy or len(vx) != len(vy):
+        st.session_state.editor_status_msg = "Selected conduit has invalid geometry."
+        return
+
+    vidx = _get_safe_selected_vertex_index()
+    vx[vidx] = float(new_x)
+    vy[vidx] = float(new_y)
+
+    obj["x"] = vx
+    obj["y"] = vy
+    st.session_state.editor_status_msg = (
+        f"Moved conduit vertex P{vidx+1} to X={new_x:.2f} ft, Y={new_y:.2f} ft."
+    )
+    st.session_state.editor_prime_inputs = True
+
+def _set_selected_workflow_point_xy(new_x, new_y):
+    _normalize_workflow_df()
+
+    if "path_points" not in st.session_state or len(st.session_state.path_points) == 0:
+        st.session_state.editor_status_msg = "No workflow path available."
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    new_x = float(new_x)
+    new_y = float(new_y)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_x, new_y = _clamp_to_floor(new_x, new_y, floor_w, floor_h)
+
+    wdf = st.session_state.path_points.copy()
+    widx = _get_safe_workflow_point_index()
+
+    wdf.at[widx, "X Coordinate"] = float(new_x)
+    wdf.at[widx, "Y Coordinate"] = float(new_y)
+
+    st.session_state.path_points = wdf
+    st.session_state.editor_status_msg = (
+        f"Moved workflow point W{widx+1} to X={new_x:.2f} ft, Y={new_y:.2f} ft."
+    )
+    st.session_state.editor_prime_inputs = True
+
+def _set_selected_crane_center_xy(new_x, new_y):
+    result = _get_selected_object()
+    if result == (None, None, None):
+        st.session_state.editor_status_msg = "No crane selected."
+        return
+
+    obj_type, idx, obj = result
+    if obj_type != "crane":
+        st.session_state.editor_status_msg = "Selected object is not a crane."
+        return
+
+    floor_w = float(st.session_state.floor_w)
+    floor_h = float(st.session_state.floor_h)
+
+    ll_x = float(obj.get("ll_x", 0.0))
+    ll_y = float(obj.get("ll_y", 0.0))
+    ur_x = float(obj.get("ur_x", 0.0))
+    ur_y = float(obj.get("ur_y", 0.0))
+
+    width = ur_x - ll_x
+    height = ur_y - ll_y
+
+    new_x = float(new_x)
+    new_y = float(new_y)
+
+    if st.session_state.editor_snap_enabled:
+        new_x = _snap_value(new_x, st.session_state.editor_snap_ft, True)
+        new_y = _snap_value(new_y, st.session_state.editor_snap_ft, True)
+
+    new_ll_x = new_x - width / 2.0
+    new_ll_y = new_y - height / 2.0
+
+    new_ll_x = max(0.0, min(new_ll_x, floor_w - width))
+    new_ll_y = max(0.0, min(new_ll_y, floor_h - height))
+
+    obj["ll_x"] = new_ll_x
+    obj["ll_y"] = new_ll_y
+    obj["ur_x"] = new_ll_x + width
+    obj["ur_y"] = new_ll_y + height
+
+    st.session_state.editor_status_msg = (
+        f"Moved crane to center X={new_x:.2f} ft, Y={new_y:.2f} ft."
+    )
+    st.session_state.editor_prime_inputs = True
+
+def apply_drag_drop():
+    if not st.session_state.get("editor_drag_armed", False):
+        st.session_state.editor_phase3_status = "Drag is not armed."
+        return
+
+    drop_x = float(st.session_state.editor_drag_drop_x_ft)
+    drop_y = float(st.session_state.editor_drag_drop_y_ft)
+
+    obj_type = st.session_state.get("editor_selected_type", "machine")
+    drag_mode = st.session_state.get("editor_drag_mode", "object")
+
+    if obj_type in ["machine", "lighting"] and drag_mode == "object":
+        _set_selected_xy(drop_x, drop_y)
+
+    elif obj_type == "conduit":
+        if drag_mode == "conduit_vertex":
+            _set_selected_conduit_vertex_xy(drop_x, drop_y)
+        else:
+            _set_selected_xy(drop_x, drop_y)
+
+    elif obj_type == "workflow":
+        _set_selected_workflow_point_xy(drop_x, drop_y)
+
+    elif obj_type == "crane":
+        _set_selected_crane_center_xy(drop_x, drop_y)
+
+    else:
+        st.session_state.editor_status_msg = "Unsupported drag target."
+
+    st.session_state.editor_drag_armed = False
+    st.session_state.editor_phase3_status = "Drop applied."
+
