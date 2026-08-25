@@ -307,6 +307,13 @@ def _apply_move_to_click(point_data):
         st.session_state.editor_phase3_status = "Move target click was not resolved."
         return
 
+    st.session_state.editor_phase3_status = (
+        f"DEBUG move_type={st.session_state.get('editor_move_selected_type')} "
+        f"move_index={st.session_state.get('editor_move_selected_index')} "
+        f"move_vertex={st.session_state.get('editor_move_selected_vertex_index')} "
+        f"move_wf={st.session_state.get('editor_move_selected_workflow_point_index')}"
+    )
+    
     x_val = click_info.get("x", None)
     y_val = click_info.get("y", None)
 
