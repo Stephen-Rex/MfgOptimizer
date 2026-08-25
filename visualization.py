@@ -914,11 +914,11 @@ if show_lighting:
                     bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.4, pad=0.8),
                 )
 
-  ax.set_xlim(-1, width_in + 1)
-  ax.set_ylim(-1, height_in + 1)
-  ax.set_aspect('equal')
-  ax.axis('off')
-  return fig
+ax.set_xlim(-1, width_in + 1)
+ax.set_ylim(-1, height_in + 1)
+ax.set_aspect('equal')
+ax.axis('off')
+return fig
 
 
 def draw_3d_asme_factory_viewport(
