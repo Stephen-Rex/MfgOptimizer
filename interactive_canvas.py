@@ -92,25 +92,59 @@ def build_interactive_canvas_figure():
             and int(st.session_state.editor_selected_index) == idx
         )
 
+        x0 = mx - mw / 2.0
+        x1 = mx + mw / 2.0
+        y0 = my - mh / 2.0
+        y1 = my + mh / 2.0
+
+        # Visible machine body
         fig.add_shape(
             type="rect",
-            x0=mx - mw / 2.0,
-            y0=my - mh / 2.0,
-            x1=mx + mw / 2.0,
-            y1=my + mh / 2.0,
-            line=dict(color="#FFFFFF", width=3 if is_selected else 2),
-            fillcolor="rgba(135,206,250,0.65)",
+            x0=x0,
+            y0=y0,
+            x1=x1,
+            y1=y1,
+            line=dict(
+                color="#87CEEB" if not is_selected else "#00E5FF",
+                width=2 if not is_selected else 3,
+            ),
+            fillcolor="rgba(135,206,235,0.18)" if not is_selected else "rgba(0,229,255,0.22)",
+            layer="below",
         )
 
-        fig.add_shape(
-            type="circle",
-            x0=mx - (max(mw, mh) / 2.0 + so),
-            y0=my - (max(mw, mh) / 2.0 + so),
-            x1=mx + (max(mw, mh) / 2.0 + so),
-            y1=my + (max(mw, mh) / 2.0 + so),
-            line=dict(color="#FF3333", width=2, dash="dot"),
+        # Optional standoff box
+        if so > 0:
+            fig.add_shape(
+                type="rect",
+                x0=x0 - so,
+                y0=y0 - so,
+                x1=x1 + so,
+                y1=y1 + so,
+                line=dict(
+                    color="rgba(255,255,255,0.35)" if not is_selected else "rgba(255,215,0,0.65)",
+                    width=1,
+                    dash="dot",
+                ),
+                fillcolor="rgba(0,0,0,0)",
+                layer="below",
+            )
+
+        # Invisible clickable footprint overlay for the full machine box
+        fig.add_trace(
+            go.Scatter(
+                x=[x0, x1, x1, x0, x0],
+                y=[y0, y0, y1, y1, y0],
+                mode="lines",
+                fill="toself",
+                fillcolor="rgba(0,0,0,0.001)",
+                line=dict(color="rgba(0,0,0,0)", width=0),
+                showlegend=False,
+                hoverinfo="skip",
+                customdata=[["machine", idx, mid, -1]] * 5,
+            )
         )
 
+        # Center marker + label
         fig.add_trace(
             go.Scatter(
                 x=[mx],
@@ -127,24 +161,6 @@ def build_interactive_canvas_figure():
                 showlegend=False,
                 customdata=[["machine", idx, mid, -1]],
                 hovertemplate=f"{mid}<br>X={mx:.2f}<br>Y={my:.2f}<extra></extra>",
-            )
-        )
-        x0 = mx - mw / 2.0
-        x1 = mx + mw / 2.0
-        y0 = my - mh / 2.0
-        y1 = my + mh / 2.0
-
-        fig.add_trace(
-            go.Scatter(
-                x=[x0, x1, x1, x0, x0],
-                y=[y0, y0, y1, y1, y0],
-                mode="lines",
-                fill="toself",
-                fillcolor="rgba(0,0,0,0.001)",
-                line=dict(color="rgba(0,0,0,0)", width=0),
-                showlegend=False,
-                hoverinfo="skip",
-                customdata=[["machine", idx, mid, -1]] * 5,
             )
         )
 
