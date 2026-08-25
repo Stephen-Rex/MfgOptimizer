@@ -40,6 +40,19 @@ def build_interactive_canvas_figure():
 
     fig = go.Figure()
 
+    # Trace map for Phase 3 click resolution via curveNumber
+    st.session_state.editor_trace_map = []
+
+    def _register_trace(entity_type, obj_index, sub_index=-1, obj_id=""):
+        st.session_state.editor_trace_map.append(
+            {
+                "entity_type": str(entity_type),
+                "obj_index": int(obj_index),
+                "sub_index": int(sub_index),
+                "id": str(obj_id),
+            }
+        )
+
     # Floor boundary
     fig.add_shape(
         type="rect",
@@ -97,7 +110,6 @@ def build_interactive_canvas_figure():
         y0 = my - mh / 2.0
         y1 = my + mh / 2.0
 
-        # Visible machine body
         fig.add_shape(
             type="rect",
             x0=x0,
@@ -112,7 +124,6 @@ def build_interactive_canvas_figure():
             layer="below",
         )
 
-        # Optional standoff box
         if so > 0:
             fig.add_shape(
                 type="rect",
@@ -129,7 +140,6 @@ def build_interactive_canvas_figure():
                 layer="below",
             )
 
-        # Invisible clickable footprint overlay for the full machine box
         fig.add_trace(
             go.Scatter(
                 x=[x0, x1, x1, x0, x0],
@@ -143,8 +153,8 @@ def build_interactive_canvas_figure():
                 customdata=[["machine", idx, mid, -1]] * 5,
             )
         )
+        _register_trace("machine", idx, -1, mid)
 
-        # Center marker + label
         fig.add_trace(
             go.Scatter(
                 x=[mx],
@@ -163,6 +173,7 @@ def build_interactive_canvas_figure():
                 hovertemplate=f"{mid}<br>X={mx:.2f}<br>Y={my:.2f}<extra></extra>",
             )
         )
+        _register_trace("machine", idx, -1, mid)
 
     # Lighting
     for idx, l in enumerate(st.session_state.placed_lighting):
@@ -194,6 +205,7 @@ def build_interactive_canvas_figure():
                 hovertemplate=f"{lid}<br>X={lx:.2f}<br>Y={ly:.2f}<extra></extra>",
             )
         )
+        _register_trace("lighting", idx, -1, lid)
 
     # Conduits
     for idx, c in enumerate(st.session_state.placed_conduits):
@@ -220,6 +232,7 @@ def build_interactive_canvas_figure():
                     hovertemplate=f"{cid}<extra></extra>",
                 )
             )
+            _register_trace("conduit", idx, -1, cid)
 
             for p_idx, (px, py) in enumerate(zip(xs, ys)):
                 v_selected = (
@@ -243,6 +256,7 @@ def build_interactive_canvas_figure():
                         hovertemplate=f"{cid} V{p_idx+1}<br>X={px:.2f}<br>Y={py:.2f}<extra></extra>",
                     )
                 )
+                _register_trace("conduit_vertex", idx, p_idx, cid)
 
     # Workflow
     if "path_points" in st.session_state and len(st.session_state.path_points) >= 2:
@@ -265,9 +279,11 @@ def build_interactive_canvas_figure():
                 hovertemplate="WF-001<extra></extra>",
             )
         )
+        _register_trace("workflow", 0, -1, "WF-001")
 
         selected_wpt = int(st.session_state.get("editor_workflow_selected_point_index", 0))
         selected_wpt = max(0, min(selected_wpt, len(xs) - 1)) if len(xs) > 0 else 0
+
         for p_idx, (px, py) in enumerate(zip(xs, ys)):
             p_selected = is_selected and selected_wpt == p_idx
             fig.add_trace(
@@ -287,15 +303,14 @@ def build_interactive_canvas_figure():
                     hovertemplate=f"WF-001 P{p_idx+1}<br>X={px:.2f}<br>Y={py:.2f}<extra></extra>",
                 )
             )
+            _register_trace("workflow_point", 0, p_idx, "WF-001")
 
-    
-    #Cranes
+    # Cranes
     for idx, cr in enumerate(st.session_state.placed_cranes):
         ll_x = float(cr.get("ll_x", 0.0))
         ll_y = float(cr.get("ll_y", 0.0))
         ur_x = float(cr.get("ur_x", 0.0))
         ur_y = float(cr.get("ur_y", 0.0))
-
         crid = str(cr.get("id", f"CR-{idx+1:03d}"))
 
         is_selected = (
@@ -303,7 +318,6 @@ def build_interactive_canvas_figure():
             and int(st.session_state.editor_selected_index) == idx
         )
 
-        # crane coverage rectangle
         fig.add_shape(
             type="rect",
             x0=ll_x,
@@ -311,14 +325,13 @@ def build_interactive_canvas_figure():
             x1=ur_x,
             y1=ur_y,
             line=dict(
-                color="#FFFFFF" if not is_selected else "#FFD700",
+                color="#BBBBBB" if not is_selected else "#00E5FF",
                 width=2 if not is_selected else 3,
                 dash="dash",
             ),
             fillcolor="rgba(160,160,160,0.18)",
         )
 
-        # clickable crane center marker  <<< THIS IS G >>>
         cx = (ll_x + ur_x) / 2.0
         cy = (ll_y + ur_y) / 2.0
 
@@ -344,9 +357,8 @@ def build_interactive_canvas_figure():
                 showlegend=False,
             )
         )
-    
-    
-    
+        _register_trace("crane", idx, -1, crid)
+
     # Click marker
     last_x = st.session_state.get("editor_last_mouse_x", None)
     last_y = st.session_state.get("editor_last_mouse_y", None)
@@ -363,6 +375,7 @@ def build_interactive_canvas_figure():
                 hoverinfo="skip",
             )
         )
+        _register_trace("pick_marker", -1, -1, "PICK")
 
     fig.update_layout(
         height=650,
