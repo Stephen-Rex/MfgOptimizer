@@ -129,6 +129,24 @@ def build_interactive_canvas_figure():
                 hovertemplate=f"{mid}<br>X={mx:.2f}<br>Y={my:.2f}<extra></extra>",
             )
         )
+        x0 = mx - mw / 2.0
+        x1 = mx + mw / 2.0
+        y0 = my - mh / 2.0
+        y1 = my + mh / 2.0
+
+        fig.add_trace(
+            go.Scatter(
+                x=[x0, x1, x1, x0, x0],
+                y=[y0, y0, y1, y1, y0],
+                mode="lines",
+                fill="toself",
+                fillcolor="rgba(0,0,0,0.001)",
+                line=dict(color="rgba(0,0,0,0)", width=0),
+                showlegend=False,
+                hoverinfo="skip",
+                customdata=[["machine", idx, mid, -1]] * 5,
+            )
+        )
 
     # Lighting
     for idx, l in enumerate(st.session_state.placed_lighting):
