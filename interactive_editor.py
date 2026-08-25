@@ -1685,7 +1685,6 @@ def render_interactive_editor():
 
     st.caption(
         "Phase 3 canvas: click objects to select them directly. "
-        "Move mode and precision editing will be refined in Phase 3C."
     )
 
     phase3_msg = st.session_state.get("editor_phase3_status", "")
