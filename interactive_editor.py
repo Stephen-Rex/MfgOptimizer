@@ -1834,10 +1834,11 @@ def render_interactive_editor():
         if canvas_mode == "move" and move_waiting:
             _apply_move_to_click(selected_points)
         else:
-            _apply_canvas_click_selection(selected_points)
+            click_info = _resolve_canvas_click(selected_points)
+            _apply_selection_from_click_info(click_info)
 
             if canvas_mode == "move":
-                _begin_move_from_current_selection()
+                _begin_move_from_click_info(click_info)
 
         st.rerun()
 
