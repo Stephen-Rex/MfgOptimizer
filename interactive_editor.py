@@ -1377,7 +1377,6 @@ def render_interactive_editor():
 
     render_interactive_editor_controls()
 
-    # Phase 3C: remove legacy Matplotlib editor surface from visible workflow
     fig = build_interactive_canvas_figure()
     selected_points = plotly_events(
         fig,
@@ -1391,25 +1390,15 @@ def render_interactive_editor():
 
     if selected_points:
         _apply_canvas_click_selection(selected_points)
-        if st.session_state.get("editor_drag_armed", False):
-            _apply_canvas_click_to_drop(selected_points)
         st.rerun()
 
     st.caption(
-        "Phase 3 canvas: click objects to select them directly. "
+        "Phase 3 canvas: click objects to select them directly."
     )
 
     phase3_msg = st.session_state.get("editor_phase3_status", "")
     if phase3_msg:
-        st.info(phase3_msg)  
-
-def arm_editor_drag():
-    st.session_state.editor_drag_armed = True
-    st.session_state.editor_phase3_status = "Drag armed. Select a drop point to place the selected item."
-
-def cancel_editor_drag():
-    st.session_state.editor_drag_armed = False
-    st.session_state.editor_phase3_status = "Drag cancelled."
+        st.info(phase3_msg)
 
 def _set_selected_conduit_vertex_xy(new_x, new_y):
     result = _get_selected_object()
@@ -1527,38 +1516,6 @@ def _set_selected_crane_center_xy(new_x, new_y):
         f"Moved crane to center X={new_x:.2f} ft, Y={new_y:.2f} ft."
     )
     st.session_state.editor_prime_inputs = True
-
-def apply_drag_drop():
-    if not st.session_state.get("editor_drag_armed", False):
-        st.session_state.editor_phase3_status = "Drag is not armed."
-        return
-
-    drop_x = float(st.session_state.editor_drag_drop_x_ft)
-    drop_y = float(st.session_state.editor_drag_drop_y_ft)
-
-    obj_type = st.session_state.get("editor_selected_type", "machine")
-    drag_mode = st.session_state.get("editor_drag_mode", "object")
-
-    if obj_type in ["machine", "lighting"] and drag_mode == "object":
-        _set_selected_xy(drop_x, drop_y)
-
-    elif obj_type == "conduit":
-        if drag_mode == "conduit_vertex":
-            _set_selected_conduit_vertex_xy(drop_x, drop_y)
-        else:
-            _set_selected_xy(drop_x, drop_y)
-
-    elif obj_type == "workflow":
-        _set_selected_workflow_point_xy(drop_x, drop_y)
-
-    elif obj_type == "crane":
-        _set_selected_crane_center_xy(drop_x, drop_y)
-
-    else:
-        st.session_state.editor_status_msg = "Unsupported drag target."
-
-    st.session_state.editor_drag_armed = False
-    st.session_state.editor_phase3_status = "Drop applied."
 
 
 def _apply_canvas_click_selection(point_data):
@@ -1692,27 +1649,3 @@ def _apply_canvas_click_selection(point_data):
     st.session_state.editor_pending_phase3_status = pending_status
     st.session_state.editor_canvas_refresh_token += 1
     
-
-def _apply_canvas_click_to_drop(point_data):
-    if not point_data:
-        return
-
-    clicked = point_data[0]
-    x_val = clicked.get("x", None)
-    y_val = clicked.get("y", None)
-
-    if x_val is None or y_val is None:
-        return
-
-    floor_w = float(st.session_state.floor_w)
-    floor_h = float(st.session_state.floor_h)
-
-    x_val, y_val = _clamp_to_floor(float(x_val), float(y_val), floor_w, floor_h)
-
-    st.session_state.editor_drag_drop_x_ft = x_val
-    st.session_state.editor_drag_drop_y_ft = y_val
-    st.session_state.editor_last_pick_x = x_val
-    st.session_state.editor_last_pick_y = y_val
-    st.session_state.editor_phase3_status = (
-        f"Drop target set to X={x_val:.2f} ft, Y={y_val:.2f} ft."
-    )
