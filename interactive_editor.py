@@ -1652,6 +1652,7 @@ def _apply_pending_canvas_selection_if_any():
 
 
 def render_interactive_editor():
+    _apply_pending_canvas_selection_if_any()
     _apply_pending_vertex_selection_if_any()
     _apply_pending_workflow_point_selection_if_any()
 
@@ -1877,13 +1878,11 @@ def _apply_canvas_click_selection(point_data):
     obj_index = None
     sub_index = -1
 
-    # First choice: direct customdata if the event wrapper provides it
     if customdata and len(customdata) >= 4:
         entity_type = str(customdata[0])
         obj_index = int(customdata[1])
         sub_index = int(customdata[3])
 
-    # Second choice: trace map via curveNumber
     elif curve_number is not None:
         trace_map = st.session_state.get("editor_trace_map", [])
         try:
@@ -1897,7 +1896,6 @@ def _apply_canvas_click_selection(point_data):
             obj_index = int(trace_info.get("obj_index", 0))
             sub_index = int(trace_info.get("sub_index", -1))
 
-    # Final fallback: nearest-object selection by coordinates
     if entity_type is None or obj_index is None:
         if x_val is not None and y_val is not None:
             apply_canvas_pick(float(x_val), float(y_val))
@@ -1916,59 +1914,60 @@ def _apply_canvas_click_selection(point_data):
         st.session_state.editor_phase3_status = "Clicked pick marker."
         return
 
+    pending_type = None
+    pending_index = 0
+    pending_vertex = 0
+    pending_workflow_point = 0
+    pending_status = ""
+
     if entity_type == "machine":
-        st.session_state.editor_selected_type = "machine"
-        st.session_state.editor_selected_index = obj_index
-        st.session_state.editor_selected_vertex_index = 0
-        st.session_state.editor_workflow_selected_point_index = 0
-        st.session_state.editor_phase3_status = f"Canvas selected machine {obj_index}."
+        pending_type = "machine"
+        pending_index = obj_index
+        pending_vertex = 0
+        pending_workflow_point = 0
+        pending_status = f"Canvas selected machine {obj_index}."
 
     elif entity_type == "lighting":
-        st.session_state.editor_selected_type = "lighting"
-        st.session_state.editor_selected_index = obj_index
-        st.session_state.editor_selected_vertex_index = 0
-        st.session_state.editor_workflow_selected_point_index = 0
-        st.session_state.editor_phase3_status = f"Canvas selected lighting {obj_index}."
+        pending_type = "lighting"
+        pending_index = obj_index
+        pending_vertex = 0
+        pending_workflow_point = 0
+        pending_status = f"Canvas selected lighting {obj_index}."
 
     elif entity_type == "conduit":
-        st.session_state.editor_selected_type = "conduit"
-        st.session_state.editor_selected_index = obj_index
-        st.session_state.editor_selected_vertex_index = 0
-        st.session_state.editor_workflow_selected_point_index = 0
-        st.session_state.editor_phase3_status = f"Canvas selected conduit {obj_index}."
+        pending_type = "conduit"
+        pending_index = obj_index
+        pending_vertex = 0
+        pending_workflow_point = 0
+        pending_status = f"Canvas selected conduit {obj_index}."
 
     elif entity_type == "conduit_vertex":
-        st.session_state.editor_selected_type = "conduit"
-        st.session_state.editor_selected_index = obj_index
-        st.session_state.editor_selected_vertex_index = sub_index
-        st.session_state.editor_workflow_selected_point_index = 0
-        st.session_state.editor_phase3_status = (
-            f"Canvas selected conduit {obj_index} vertex {sub_index}."
-        )
+        pending_type = "conduit"
+        pending_index = obj_index
+        pending_vertex = sub_index
+        pending_workflow_point = 0
+        pending_status = f"Canvas selected conduit {obj_index} vertex {sub_index}."
 
     elif entity_type == "workflow":
-        st.session_state.editor_selected_type = "workflow"
-        st.session_state.editor_selected_index = 0
-        st.session_state.editor_selected_vertex_index = 0
-        if sub_index >= 0:
-            st.session_state.editor_workflow_selected_point_index = sub_index
-        st.session_state.editor_phase3_status = "Canvas selected workflow."
+        pending_type = "workflow"
+        pending_index = 0
+        pending_vertex = 0
+        pending_workflow_point = max(sub_index, 0) if sub_index >= 0 else 0
+        pending_status = "Canvas selected workflow."
 
     elif entity_type == "workflow_point":
-        st.session_state.editor_selected_type = "workflow"
-        st.session_state.editor_selected_index = 0
-        st.session_state.editor_selected_vertex_index = 0
-        st.session_state.editor_workflow_selected_point_index = sub_index
-        st.session_state.editor_phase3_status = (
-            f"Canvas selected workflow point {sub_index}."
-        )
+        pending_type = "workflow"
+        pending_index = 0
+        pending_vertex = 0
+        pending_workflow_point = sub_index
+        pending_status = f"Canvas selected workflow point {sub_index}."
 
     elif entity_type == "crane":
-        st.session_state.editor_selected_type = "crane"
-        st.session_state.editor_selected_index = obj_index
-        st.session_state.editor_selected_vertex_index = 0
-        st.session_state.editor_workflow_selected_point_index = 0
-        st.session_state.editor_phase3_status = f"Canvas selected crane {obj_index}."
+        pending_type = "crane"
+        pending_index = obj_index
+        pending_vertex = 0
+        pending_workflow_point = 0
+        pending_status = f"Canvas selected crane {obj_index}."
 
     else:
         if x_val is not None and y_val is not None:
@@ -1983,7 +1982,11 @@ def _apply_canvas_click_selection(point_data):
             )
         return
 
-    st.session_state.editor_prime_inputs = True
+    st.session_state.editor_pending_selected_type = pending_type
+    st.session_state.editor_pending_selected_index = pending_index
+    st.session_state.editor_pending_selected_vertex_index = pending_vertex
+    st.session_state.editor_pending_workflow_selected_point_index = pending_workflow_point
+    st.session_state.editor_pending_phase3_status = pending_status
     st.session_state.editor_canvas_refresh_token += 1
     
 
