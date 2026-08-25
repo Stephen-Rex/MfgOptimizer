@@ -594,6 +594,8 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     if "editor_canvas_mode" not in st.session_state:
         st.session_state.editor_canvas_mode = "select"  # select, move, dim
 
+# Legacy drag/drop state retained temporarily during Phase 3C cleanup.
+# Remove after canvas-first move workflow is fully implemented.
     if "editor_drag_enabled" not in st.session_state:
         st.session_state.editor_drag_enabled = True
 
