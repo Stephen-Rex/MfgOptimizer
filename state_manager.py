@@ -271,14 +271,14 @@ def apply_imported_layout():
                 if key in imported_data:
                     st.session_state[key] = imported_data[key]
                     
-            if "floor_w" in imported_data:
-                st.session_state.floor_w = float(imported_data["floor_w"])
-            if "floor_h" in imported_data:
-                st.session_state.floor_h = float(imported_data["floor_h"])
-            if "path_width_ft" in imported_data:
-                st.session_state.path_width_ft = float(imported_data["path_width_ft"])
-            if "path_points" in imported_data:
-                st.session_state.path_points = pd.DataFrame(imported_data["path_points"])
+                if "floor_w" in imported_data:
+                    st.session_state.floor_w = float(imported_data["floor_w"])
+                if "floor_h" in imported_data:
+                    st.session_state.floor_h = float(imported_data["floor_h"])
+                if "path_width_ft" in imported_data:
+                    st.session_state.path_width_ft = float(imported_data["path_width_ft"])
+                if "path_points" in imported_data:
+                    st.session_state.path_points = pd.DataFrame(imported_data["path_points"])
 
             ensure_object_ids()
             ensure_machine_dimension_fields()
