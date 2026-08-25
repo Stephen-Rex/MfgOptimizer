@@ -18,18 +18,21 @@ def render_machinery_tab(machinery_lib):
             key="machine_lib_select",
         )
 
+        default_mx = min(70.0, float(st.session_state.floor_w))
+        default_my = min(50.0, float(st.session_state.floor_h))
+
         mx_coord = st.number_input(
             "Target Placement X (ft)",
             min_value=0.0,
             max_value=float(st.session_state.floor_w),
-            value=70.0,
+            value=default_mx,
             key="mx_tab",
         )
         my_coord = st.number_input(
             "Target Placement Y (ft)",
             min_value=0.0,
             max_value=float(st.session_state.floor_h),
-            value=50.0,
+            value=default_my,
             key="my_tab",
         )
 
