@@ -249,6 +249,64 @@ def build_interactive_canvas_figure():
                 )
             )
 
+    
+    #Cranes
+    for idx, cr in enumerate(st.session_state.placed_cranes):
+        ll_x = float(cr.get("ll_x", 0.0))
+        ll_y = float(cr.get("ll_y", 0.0))
+        ur_x = float(cr.get("ur_x", 0.0))
+        ur_y = float(cr.get("ur_y", 0.0))
+
+        crid = str(cr.get("id", f"CR-{idx+1:03d}"))
+
+        is_selected = (
+            st.session_state.editor_selected_type == "crane"
+            and int(st.session_state.editor_selected_index) == idx
+        )
+
+        # crane coverage rectangle
+        fig.add_shape(
+            type="rect",
+            x0=ll_x,
+            y0=ll_y,
+            x1=ur_x,
+            y1=ur_y,
+            line=dict(
+                color="#FFFFFF" if not is_selected else "#FFD700",
+                width=2 if not is_selected else 3,
+                dash="dash",
+            ),
+            fillcolor="rgba(160,160,160,0.18)",
+        )
+
+        # clickable crane center marker  <<< THIS IS G >>>
+        cx = (ll_x + ur_x) / 2.0
+        cy = (ll_y + ur_y) / 2.0
+
+        fig.add_trace(
+            go.Scatter(
+                x=[cx],
+                y=[cy],
+                mode="markers+text",
+                marker=dict(
+                    size=14 if is_selected else 10,
+                    color="#BBBBBB" if not is_selected else "#00E5FF",
+                    line=dict(
+                        color="white" if not is_selected else "#FFD700",
+                        width=1.5,
+                    ),
+                ),
+                text=[crid],
+                textposition="top center",
+                name=crid,
+                customdata=[["crane", idx, crid, -1]],
+                hovertemplate=f"{crid}<br>X={cx:.2f}<br>Y={cy:.2f}<extra></extra>",
+                showlegend=False,
+            )
+        )
+    
+    
+    
     # Click marker
     last_x = st.session_state.get("editor_last_mouse_x", None)
     last_y = st.session_state.get("editor_last_mouse_y", None)
