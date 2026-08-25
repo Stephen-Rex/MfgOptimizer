@@ -817,32 +817,35 @@ def draw_asme_drawing(
       )
       ax.add_patch(so_circ)
 
-  # Draw lighting with L1, L2...
-  if show_lighting:
+# Draw lighting with L1, L2...
+if show_lighting:
     for idx, l in enumerate(lighting):
-      lx_in = O_x + l['x'] * S
-      ly_in = O_y + l['y'] * S
-      ax.plot(
-          lx_in,
-          ly_in,
-          marker='o',
-          color='gold',
-          markersize=8,
-          markeredgecolor='black',
-          markeredgewidth=1,
-          zorder=5,
-      )
-      ax.plot(lx_in, ly_in, marker='*', color='white', markersize=4, zorder=6)
-      l_label = f'L{idx+1}'
-      ax.text(
-          lx_in + 0.1,
-          ly_in + 0.1,
-          l_label,
-          fontsize=6.5,
-          weight='bold',
-          color='#FFD700',
-          zorder=7,
-      )
+        lx_in = O_x + l['x'] * S
+        ly_in = O_y + l['y'] * S
+
+        ax.plot(
+            lx_in,
+            ly_in,
+            marker='o',
+            color='gold',
+            markersize=8,
+            markeredgecolor='black',
+            markeredgewidth=1,
+            zorder=5,
+        )
+        ax.plot(lx_in, ly_in, marker='*', color='white', markersize=4, zorder=6)
+
+        l_label = f'L{idx+1}'
+        ax.text(
+            lx_in + 0.1,
+            ly_in + 0.1,
+            l_label,
+            fontsize=6.5,
+            weight='bold',
+            color='#FFD700',
+            zorder=7,
+        )
+
         if show_locator_dims and bool(l.get("dim_visible", True)):
             lx_ft = float(l["x"])
             ly_ft = float(l["y"])
@@ -898,18 +901,19 @@ def draw_asme_drawing(
             )
 
             if dim_show_fixture_note:
-              fixture_note = f"{l.get('Type', 'Light')} / {float(l.get('Wattage', 0.0)):.0f}W"
-              ax.text(
-                  lx_in + 0.12,
-                  ly_in - 0.12,
-                  fixture_note,
-                  fontsize=5.5,
-                  color='#FFD700',
-                  ha='left',
-                  va='top',
-                  zorder=8,
-                  bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.4, pad=0.8),
-              )
+                fixture_note = f"{l.get('Type', 'Light')} / {float(l.get('Wattage', 0.0)):.0f}W"
+                ax.text(
+                    lx_in + 0.12,
+                    ly_in - 0.12,
+                    fixture_note,
+                    fontsize=5.5,
+                    color='#FFD700',
+                    ha='left',
+                    va='top',
+                    zorder=8,
+                    bbox=dict(facecolor='#111111', edgecolor='none', alpha=0.4, pad=0.8),
+                )
+              #)
 
   ax.set_xlim(-1, width_in + 1)
   ax.set_ylim(-1, height_in + 1)
