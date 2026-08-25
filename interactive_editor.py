@@ -1843,12 +1843,13 @@ def _apply_canvas_click_selection(point_data):
         if x_val is not None and y_val is not None:
             apply_canvas_pick(float(x_val), float(y_val))
             st.session_state.editor_phase3_status = (
-                f"Canvas metadata missing; used nearest-object fallback at "
-                f"X={float(x_val):.2f}, Y={float(y_val):.2f}."
+                f"Canvas metadata missing; fallback used at "
+                f"X={float(x_val):.2f}, Y={float(y_val):.2f}. "
+                f"Raw click: {clicked}"
             )
         else:
             st.session_state.editor_phase3_status = (
-                "Canvas click received, but no selectable object metadata was found."
+                f"Canvas click missing metadata and coordinates. Raw click: {clicked}"
             )
         return
 
