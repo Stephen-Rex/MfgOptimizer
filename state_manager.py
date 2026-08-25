@@ -236,41 +236,41 @@ def apply_imported_layout():
             schema_version = imported_data.get("schema_version", "1.0")
             st.session_state.schema_version = schema_version
 
-                for key in [
-                    "designer_name",
-                    "dwg_title",
-                    "dwg_num",
-                    "sheet_size",
-                    "show_machines",
-                    "show_lighting",
-                    "show_cranes",
-                    "show_workflow",
-                    "show_electrical",
-                    "show_safety",
-                    "show_contour",
-                    "show_decibel",
-                    "placed_machines",
-                    "placed_lighting",
-                    "placed_conduits",
-                    "placed_cranes",
-                    "machine_flows",
-                    "show_locator_dims",
-                    "editor_enabled",
-                    "editor_selected_type",
-                    "editor_selected_index",
-                    "editor_snap_enabled",
-                    "editor_snap_ft",
-                    "editor_show_grid",
-                    "editor_show_labels",
-                    "workflow_dim_visible",
-                    "workflow_dim_label_x_offset_ft",
-                    "workflow_dim_label_y_offset_ft",
-                    "workflow_dim_show_length",
-                    "workflow_dim_show_metadata",
-                ]:
-            
-            if key in imported_data:
-                st.session_state[key] = imported_data[key]
+            for key in [
+                "designer_name",
+                "dwg_title",
+                "dwg_num",
+                "sheet_size",
+                "show_machines",
+                "show_lighting",
+                "show_cranes",
+                "show_workflow",
+                "show_electrical",
+                "show_safety",
+                "show_contour",
+                "show_decibel",
+                "placed_machines",
+                "placed_lighting",
+                "placed_conduits",
+                "placed_cranes",
+                "machine_flows",
+                "show_locator_dims",
+                "editor_enabled",
+                "editor_selected_type",
+                "editor_selected_index",
+                "editor_snap_enabled",
+                "editor_snap_ft",
+                "editor_show_grid",
+                "editor_show_labels",
+                "workflow_dim_visible",
+                "workflow_dim_label_x_offset_ft",
+                "workflow_dim_label_y_offset_ft",
+                "workflow_dim_show_length",
+                "workflow_dim_show_metadata",
+            ]:
+                if key in imported_data:
+                    st.session_state[key] = imported_data[key]
+                    
             if "floor_w" in imported_data:
                 st.session_state.floor_w = float(imported_data["floor_w"])
             if "floor_h" in imported_data:
