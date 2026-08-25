@@ -181,8 +181,7 @@ def _apply_selection_from_click_info(click_info):
     elif move_type == "conduit_vertex":
         st.session_state["editor_selected_type"] = "conduit"
         st.session_state["editor_selected_index"] = move_index
-        st.session_state["editor_pending_vertex_index"] = move_vertex_index
-        _apply_pending_vertex_selection_if_any()
+        st.session_state["editor_selected_vertex_index"] = move_vertex_index
         st.session_state["editor_workflow_selected_point_index"] = 0
         st.session_state["editor_prime_inputs"] = True
 
@@ -204,8 +203,7 @@ def _apply_selection_from_click_info(click_info):
         st.session_state["editor_selected_type"] = "workflow"
         st.session_state["editor_selected_index"] = 0
         st.session_state["editor_selected_vertex_index"] = 0
-        st.session_state["editor_pending_workflow_point_index"] = move_workflow_point_index
-        _apply_pending_workflow_point_selection_if_any()
+        st.session_state["editor_workflow_selected_point_index"] = move_workflow_point_index
         st.session_state["editor_prime_inputs"] = True
 
         _set_selected_workflow_point_xy(x_val, y_val)
@@ -379,7 +377,8 @@ def _apply_move_to_click(point_data):
     elif move_type == "conduit_vertex":
         st.session_state["editor_selected_type"] = "conduit"
         st.session_state["editor_selected_index"] = move_index
-        st.session_state["editor_selected_vertex_index"] = move_vertex_index
+        st.session_state["editor_pending_vertex_index"] = move_vertex_index
+        _apply_pending_vertex_selection_if_any()
         st.session_state["editor_workflow_selected_point_index"] = 0
         st.session_state["editor_prime_inputs"] = True
 
@@ -394,7 +393,8 @@ def _apply_move_to_click(point_data):
         st.session_state["editor_selected_type"] = "workflow"
         st.session_state["editor_selected_index"] = 0
         st.session_state["editor_selected_vertex_index"] = 0
-        st.session_state["editor_workflow_selected_point_index"] = move_workflow_point_index
+        st.session_state["editor_pending_workflow_point_index"] = move_workflow_point_index
+        _apply_pending_workflow_point_selection_if_any()
         st.session_state["editor_prime_inputs"] = True
 
         _set_selected_workflow_point_xy(x_val, y_val)
