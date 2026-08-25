@@ -41,15 +41,15 @@ def build_interactive_canvas_figure():
     fig = go.Figure()
 
     # Floor boundary
-    fig.add_trace(
-        go.Scatter(
-            x=[0, floor_w, floor_w, 0, 0],
-            y=[0, 0, floor_h, floor_h, 0],
-            mode="lines",
-            line=dict(color="#39FF14", width=3),
-            name="Floor Boundary",
-            hoverinfo="skip",
-        )
+    fig.add_shape(
+        type="rect",
+        x0=0,
+        y0=0,
+        x1=floor_w,
+        y1=floor_h,
+        line=dict(color="#39FF14", width=3),
+        fillcolor="rgba(0,0,0,0)",
+        layer="below",
     )
 
     # Grid
