@@ -780,7 +780,7 @@ def draw_asme_drawing(
                 color='#FFD700',
                 ha='center',
                 va='bottom',
-                vzorder=8,
+                zorder=8,
                 bbox=dict(
                     facecolor='#111111',
                     edgecolor='none',
