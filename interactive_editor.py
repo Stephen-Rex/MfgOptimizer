@@ -366,6 +366,41 @@ def _begin_move_from_click_info(click_info):
     st.session_state.editor_move_awaiting_target = True
     st.session_state.editor_phase3_status = f"Moving {move_label}: click destination."
 
+def _begin_dimension_move_from_click_info(click_info):
+    if not click_info:
+        _clear_dimension_move_state()
+        st.session_state.editor_phase3_status = "Dim mode: no dimension was clicked."
+        return
+
+    if click_info.get("entity_type") != "dimension":
+        _clear_dimension_move_state()
+        st.session_state.editor_phase3_status = "Dim mode: click a dimension label."
+        return
+
+    if click_info.get("part") != "text":
+        st.session_state.editor_phase3_status = "Dim mode: click the dimension text."
+        return
+
+    owner_type = str(click_info.get("owner_type", ""))
+    obj_index = int(click_info.get("obj_index", -1))
+    owner_id = str(click_info.get("owner_id", ""))
+    axis = str(click_info.get("axis", ""))
+
+    st.session_state.editor_selected_dimension_kind = owner_type
+    st.session_state.editor_selected_dimension_owner_id = owner_id
+    st.session_state.editor_selected_dimension_axis = axis
+
+    st.session_state.editor_dim_move_awaiting_target = True
+    st.session_state.editor_dim_selected_owner_type = owner_type
+    st.session_state.editor_dim_selected_owner_index = obj_index
+    st.session_state.editor_dim_selected_owner_id = owner_id
+    st.session_state.editor_dim_selected_axis = axis
+
+    st.session_state.editor_phase3_status = (
+        f"Moving {owner_type} {owner_id} {axis.upper()} dimension: click destination."
+    )
+
+
 def _apply_move_to_click(point_data):
     click_info = _resolve_canvas_click(point_data)
     if not click_info:
@@ -484,6 +519,95 @@ def _apply_move_to_click(point_data):
     st.session_state["editor_canvas_refresh_token"] += 1
     _clear_move_mode_state()
 
+def _apply_machine_dimension_move(idx, axis, click_x, click_y):
+    machines = st.session_state.placed_machines
+    if idx < 0 or idx >= len(machines):
+        st.session_state.editor_phase3_status = "Invalid machine dimension target."
+        return
+
+    m = machines[idx]
+    mx = float(m.get("x", 0.0))
+    my = float(m.get("y", 0.0))
+    mw = float(m.get("Width", 0.0))
+    mh = float(m.get("Height", 0.0))
+    so = float(m.get("Standoff", 0.0))
+
+    half_w = mw / 2.0
+    half_h = mh / 2.0
+    clear_pad = max(1.0, 0.6 * so, 0.12 * max(mw, mh))
+
+    if axis == "x":
+        top_ref = my + half_h + so + clear_pad
+        bot_ref = my - half_h - so - clear_pad
+
+        if click_y >= my:
+            m["dim_x_side"] = "above"
+            m["dim_x_line_offset_ft"] = max(0.0, click_y - top_ref)
+            m["dim_x_text_offset_ft"] = 0.0
+        else:
+            m["dim_x_side"] = "below"
+            m["dim_x_line_offset_ft"] = max(0.0, bot_ref - click_y)
+            m["dim_x_text_offset_ft"] = 0.0
+
+        m["dim_x_text_anchor_ft"] = click_x - ((0.0 + mx) / 2.0)
+
+    elif axis == "y":
+        right_ref = mx + half_w + so + clear_pad
+        left_ref = mx - half_w - so - clear_pad
+
+        if click_x >= mx:
+            m["dim_y_side"] = "right"
+            m["dim_y_line_offset_ft"] = max(0.0, click_x - right_ref)
+            m["dim_y_text_offset_ft"] = 0.0
+        else:
+            m["dim_y_side"] = "left"
+            m["dim_y_line_offset_ft"] = max(0.0, left_ref - click_x)
+            m["dim_y_text_offset_ft"] = 0.0
+
+        m["dim_y_text_anchor_ft"] = click_y - ((0.0 + my) / 2.0)
+
+    st.session_state.editor_phase3_status = (
+        f"Moved machine {m.get('id', idx)} {axis.upper()} dimension."
+    )
+
+def _apply_dimension_move_to_click(point_data):
+    click_info = _resolve_canvas_click(point_data)
+    if not click_info:
+        return
+
+    x_val = float(click_info.get("x", 0.0))
+    y_val = float(click_info.get("y", 0.0))
+
+    if st.session_state.get("editor_snap_enabled", False):
+        x_val = _snap_value(x_val, st.session_state.editor_snap_ft, True)
+        y_val = _snap_value(y_val, st.session_state.editor_snap_ft, True)
+
+    x_val, y_val = _clamp_to_floor(
+        x_val,
+        y_val,
+        st.session_state.floor_w,
+        st.session_state.floor_h,
+    )
+
+    owner_type = st.session_state.get("editor_dim_selected_owner_type", "")
+    owner_index = int(st.session_state.get("editor_dim_selected_owner_index", -1))
+    axis = st.session_state.get("editor_dim_selected_axis", "")
+
+    if owner_type == "machine":
+        _apply_machine_dimension_move(owner_index, axis, x_val, y_val)
+    else:
+        st.session_state.editor_phase3_status = (
+            f"Unsupported dimension owner type: {owner_type}"
+        )
+        return
+
+    st.session_state.editor_last_mouse_x = x_val
+    st.session_state.editor_last_mouse_y = y_val
+    st.session_state.editor_last_pick_x = x_val
+    st.session_state.editor_last_pick_y = y_val
+    st.session_state.editor_prime_inputs = True
+    st.session_state.editor_canvas_refresh_token += 1
+    _clear_dimension_move_state()
 
 def _clamp_crane_box(ll_x, ll_y, ur_x, ur_y, floor_w, floor_h):
     ll_x = float(ll_x)
@@ -1839,22 +1963,36 @@ def render_interactive_editor():
     if selected_points:
         canvas_mode = st.session_state.get("editor_canvas_mode", "select")
         move_waiting = st.session_state.get("editor_move_awaiting_target", False)
+        dim_waiting = st.session_state.get("editor_dim_move_awaiting_target", False)
 
         if canvas_mode == "move" and move_waiting:
             _apply_move_to_click(selected_points)
+
+        elif canvas_mode == "dim" and dim_waiting:
+            _apply_dimension_move_to_click(selected_points)
+
         else:
             click_info = _resolve_canvas_click(selected_points)
-            _apply_selection_from_click_info(click_info)
 
-            if canvas_mode == "move":
-                _begin_move_from_click_info(click_info)
+            if canvas_mode == "dim":
+                if click_info and click_info.get("entity_type") == "dimension":
+                    _begin_dimension_move_from_click_info(click_info)
+                else:
+                    st.session_state.editor_phase3_status = (
+                        "Dim mode: click a visible dimension label."
+                    )
+            else:
+                _apply_selection_from_click_info(click_info)
+
+                if canvas_mode == "move":
+                    _begin_move_from_click_info(click_info)
 
         st.rerun()
 
     st.caption(
         "Canvas modes: Select = click to select. "
         "Move = click object, then click destination. "
-        "Dim = reserved for future dimension editing."
+        "Dim = click a dimension label, then click its new location."
     )
 
     if st.session_state.get("editor_canvas_mode", "select") == "move":
@@ -1862,6 +2000,12 @@ def render_interactive_editor():
             st.warning("Move mode active: click a destination point.")
         else:
             st.info("Move mode active: click an object to move.")
+    
+    if st.session_state.get("editor_canvas_mode", "select") == "dim":
+        if st.session_state.get("editor_dim_move_awaiting_target", False):
+            st.warning("Dim mode active: click a destination point.")
+        else:
+            st.info("Dim mode active: click a dimension label to move it.")        
     
     phase3_msg = st.session_state.get("editor_phase3_status", "")
     if phase3_msg:
