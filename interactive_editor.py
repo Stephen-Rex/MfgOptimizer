@@ -1756,7 +1756,7 @@ def render_interactive_editor():
 
     fig = build_interactive_canvas_figure()
     fig.update_layout(
-        dragmode="false",  # Defaults the active tool to panning (great for scroll-to-zoom)
+        dragmode = False,  # Defaults the active tool to panning (great for scroll-to-zoom)
     )
     selected_points = plotly_events(
         fig,
