@@ -232,14 +232,26 @@ def build_interactive_canvas_figure():
             and int(st.session_state.editor_selected_index) == idx
         )
 
+        is_move_armed_line = (
+            st.session_state.get("editor_move_awaiting_target", False)
+            and st.session_state.get("editor_move_selected_type", "") == "conduit"
+            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+        )
+
         if len(xs) >= 2 and len(xs) == len(ys):
             fig.add_trace(
                 go.Scatter(
                     x=xs,
                     y=ys,
                     mode="lines+markers",
-                    line=dict(color="#FFA500", width=4 if is_selected else 3),
-                    marker=dict(size=8, color="#FFD700"),
+                    line=dict(
+                        color="#FFD700" if is_move_armed_line else "#FFA500",
+                        width=5 if is_move_armed_line else (4 if is_selected else 3),
+                    ),
+                    marker=dict(
+                        size=9 if is_move_armed_line else 8,
+                        color="#FFD700",
+                    ),
                     name=cid,
                     showlegend=False,
                     customdata=[["conduit", idx, cid, -1]] * len(xs),
@@ -253,15 +265,22 @@ def build_interactive_canvas_figure():
                     is_selected
                     and int(st.session_state.get("editor_selected_vertex_index", 0)) == p_idx
                 )
+
+                v_move_armed = (
+                    st.session_state.get("editor_move_awaiting_target", False)
+                    and st.session_state.get("editor_move_selected_type", "") == "conduit_vertex"
+                    and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+                    and int(st.session_state.get("editor_move_selected_vertex_index", -1)) == p_idx
+                )
                 fig.add_trace(
                     go.Scatter(
                         x=[px],
                         y=[py],
                         mode="markers+text",
                         marker=dict(
-                            size=14 if v_selected else 10,
-                            color="#FF00FF" if v_selected else "#FFD700",
-                            line=dict(color="black", width=1),
+                            size=16 if v_move_armed else (14 if v_selected else 10),
+                            color="#FFD700" if v_move_armed else ("#FF00FF" if v_selected else "#FFD700"),
+                            line=dict(color="black", width=2 if v_move_armed else 1),
                         ),
                         text=[f"CV{p_idx+1}"],
                         textposition="top center",
@@ -280,13 +299,24 @@ def build_interactive_canvas_figure():
 
         is_selected = st.session_state.editor_selected_type == "workflow"
 
+        is_move_armed_line = (
+            st.session_state.get("editor_move_awaiting_target", False)
+            and st.session_state.get("editor_move_selected_type", "") == "workflow_point"
+        )
+
         fig.add_trace(
             go.Scatter(
                 x=xs,
                 y=ys,
                 mode="lines+markers",
-                line=dict(color="#808080", width=5 if is_selected else 4),
-                marker=dict(size=8, color="#00E5FF"),
+                line=dict(
+                    color="#FFD700" if is_move_armed_line else "#808080",
+                    width=6 if is_move_armed_line else (5 if is_selected else 4),
+                ),
+                marker=dict(
+                    size=9 if is_move_armed_line else 8,
+                    color="#00E5FF",
+                ),
                 name="WF-001",
                 showlegend=False,
                 customdata=[["workflow", 0, "WF-001", -1]] * len(xs),
@@ -300,15 +330,21 @@ def build_interactive_canvas_figure():
 
         for p_idx, (px, py) in enumerate(zip(xs, ys)):
             p_selected = is_selected and selected_wpt == p_idx
+
+            p_move_armed = (
+                st.session_state.get("editor_move_awaiting_target", False)
+                and st.session_state.get("editor_move_selected_type", "") == "workflow_point"
+                and int(st.session_state.get("editor_move_selected_workflow_point_index", -1)) == p_idx
+            )            
             fig.add_trace(
                 go.Scatter(
                     x=[px],
                     y=[py],
                     mode="markers+text",
                     marker=dict(
-                        size=14 if p_selected else 10,
-                        color="#FF00FF" if p_selected else "#FFD700",
-                        line=dict(color="black", width=1),
+                        size=16 if p_move_armed else (14 if p_selected else 10),
+                        color="#FFD700" if p_move_armed else ("#FF00FF" if p_selected else "#FFD700"),
+                        line=dict(color="black", width=2 if p_move_armed else 1),
                     ),
                     text=[f"WP{p_idx+1}"],
                     textposition="top center",
@@ -332,6 +368,12 @@ def build_interactive_canvas_figure():
             and int(st.session_state.editor_selected_index) == idx
         )
 
+        is_move_armed = (
+            st.session_state.get("editor_move_awaiting_target", False)
+            and st.session_state.get("editor_move_selected_type", "") == "crane"
+            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+        )
+
         fig.add_shape(
             type="rect",
             x0=ll_x,
@@ -339,11 +381,11 @@ def build_interactive_canvas_figure():
             x1=ur_x,
             y1=ur_y,
             line=dict(
-                color="#BBBBBB" if not is_selected else "#00E5FF",
-                width=2 if not is_selected else 3,
+                color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#BBBBBB"),
+                width=4 if is_move_armed else (3 if is_selected else 2),
                 dash="dash",
             ),
-            fillcolor="rgba(160,160,160,0.18)",
+            fillcolor="rgba(255,215,0,0.22)" if is_move_armed else "rgba(160,160,160,0.18)",
         )
 
         cx = (ll_x + ur_x) / 2.0
@@ -355,12 +397,12 @@ def build_interactive_canvas_figure():
                 y=[cy],
                 mode="markers+text",
                 marker=dict(
-                    size=16 if is_selected else 12,
-                    color="#BBBBBB" if not is_selected else "#00E5FF",
+                    size=18 if is_move_armed else (16 if is_selected else 12),
+                    color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#BBBBBB"),
                     symbol="square",
                     line=dict(
-                        color="white" if not is_selected else "#FFD700",
-                        width=1.5,
+                        color="#FF00FF" if is_move_armed else "white",
+                        width=2 if is_move_armed else 1.5,
                     ),
                 ),
                 text=[crid],
