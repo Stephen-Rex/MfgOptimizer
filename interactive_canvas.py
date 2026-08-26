@@ -54,22 +54,25 @@ def _machine_dimension_geometry(m):
     dim_x_side = str(m.get("dim_x_side", "below"))
     dim_y_side = str(m.get("dim_y_side", "left"))
 
+    x_text_gap = 1.4
+    y_text_gap = 1.4
+
     if dim_x_side == "above":
         x_dim_y = my + half_h + so + clear_pad + dim_x_line_offset_ft
-        x_text_y = x_dim_y + 0.9 + dim_x_text_offset_ft
+        x_text_y = x_dim_y + x_text_gap + dim_x_text_offset_ft
         x_ext_obj_y = my + half_h + so + ext_gap
     else:
         x_dim_y = my - half_h - so - clear_pad - dim_x_line_offset_ft
-        x_text_y = x_dim_y - 0.9 - dim_x_text_offset_ft
+        x_text_y = x_dim_y - x_text_gap - dim_x_text_offset_ft
         x_ext_obj_y = my - half_h - so - ext_gap
 
     if dim_y_side == "right":
         y_dim_x = mx + half_w + so + clear_pad + dim_y_line_offset_ft
-        y_text_x = y_dim_x + 0.9 + dim_y_text_offset_ft
+        y_text_x = y_dim_x + y_text_gap + dim_y_text_offset_ft
         y_ext_obj_x = mx + half_w + so + ext_gap
     else:
         y_dim_x = mx - half_w - so - clear_pad - dim_y_line_offset_ft
-        y_text_x = y_dim_x - 0.9 - dim_y_text_offset_ft
+        y_text_x = y_dim_x - y_text_gap - dim_y_text_offset_ft
         y_ext_obj_x = mx - half_w - so - ext_gap
 
     x_text_x = ((0.0 + mx) / 2.0) + dim_x_text_anchor_ft
