@@ -189,7 +189,8 @@ def _resolve_canvas_click(point_data):
       y
 
     entity_type may be:
-      machine, lighting, conduit, conduit_vertex, workflow, workflow_point, crane
+      machine, lighting, conduit, conduit_vertex, workflow, workflow_point, crane,
+      or normalized "dimension" for dimension-text clicks.
     """
     if not point_data:
         return None
@@ -209,43 +210,47 @@ def _resolve_canvas_click(point_data):
     # Preferred path: direct customdata on click payload
     if customdata and len(customdata) >= 4:
         try:
+            entity_type = str(customdata[0])
+            obj_index = int(customdata[1])
+            obj_id = str(customdata[2])
+            sub_index = int(customdata[3])
+
+            if entity_type == "dimension_machine_x_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "machine",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "x",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_machine_y_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "machine",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "y",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
             return {
-                "entity_type": str(customdata[0]),
-                "obj_index": int(customdata[1]),
-                "sub_index": int(customdata[3]),
+                "entity_type": entity_type,
+                "obj_index": obj_index,
+                "sub_index": sub_index,
                 "x": float(x_val) if x_val is not None else None,
                 "y": float(y_val) if y_val is not None else None,
             }
         except Exception:
             pass
 
-    if entity_type == "dimension_machine_x_text":
-        return {
-            "entity_type": "dimension",
-            "owner_type": "machine",
-            "obj_index": obj_index,
-            "sub_index": sub_index,
-            "owner_id": obj_id,
-            "axis": "x",
-            "part": "text",
-            "x": x_val,
-            "y": y_val,
-        }
-
-    if entity_type == "dimension_machine_y_text":
-        return {
-            "entity_type": "dimension",
-            "owner_type": "machine",
-            "obj_index": obj_index,
-            "sub_index": sub_index,
-            "owner_id": obj_id,
-            "axis": "y",
-            "part": "text",
-            "x": x_val,
-            "y": y_val,
-        }
-    
-    
     # Fallback path: curveNumber -> trace map
     curve_number = clicked.get("curveNumber", None)
     trace_map = st.session_state.get("editor_trace_map", [])
@@ -255,10 +260,41 @@ def _resolve_canvas_click(point_data):
             curve_number = int(curve_number)
             if 0 <= curve_number < len(trace_map):
                 mapped = trace_map[curve_number]
+                entity_type = str(mapped.get("entity_type", ""))
+                obj_index = int(mapped.get("obj_index", -1))
+                sub_index = int(mapped.get("sub_index", -1))
+                obj_id = str(mapped.get("id", ""))
+
+                if entity_type == "dimension_machine_x_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "machine",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "x",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_machine_y_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "machine",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "y",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
                 return {
-                    "entity_type": str(mapped.get("entity_type", "")),
-                    "obj_index": int(mapped.get("obj_index", -1)),
-                    "sub_index": int(mapped.get("sub_index", -1)),
+                    "entity_type": entity_type,
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
                     "x": float(x_val) if x_val is not None else None,
                     "y": float(y_val) if y_val is not None else None,
                 }
