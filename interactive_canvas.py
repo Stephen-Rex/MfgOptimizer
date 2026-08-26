@@ -348,7 +348,7 @@ def build_interactive_canvas_figure():
                     mode="markers+text",
                     marker=dict(
                         size=34,
-                        color="rgba(255,215,0,0.18)" if (is_x_armed or is_y_armed) else "rgba(0,255,255,0.12)",
+                        color="rgba(255,215,0,0.18)" if is_y_armed else "rgba(0,255,255,0.12)",
                         line=dict(width=1, color="rgba(255,255,255,0.20)")
                     ),
                     text=[f"Y = {g['my']:.1f} ft"],
