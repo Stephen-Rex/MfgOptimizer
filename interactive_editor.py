@@ -1755,11 +1755,13 @@ def render_interactive_editor():
     render_interactive_editor_controls()
 
     fig = build_interactive_canvas_figure()
-    fig.config = {
-        'scrollZoom': True,
-        'displaylogo': False,
-        'modeBarButtonsToRemove': ['lasso2d', 'select2d']
-    }
+    fig.update_layout(
+        dragmode="pan",  # Defaults the active tool to panning (great for scroll-to-zoom)
+        modebar=dict(
+            remove=['lasso2d', 'select2d'],  # Strips the lasso and box selection tools
+            add=['scrollZoom']                # Forces configuration onto the modebar state
+        )
+    )
     selected_points = plotly_events(
         fig,
         click_event=True,
