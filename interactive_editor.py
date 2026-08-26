@@ -53,6 +53,13 @@ def _clear_move_mode_state():
     st.session_state.editor_move_selected_vertex_index = -1
     st.session_state.editor_move_selected_workflow_point_index = -1
 
+def _clear_dimension_move_state():
+    st.session_state.editor_dim_move_awaiting_target = False
+    st.session_state.editor_dim_selected_owner_type = ""
+    st.session_state.editor_dim_selected_owner_index = -1
+    st.session_state.editor_dim_selected_owner_id = ""
+    st.session_state.editor_dim_selected_axis = ""
+
 
 def _resolve_canvas_click(point_data):
     """
@@ -96,6 +103,33 @@ def _resolve_canvas_click(point_data):
         except Exception:
             pass
 
+    if entity_type == "dimension_machine_x_text":
+        return {
+            "entity_type": "dimension",
+            "owner_type": "machine",
+            "obj_index": obj_index,
+            "sub_index": sub_index,
+            "owner_id": obj_id,
+            "axis": "x",
+            "part": "text",
+            "x": x_val,
+            "y": y_val,
+        }
+
+    if entity_type == "dimension_machine_y_text":
+        return {
+            "entity_type": "dimension",
+            "owner_type": "machine",
+            "obj_index": obj_index,
+            "sub_index": sub_index,
+            "owner_id": obj_id,
+            "axis": "y",
+            "part": "text",
+            "x": x_val,
+            "y": y_val,
+        }
+    
+    
     # Fallback path: curveNumber -> trace map
     curve_number = clicked.get("curveNumber", None)
     trace_map = st.session_state.get("editor_trace_map", [])
