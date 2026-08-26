@@ -2163,7 +2163,7 @@ def render_interactive_editor():
     if phase3_msg:
         st.info(phase3_msg)
     
-    render_dimension_regression_panel()    
+    #render_dimension_regression_panel()    
 
 def _set_selected_conduit_vertex_xy(new_x, new_y):
     result = _get_selected_object()
