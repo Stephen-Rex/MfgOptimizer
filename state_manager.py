@@ -204,9 +204,9 @@ def ensure_conduit_dimension_fields():
         if "dim_visible" not in item:
             item["dim_visible"] = True
         if "dim_label_x_offset_ft" not in item:
-            item["dim_label_x_offset_ft"] = 0.0
+            item["dim_label_x_offset_ft"] = 4.0
         if "dim_label_y_offset_ft" not in item:
-            item["dim_label_y_offset_ft"] = 0.0
+            item["dim_label_y_offset_ft"] = 4.0
         if "dim_show_length" not in item:
             item["dim_show_length"] = True
         if "dim_show_metadata" not in item:
@@ -218,9 +218,9 @@ def ensure_workflow_dimension_fields():
     if "workflow_dim_visible" not in st.session_state:
         st.session_state.workflow_dim_visible = True
     if "workflow_dim_label_x_offset_ft" not in st.session_state:
-        st.session_state.workflow_dim_label_x_offset_ft = 0.0
+        st.session_state.workflow_dim_label_x_offset_ft = 4.0
     if "workflow_dim_label_y_offset_ft" not in st.session_state:
-        st.session_state.workflow_dim_label_y_offset_ft = 0.0
+        st.session_state.workflow_dim_label_y_offset_ft = 4.0
     if "workflow_dim_show_length" not in st.session_state:
         st.session_state.workflow_dim_show_length = True
     if "workflow_dim_show_metadata" not in st.session_state:
