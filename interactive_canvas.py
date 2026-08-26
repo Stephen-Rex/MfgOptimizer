@@ -430,7 +430,8 @@ def build_interactive_canvas_figure():
             mode="markers",
             marker=dict(
                 size=4,
-                color="rgba(0,0,0,0.001)",
+                #color="rgba(0,0,0,0.001)",
+                color="rgba(1,1,1,1.0)",
             ),
             showlegend=False,
             hoverinfo="skip",
