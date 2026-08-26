@@ -55,7 +55,7 @@ def _machine_dimension_geometry(m):
     dim_y_side = str(m.get("dim_y_side", "left"))
 
     x_text_gap = 1.4
-    y_text_gap = 3.0
+    y_text_gap = 7.0
 
     if dim_x_side == "above":
         x_dim_y = my + half_h + so + clear_pad + dim_x_line_offset_ft
