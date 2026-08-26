@@ -104,6 +104,11 @@ def build_interactive_canvas_figure():
             st.session_state.editor_selected_type == "machine"
             and int(st.session_state.editor_selected_index) == idx
         )
+        is_move_armed = (
+            st.session_state.get("editor_move_awaiting_target", False)
+            and st.session_state.get("editor_move_selected_type", "") == "machine"
+            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+        )
 
         x0 = mx - mw / 2.0
         x1 = mx + mw / 2.0
@@ -117,10 +122,13 @@ def build_interactive_canvas_figure():
             x1=x1,
             y1=y1,
             line=dict(
-                color="#87CEEB" if not is_selected else "#00E5FF",
-                width=2 if not is_selected else 3,
+                color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#87CEEB"),
+                width=4 if is_move_armed else (3 if is_selected else 2),
             ),
-            fillcolor="rgba(135,206,235,0.18)" if not is_selected else "rgba(0,229,255,0.22)",
+            fillcolor=(
+                "rgba(255,215,0,0.25)" if is_move_armed
+                else ("rgba(0,229,255,0.22)" if is_selected else "rgba(135,206,235,0.18)")
+            ),
             layer="below",
         )
 
@@ -161,9 +169,9 @@ def build_interactive_canvas_figure():
                 y=[my],
                 mode="markers+text",
                 marker=dict(
-                    size=14 if is_selected else 10,
-                    color="#00E5FF" if is_selected else "#87CEEB",
-                    line=dict(color="white", width=1),
+                    size=16 if is_move_armed else (14 if is_selected else 10),
+                    color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#87CEEB"),
+                    line=dict(color="white", width=2 if is_move_armed else 1),
                 ),
                 text=[mid],
                 textposition="top center",
@@ -186,16 +194,22 @@ def build_interactive_canvas_figure():
             and int(st.session_state.editor_selected_index) == idx
         )
 
+        is_move_armed = (
+            st.session_state.get("editor_move_awaiting_target", False)
+            and st.session_state.get("editor_move_selected_type", "") == "lighting"
+            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+        )
+
         fig.add_trace(
             go.Scatter(
                 x=[lx],
                 y=[ly],
                 mode="markers+text",
                 marker=dict(
-                    size=16 if is_selected else 12,
-                    color="#FFD700",
+                    size=18 if is_move_armed else (16 if is_selected else 12),
+                    color="#FF00FF" if is_move_armed else "#FFD700",
                     symbol="diamond",
-                    line=dict(color="#FFFFFF", width=2 if is_selected else 1),
+                    line=dict(color="#FFFFFF", width=3 if is_move_armed else (2 if is_selected else 1)),
                 ),
                 text=[lid],
                 textposition="top center",
