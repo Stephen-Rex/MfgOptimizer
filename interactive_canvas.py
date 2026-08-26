@@ -297,7 +297,12 @@ def build_interactive_canvas_figure():
                     x=[g["x_text_x"]],
                     y=[g["x_text_y"]],
                     mode="markers+text",
-                    marker=dict(size=18, color="rgba(0,0,0,0.001)"),
+                    mode="markers+text",
+                    marker=dict(
+                        size=34,
+                        color="rgba(255,215,0,0.18)" if (is_x_armed or is_y_armed) else "rgba(0,255,255,0.12)",
+                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    ),
                     text=[f"X = {g['mx']:.1f} ft"],
                     textposition="middle center",
                     textfont=dict(color=x_color, size=12),
@@ -342,7 +347,11 @@ def build_interactive_canvas_figure():
                     x=[g["y_text_x"]],
                     y=[g["y_text_y"]],
                     mode="markers+text",
-                    marker=dict(size=18, color="rgba(0,0,0,0.001)"),
+                    marker=dict(
+                        size=34,
+                        color="rgba(255,215,0,0.18)" if (is_x_armed or is_y_armed) else "rgba(0,255,255,0.12)",
+                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    ),
                     text=[f"Y = {g['my']:.1f} ft"],
                     textposition="middle center",
                     textfont=dict(color=y_color, size=12),
