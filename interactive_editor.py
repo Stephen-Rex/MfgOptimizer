@@ -509,18 +509,6 @@ def _get_selected_object():
     return obj_type, idx, items[idx]
 
 
-def _begin_move_from_current_selection():
-    st.session_state.editor_move_awaiting_target = True
-    st.session_state.editor_move_selected_type = st.session_state.get("editor_selected_type", "")
-    st.session_state.editor_move_selected_index = int(st.session_state.get("editor_selected_index", -1))
-    st.session_state.editor_move_selected_vertex_index = int(st.session_state.get("editor_selected_vertex_index", -1))
-    st.session_state.editor_move_selected_workflow_point_index = int(
-        st.session_state.get("editor_workflow_selected_point_index", -1)
-    )
-    st.session_state.editor_phase3_status = (
-        "Move mode: destination click expected."
-    )
-
 def _object_center(obj_type, obj):
     if obj_type in ["machine", "lighting"]:
         return float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
