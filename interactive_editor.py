@@ -235,28 +235,35 @@ def _begin_move_from_click_info(click_info):
     obj_index = int(click_info.get("obj_index", -1))
     sub_index = int(click_info.get("sub_index", -1))
 
+    if entity_type is None or entity_type == "floor":
+        _clear_move_mode_state()
+        st.session_state.editor_phase3_status = (
+            "Move mode requires clicking a selectable object first."
+        )
+        return
+
     def _safe_machine_label(idx):
-        machines = st.session_state.get("placed_machines", [])
-        if 0 <= idx < len(machines):
-            return str(machines[idx].get("id", f"machine {idx}"))
+        items = st.session_state.get("placed_machines", [])
+        if 0 <= idx < len(items):
+            return str(items[idx].get("id", f"M-{idx+1:03d}"))
         return f"machine {idx}"
 
     def _safe_lighting_label(idx):
-        lights = st.session_state.get("placed_lighting", [])
-        if 0 <= idx < len(lights):
-            return str(lights[idx].get("id", f"lighting {idx}"))
+        items = st.session_state.get("placed_lighting", [])
+        if 0 <= idx < len(items):
+            return str(items[idx].get("id", f"L-{idx+1:03d}"))
         return f"lighting {idx}"
 
     def _safe_conduit_label(idx):
-        conduits = st.session_state.get("placed_conduits", [])
-        if 0 <= idx < len(conduits):
-            return str(conduits[idx].get("id", f"conduit {idx}"))
+        items = st.session_state.get("placed_conduits", [])
+        if 0 <= idx < len(items):
+            return str(items[idx].get("id", f"C-{idx+1:03d}"))
         return f"conduit {idx}"
 
     def _safe_crane_label(idx):
-        cranes = st.session_state.get("placed_cranes", [])
-        if 0 <= idx < len(cranes):
-            return str(cranes[idx].get("id", f"crane {idx}"))
+        items = st.session_state.get("placed_cranes", [])
+        if 0 <= idx < len(items):
+            return str(items[idx].get("id", f"CR-{idx+1:03d}"))
         return f"crane {idx}"
 
     move_label = ""
@@ -278,24 +285,19 @@ def _begin_move_from_click_info(click_info):
     elif entity_type == "conduit":
         st.session_state.editor_move_selected_type = "conduit"
         st.session_state.editor_move_selected_index = obj_index
-        st.session_state.editor_move_selected_vertex_index = int(
-            st.session_state.get("editor_selected_vertex_index", 0)
-        )
+        st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = -1
-        move_label = (
-            f"conduit {_safe_conduit_label(obj_index)} "
-            f"vertex {st.session_state.editor_move_selected_vertex_index + 1}"
-        )
+        move_label = f"conduit {_safe_conduit_label(obj_index)}"
 
     elif entity_type == "conduit_vertex":
-        st.session_state.editor_move_selected_type = "conduit"
+        st.session_state.editor_move_selected_type = "conduit_vertex"
         st.session_state.editor_move_selected_index = obj_index
         st.session_state.editor_move_selected_vertex_index = sub_index
         st.session_state.editor_move_selected_workflow_point_index = -1
         move_label = f"conduit {_safe_conduit_label(obj_index)} vertex {sub_index + 1}"
 
     elif entity_type == "workflow":
-        st.session_state.editor_move_selected_type = "workflow"
+        st.session_state.editor_move_selected_type = "workflow_point"
         st.session_state.editor_move_selected_index = 0
         st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = int(
@@ -307,7 +309,7 @@ def _begin_move_from_click_info(click_info):
         )
 
     elif entity_type == "workflow_point":
-        st.session_state.editor_move_selected_type = "workflow"
+        st.session_state.editor_move_selected_type = "workflow_point"
         st.session_state.editor_move_selected_index = 0
         st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = sub_index
