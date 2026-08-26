@@ -815,26 +815,29 @@ def draw_asme_drawing(
         if not dim_visible:
             continue
 
+        x_text_gap_in = 0.14
+        y_text_gap_in = 0.14
+
         if dim_x_side == "above":
             x_dim_y = my_in + half_h_in + so_in + clear_pad_in + dim_x_line_offset_in
             x_ext_obj_y = my_in + half_h_in + so_in + ext_gap_in
-            x_text_y = x_dim_y + 0.08 + dim_x_text_offset_in
+            x_text_y = x_dim_y + x_text_gap_in + dim_x_text_offset_in
             x_text_va = "bottom"
         else:
             x_dim_y = my_in - half_h_in - so_in - clear_pad_in - dim_x_line_offset_in
             x_ext_obj_y = my_in - half_h_in - so_in - ext_gap_in
-            x_text_y = x_dim_y - 0.08 - dim_x_text_offset_in
+            x_text_y = x_dim_y - x_text_gap_in - dim_x_text_offset_in
             x_text_va = "top"
 
         if dim_y_side == "right":
             y_dim_x = mx_in + half_w_in + so_in + clear_pad_in + dim_y_line_offset_in
             y_ext_obj_x = mx_in + half_w_in + so_in + ext_gap_in
-            y_text_x = y_dim_x + 0.08 + dim_y_text_offset_in
+            y_text_x = y_dim_x + y_text_gap_in + dim_y_text_offset_in
             y_text_ha = "left"
         else:
             y_dim_x = mx_in - half_w_in - so_in - clear_pad_in - dim_y_line_offset_in
             y_ext_obj_x = mx_in - half_w_in - so_in - ext_gap_in
-            y_text_x = y_dim_x - 0.08 - dim_y_text_offset_in
+            y_text_x = y_dim_x - y_text_gap_in - dim_y_text_offset_in
             y_text_ha = "right"
 
         x_text_x = ((O_x + mx_in) / 2.0) + dim_x_text_anchor_in
