@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import streamlit as st
-from streamlit_plotly_events import plotly_events
+from streamlit_plotly_events2 import plotly_events
 from interactive_canvas import build_interactive_canvas_figure, apply_canvas_pick
 
 
