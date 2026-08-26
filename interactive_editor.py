@@ -2162,8 +2162,15 @@ def render_interactive_editor():
     phase3_msg = st.session_state.get("editor_phase3_status", "")
     if phase3_msg:
         st.info(phase3_msg)
+
+    if st.session_state.get("editor_canvas_mode", "select") == "dim":
+        st.caption(
+            f"dim_waiting={st.session_state.get('editor_dim_move_awaiting_target', False)} | "
+            f"owner={st.session_state.get('editor_dim_selected_owner_type', '')} | "
+            f"index={st.session_state.get('editor_dim_selected_owner_index', -1)} | "
+            f"axis={st.session_state.get('editor_dim_selected_axis', '')}"
+        )
     
-    #render_dimension_regression_panel()    
 
 def _set_selected_conduit_vertex_xy(new_x, new_y):
     result = _get_selected_object()
