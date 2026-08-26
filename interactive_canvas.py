@@ -243,7 +243,7 @@ def build_interactive_canvas_figure():
                 go.Scatter(
                     x=xs,
                     y=ys,
-                    mode="lines+markers",
+                    mode="lines",
                     line=dict(
                         color="#FFD700" if is_move_armed_line else "#FFA500",
                         width=5 if is_move_armed_line else (4 if is_selected else 3),
@@ -308,7 +308,7 @@ def build_interactive_canvas_figure():
             go.Scatter(
                 x=xs,
                 y=ys,
-                mode="lines+markers",
+                mode="lines",
                 line=dict(
                     color="#FFD700" if is_move_armed_line else "#808080",
                     width=6 if is_move_armed_line else (5 if is_selected else 4),
