@@ -378,29 +378,6 @@ def build_interactive_canvas_figure():
         )
         _register_trace("pick_marker", -1, -1, "PICK")
 
-    fig.update_layout(
-        height=650,
-        paper_bgcolor="#0B1E2D",
-        plot_bgcolor="#0B1E2D",
-        font=dict(color="white"),
-        margin=dict(l=30, r=30, t=40, b=30),
-        title="Interactive 2D Layout Editor",
-        xaxis=dict(
-            title="X (ft)",
-            range=[0, floor_w],
-            showgrid=False,
-            zeroline=False,
-            scaleanchor="y",
-            scaleratio=1,
-        ),
-        yaxis=dict(
-            title="Y (ft)",
-            range=[0, floor_h],
-            showgrid=False,
-            zeroline=False,
-        ),
-        dragmode=False,
-    )
 
     # Floor click target grid
     # Add this late so object traces win clicks when overlapping.
@@ -429,7 +406,7 @@ def build_interactive_canvas_figure():
             y=floor_y,
             mode="markers",
             marker=dict(
-                size=10,
+                size=4,
                 #color="rgba(0,0,0,0.001)",
                 color="rgba(1,1,1,1.0)",
             ),
@@ -440,6 +417,30 @@ def build_interactive_canvas_figure():
         )
     )
     _register_trace("floor", -1, -1, "FLOOR")
+
+    fig.update_layout(
+        height=650,
+        paper_bgcolor="#0B1E2D",
+        plot_bgcolor="#0B1E2D",
+        font=dict(color="white"),
+        margin=dict(l=30, r=30, t=40, b=30),
+        title="Interactive 2D Layout Editor",
+        xaxis=dict(
+            title="X (ft)",
+            range=[0, floor_w],
+            showgrid=False,
+            zeroline=False,
+            scaleanchor="y",
+            scaleratio=1,
+        ),
+        yaxis=dict(
+            title="Y (ft)",
+            range=[0, floor_h],
+            showgrid=False,
+            zeroline=False,
+        ),
+        dragmode=False,
+    )
 
     return fig
 
