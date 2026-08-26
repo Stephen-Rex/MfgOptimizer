@@ -155,6 +155,14 @@ def ensure_machine_dimension_fields():
             item["dim_x_text_offset_ft"] = 0.0
         if "dim_y_text_offset_ft" not in item:
             item["dim_y_text_offset_ft"] = 0.0
+        if "dim_x_text_anchor_ft" not in item:
+            item["dim_x_text_anchor_ft"] = 0.0
+        if "dim_y_text_anchor_ft" not in item:
+            item["dim_y_text_anchor_ft"] = 0.0
+        if "dim_x_side" not in item:
+            item["dim_x_side"] = "below"
+        if "dim_y_side" not in item:
+            item["dim_y_side"] = "left"        
         if "dim_show_footprint" not in item:
             item["dim_show_footprint"] = True
 
@@ -175,6 +183,14 @@ def ensure_lighting_dimension_fields():
             item["dim_x_text_offset_ft"] = 0.0
         if "dim_y_text_offset_ft" not in item:
             item["dim_y_text_offset_ft"] = 0.0
+        if "dim_x_text_anchor_ft" not in item:
+            item["dim_x_text_anchor_ft"] = 0.0
+        if "dim_y_text_anchor_ft" not in item:
+            item["dim_y_text_anchor_ft"] = 0.0
+        if "dim_x_side" not in item:
+            item["dim_x_side"] = "below"
+        if "dim_y_side" not in item:
+            item["dim_y_side"] = "left"        
         if "dim_show_fixture_note" not in item:
             item["dim_show_fixture_note"] = True
 
@@ -649,6 +665,21 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
 
     if "editor_phase3_status" not in st.session_state:
         st.session_state.editor_phase3_status = ""
+        
+    if "editor_dim_move_awaiting_target" not in st.session_state:
+        st.session_state.editor_dim_move_awaiting_target = False
+
+    if "editor_dim_selected_owner_type" not in st.session_state:
+        st.session_state.editor_dim_selected_owner_type = ""
+
+    if "editor_dim_selected_owner_index" not in st.session_state:
+        st.session_state.editor_dim_selected_owner_index = -1
+
+    if "editor_dim_selected_owner_id" not in st.session_state:
+        st.session_state.editor_dim_selected_owner_id = ""
+
+    if "editor_dim_selected_axis" not in st.session_state:
+        st.session_state.editor_dim_selected_axis = ""        
 
     
 
