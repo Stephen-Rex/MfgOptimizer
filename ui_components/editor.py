@@ -19,9 +19,9 @@ def render_editor_tab():
     st.checkbox("Enable Grid Snap", key="editor_snap_enabled")
     st.number_input(
         "Editor Snap Increment (ft)",
-        min_value=0.1,
+        min_value=1.0,
         max_value=20.0,
-        step=0.1,
+        step=1.0
         key="editor_snap_ft",
     )
 
