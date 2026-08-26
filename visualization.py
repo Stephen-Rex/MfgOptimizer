@@ -807,12 +807,38 @@ def draw_asme_drawing(
         dim_x_text_offset_in = float(m.get("dim_x_text_offset_ft", 0.0)) * S
         dim_y_text_offset_in = float(m.get("dim_y_text_offset_ft", 0.0)) * S
         dim_show_footprint = bool(m.get("dim_show_footprint", True))
+        dim_x_text_anchor_in = float(m.get("dim_x_text_anchor_ft", 0.0)) * S
+        dim_y_text_anchor_in = float(m.get("dim_y_text_anchor_ft", 0.0)) * S
+        dim_x_side = str(m.get("dim_x_side", "below"))
+        dim_y_side = str(m.get("dim_y_side", "left"))
 
         if not dim_visible:
             continue
 
-        x_dim_y -= dim_x_line_offset_in
-        y_dim_x -= dim_y_line_offset_in
+        if dim_x_side == "above":
+            x_dim_y = my_in + half_h_in + so_in + clear_pad_in + dim_x_line_offset_in
+            x_ext_obj_y = my_in + half_h_in + so_in + ext_gap_in
+            x_text_y = x_dim_y + 0.08 + dim_x_text_offset_in
+            x_text_va = "bottom"
+        else:
+            x_dim_y = my_in - half_h_in - so_in - clear_pad_in - dim_x_line_offset_in
+            x_ext_obj_y = my_in - half_h_in - so_in - ext_gap_in
+            x_text_y = x_dim_y - 0.08 - dim_x_text_offset_in
+            x_text_va = "top"
+
+        if dim_y_side == "right":
+            y_dim_x = mx_in + half_w_in + so_in + clear_pad_in + dim_y_line_offset_in
+            y_ext_obj_x = mx_in + half_w_in + so_in + ext_gap_in
+            y_text_x = y_dim_x + 0.08 + dim_y_text_offset_in
+            y_text_ha = "left"
+        else:
+            y_dim_x = mx_in - half_w_in - so_in - clear_pad_in - dim_y_line_offset_in
+            y_ext_obj_x = mx_in - half_w_in - so_in - ext_gap_in
+            y_text_x = y_dim_x - 0.08 - dim_y_text_offset_in
+            y_text_ha = "right"
+
+        x_text_x = ((O_x + mx_in) / 2.0) + dim_x_text_anchor_in
+        y_text_y = ((O_y + my_in) / 2.0) + dim_y_text_anchor_in
         
         # ----- X locator dimension -----
         _draw_dim_line(
@@ -841,9 +867,9 @@ def draw_asme_drawing(
         _draw_ext_line(
             ax,
             mx_in,
-            x_ext_top,
+            x_ext_obj_y,
             mx_in,
-            x_dim_y + ext_gap_in,
+            x_dim_y + (ext_gap_in if dim_x_side == "below" else -ext_gap_in),
             color=ext_color,
             lw=0.8,
             z=6,
@@ -859,13 +885,13 @@ def draw_asme_drawing(
         )
 
         ax.text(
-            (O_x + mx_in) / 2.0,
-            x_dim_y - 0.08 - dim_x_text_offset_in,
+            x_text_x,
+            x_text_y,
             f"X = {x_ft:.1f} ft",
             fontsize=6,
             color=txt_color,
             ha='center',
-            va='top',
+            va=x_text_va,
             zorder=8,
             bbox=dict(
                 facecolor='#222222',
@@ -901,9 +927,9 @@ def draw_asme_drawing(
         y_ext_right = mx_in - half_w_in - so_in - ext_gap_in
         _draw_ext_line(
             ax,
-            y_ext_right,
+            y_ext_obj_x,
             my_in,
-            y_dim_x + ext_gap_in,
+            y_dim_x + (ext_gap_in if dim_y_side == "left" else -ext_gap_in),
             my_in,
             color=ext_color,
             lw=0.8,
@@ -920,12 +946,12 @@ def draw_asme_drawing(
         )
 
         ax.text(
-            y_dim_x - 0.08 - dim_y_text_offset_in,
-            (O_y + my_in) / 2.0,
+            y_text_x,
+            y_text_y,
             f"Y = {y_ft:.1f} ft",
             fontsize=6,
             color=txt_color,
-            ha='right',
+            ha=y_text_ha,
             va='center',
             rotation=90,
             zorder=8,
