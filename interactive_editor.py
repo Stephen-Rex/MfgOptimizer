@@ -53,6 +53,13 @@ def render_dimension_regression_panel():
                 # Dim mode check
                 st.session_state.editor_canvas_mode = "dim"
                 fig = build_interactive_canvas_figure()
+                
+                with st.expander("Dim Debug", expanded=True):
+                    st.write("Canvas mode:", st.session_state.get("editor_canvas_mode"))
+                    st.write("Placed machines:", len(st.session_state.get("placed_machines", [])))
+                    st.write("Trace count:", len(fig.data))
+                    st.write("Trace map:", st.session_state.get("editor_trace_map", []))
+                
                 trace_types = [t["entity_type"] for t in st.session_state.editor_trace_map]
                 dim_ok = (
                     "dimension_machine_x_text" in trace_types
