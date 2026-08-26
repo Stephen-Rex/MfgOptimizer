@@ -2119,9 +2119,11 @@ def render_interactive_editor():
 
         if canvas_mode == "move" and move_waiting:
             _apply_move_to_click(selected_points)
+            st.rerun()
 
         elif canvas_mode == "dim" and dim_waiting:
             _apply_dimension_move_to_click(selected_points)
+            st.rerun()
 
         else:
             click_info = _resolve_canvas_click(selected_points)
@@ -2129,17 +2131,21 @@ def render_interactive_editor():
             if canvas_mode == "dim":
                 if click_info and click_info.get("entity_type") == "dimension":
                     _begin_dimension_move_from_click_info(click_info)
+                    st.session_state.editor_canvas_refresh_token += 1
+                    st.session_state.editor_prime_inputs = True
+                    return
                 else:
                     st.session_state.editor_phase3_status = (
                         "Dim mode: click a visible dimension label."
                     )
+                    return
             else:
                 _apply_selection_from_click_info(click_info)
 
                 if canvas_mode == "move":
                     _begin_move_from_click_info(click_info)
 
-        st.rerun()
+                st.rerun()
 
     st.caption(
         "Canvas modes: Select = click to select. "
