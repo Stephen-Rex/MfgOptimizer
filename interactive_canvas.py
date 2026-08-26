@@ -33,12 +33,70 @@ def _object_center_workflow():
 def _dist(x1, y1, x2, y2):
     return math.sqrt((float(x2) - float(x1)) ** 2 + (float(y2) - float(y1)) ** 2)
 
+def _machine_dimension_geometry(m):
+    mx = float(m.get("x", 0.0))
+    my = float(m.get("y", 0.0))
+    mw = float(m.get("Width", 0.0))
+    mh = float(m.get("Height", 0.0))
+    so = float(m.get("Standoff", 0.0))
+
+    half_w = mw / 2.0
+    half_h = mh / 2.0
+    clear_pad = max(1.0, 0.6 * so, 0.12 * max(mw, mh))
+    ext_gap = 0.4
+
+    dim_x_line_offset_ft = float(m.get("dim_x_line_offset_ft", 0.0))
+    dim_y_line_offset_ft = float(m.get("dim_y_line_offset_ft", 0.0))
+    dim_x_text_offset_ft = float(m.get("dim_x_text_offset_ft", 0.0))
+    dim_y_text_offset_ft = float(m.get("dim_y_text_offset_ft", 0.0))
+    dim_x_text_anchor_ft = float(m.get("dim_x_text_anchor_ft", 0.0))
+    dim_y_text_anchor_ft = float(m.get("dim_y_text_anchor_ft", 0.0))
+    dim_x_side = str(m.get("dim_x_side", "below"))
+    dim_y_side = str(m.get("dim_y_side", "left"))
+
+    if dim_x_side == "above":
+        x_dim_y = my + half_h + so + clear_pad + dim_x_line_offset_ft
+        x_text_y = x_dim_y + 0.9 + dim_x_text_offset_ft
+        x_ext_obj_y = my + half_h + so + ext_gap
+    else:
+        x_dim_y = my - half_h - so - clear_pad - dim_x_line_offset_ft
+        x_text_y = x_dim_y - 0.9 - dim_x_text_offset_ft
+        x_ext_obj_y = my - half_h - so - ext_gap
+
+    if dim_y_side == "right":
+        y_dim_x = mx + half_w + so + clear_pad + dim_y_line_offset_ft
+        y_text_x = y_dim_x + 0.9 + dim_y_text_offset_ft
+        y_ext_obj_x = mx + half_w + so + ext_gap
+    else:
+        y_dim_x = mx - half_w - so - clear_pad - dim_y_line_offset_ft
+        y_text_x = y_dim_x - 0.9 - dim_y_text_offset_ft
+        y_ext_obj_x = mx - half_w - so - ext_gap
+
+    x_text_x = ((0.0 + mx) / 2.0) + dim_x_text_anchor_ft
+    y_text_y = ((0.0 + my) / 2.0) + dim_y_text_anchor_ft
+
+    return {
+        "mx": mx,
+        "my": my,
+        "x_dim_y": x_dim_y,
+        "x_text_x": x_text_x,
+        "x_text_y": x_text_y,
+        "x_ext_obj_y": x_ext_obj_y,
+        "y_dim_x": y_dim_x,
+        "y_text_x": y_text_x,
+        "y_text_y": y_text_y,
+        "y_ext_obj_x": y_ext_obj_x,
+    }
+
 
 def build_interactive_canvas_figure():
     floor_w = float(st.session_state.floor_w)
     floor_h = float(st.session_state.floor_h)
 
     fig = go.Figure()
+
+    canvas_mode = st.session_state.get("editor_canvas_mode", "select")
+    show_dim_traces = canvas_mode == "dim"    
 
     # Trace map for Phase 3 click resolution via curveNumber
     st.session_state.editor_trace_map = []
@@ -183,6 +241,120 @@ def build_interactive_canvas_figure():
         )
         _register_trace("machine", idx, -1, mid)
 
+# Machine dimension traces for moveable dimensions on plotly
+        
+        if show_dim_traces and bool(m.get("dim_visible", True)):
+            g = _machine_dimension_geometry(m)
+
+            is_x_armed = (
+                st.session_state.get("editor_dim_move_awaiting_target", False)
+                and st.session_state.get("editor_dim_selected_owner_type", "") == "machine"
+                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                and st.session_state.get("editor_dim_selected_axis", "") == "x"
+            )
+            is_y_armed = (
+                st.session_state.get("editor_dim_move_awaiting_target", False)
+                and st.session_state.get("editor_dim_selected_owner_type", "") == "machine"
+                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                and st.session_state.get("editor_dim_selected_axis", "") == "y"
+            )
+
+            x_color = "#FFD700" if is_x_armed else "#66FFFF"
+            y_color = "#FFD700" if is_y_armed else "#66FFFF"
+            ext_color = "#AAAAAA"
+
+            # X dimension line
+            fig.add_trace(
+                go.Scatter(
+                    x=[0.0, g["mx"]],
+                    y=[g["x_dim_y"], g["x_dim_y"]],
+                    mode="lines",
+                    line=dict(color=x_color, width=2),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_machine_x_line", idx, mid, -1]] * 2,
+                )
+            )
+            _register_trace("dimension_machine_x_line", idx, -1, mid)
+
+            # X extension lines
+            fig.add_trace(
+                go.Scatter(
+                    x=[0.0, 0.0, None, g["mx"], g["mx"]],
+                    y=[0.0, g["x_dim_y"], None, g["x_ext_obj_y"], g["x_dim_y"]],
+                    mode="lines",
+                    line=dict(color=ext_color, width=1),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_machine_x_ext", idx, mid, -1]] * 5,
+                )
+            )
+            _register_trace("dimension_machine_x_ext", idx, -1, mid)
+
+            # X dimension text
+            fig.add_trace(
+                go.Scatter(
+                    x=[g["x_text_x"]],
+                    y=[g["x_text_y"]],
+                    mode="markers+text",
+                    marker=dict(size=18, color="rgba(0,0,0,0.001)"),
+                    text=[f"X = {g['mx']:.1f} ft"],
+                    textposition="middle center",
+                    textfont=dict(color=x_color, size=12),
+                    showlegend=False,
+                    customdata=[["dimension_machine_x_text", idx, mid, -1]],
+                    hovertemplate=f"{mid} X dimension<extra></extra>",
+                )
+            )
+            _register_trace("dimension_machine_x_text", idx, -1, mid)
+
+            # Y dimension line
+            fig.add_trace(
+                go.Scatter(
+                    x=[g["y_dim_x"], g["y_dim_x"]],
+                    y=[0.0, g["my"]],
+                    mode="lines",
+                    line=dict(color=y_color, width=2),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_machine_y_line", idx, mid, -1]] * 2,
+                )
+            )
+            _register_trace("dimension_machine_y_line", idx, -1, mid)
+
+            # Y extension lines
+            fig.add_trace(
+                go.Scatter(
+                    x=[0.0, g["y_dim_x"], None, g["y_ext_obj_x"], g["y_dim_x"]],
+                    y=[0.0, 0.0, None, g["my"], g["my"]],
+                    mode="lines",
+                    line=dict(color=ext_color, width=1),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_machine_y_ext", idx, mid, -1]] * 5,
+                )
+            )
+            _register_trace("dimension_machine_y_ext", idx, -1, mid)
+
+            # Y dimension text
+            fig.add_trace(
+                go.Scatter(
+                    x=[g["y_text_x"]],
+                    y=[g["y_text_y"]],
+                    mode="markers+text",
+                    marker=dict(size=18, color="rgba(0,0,0,0.001)"),
+                    text=[f"Y = {g['my']:.1f} ft"],
+                    textposition="middle center",
+                    textfont=dict(color=y_color, size=12),
+                    showlegend=False,
+                    customdata=[["dimension_machine_y_text", idx, mid, -1]],
+                    hovertemplate=f"{mid} Y dimension<extra></extra>",
+                )
+            )
+            _register_trace("dimension_machine_y_text", idx, -1, mid)
+
+
+    
     # Lighting
     for idx, l in enumerate(st.session_state.placed_lighting):
         lx = float(l["x"])
