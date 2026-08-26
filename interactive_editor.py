@@ -1763,6 +1763,11 @@ def render_interactive_editor():
         override_height=650,
         override_width="100%",
         key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
+        chart_config = {
+            'scrollZoom': True,
+            'displaylogo': False,
+            'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+        }
     )
 
     if selected_points:
