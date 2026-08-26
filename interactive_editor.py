@@ -235,56 +235,90 @@ def _begin_move_from_click_info(click_info):
     obj_index = int(click_info.get("obj_index", -1))
     sub_index = int(click_info.get("sub_index", -1))
 
-    if entity_type is None or entity_type == "floor":
-        _clear_move_mode_state()
-        st.session_state.editor_phase3_status = (
-            "Move mode requires clicking a selectable object first."
-        )
-        return
+    def _safe_machine_label(idx):
+        machines = st.session_state.get("placed_machines", [])
+        if 0 <= idx < len(machines):
+            return str(machines[idx].get("id", f"machine {idx}"))
+        return f"machine {idx}"
+
+    def _safe_lighting_label(idx):
+        lights = st.session_state.get("placed_lighting", [])
+        if 0 <= idx < len(lights):
+            return str(lights[idx].get("id", f"lighting {idx}"))
+        return f"lighting {idx}"
+
+    def _safe_conduit_label(idx):
+        conduits = st.session_state.get("placed_conduits", [])
+        if 0 <= idx < len(conduits):
+            return str(conduits[idx].get("id", f"conduit {idx}"))
+        return f"conduit {idx}"
+
+    def _safe_crane_label(idx):
+        cranes = st.session_state.get("placed_cranes", [])
+        if 0 <= idx < len(cranes):
+            return str(cranes[idx].get("id", f"crane {idx}"))
+        return f"crane {idx}"
+
+    move_label = ""
 
     if entity_type == "machine":
         st.session_state.editor_move_selected_type = "machine"
         st.session_state.editor_move_selected_index = obj_index
         st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = -1
+        move_label = f"machine {_safe_machine_label(obj_index)}"
 
     elif entity_type == "lighting":
         st.session_state.editor_move_selected_type = "lighting"
         st.session_state.editor_move_selected_index = obj_index
         st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = -1
+        move_label = f"lighting {_safe_lighting_label(obj_index)}"
 
     elif entity_type == "conduit":
         st.session_state.editor_move_selected_type = "conduit"
         st.session_state.editor_move_selected_index = obj_index
-        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_vertex_index = int(
+            st.session_state.get("editor_selected_vertex_index", 0)
+        )
         st.session_state.editor_move_selected_workflow_point_index = -1
+        move_label = (
+            f"conduit {_safe_conduit_label(obj_index)} "
+            f"vertex {st.session_state.editor_move_selected_vertex_index + 1}"
+        )
 
     elif entity_type == "conduit_vertex":
-        st.session_state.editor_move_selected_type = "conduit_vertex"
+        st.session_state.editor_move_selected_type = "conduit"
         st.session_state.editor_move_selected_index = obj_index
         st.session_state.editor_move_selected_vertex_index = sub_index
         st.session_state.editor_move_selected_workflow_point_index = -1
-
-    elif entity_type == "workflow_point":
-        st.session_state.editor_move_selected_type = "workflow_point"
-        st.session_state.editor_move_selected_index = 0
-        st.session_state.editor_move_selected_vertex_index = -1
-        st.session_state.editor_move_selected_workflow_point_index = sub_index
+        move_label = f"conduit {_safe_conduit_label(obj_index)} vertex {sub_index + 1}"
 
     elif entity_type == "workflow":
-        st.session_state.editor_move_selected_type = "workflow_point"
+        st.session_state.editor_move_selected_type = "workflow"
         st.session_state.editor_move_selected_index = 0
         st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = int(
             st.session_state.get("editor_workflow_selected_point_index", 0)
         )
+        move_label = (
+            f"workflow point "
+            f"{st.session_state.editor_move_selected_workflow_point_index + 1}"
+        )
+
+    elif entity_type == "workflow_point":
+        st.session_state.editor_move_selected_type = "workflow"
+        st.session_state.editor_move_selected_index = 0
+        st.session_state.editor_move_selected_vertex_index = -1
+        st.session_state.editor_move_selected_workflow_point_index = sub_index
+        move_label = f"workflow point {sub_index + 1}"
 
     elif entity_type == "crane":
         st.session_state.editor_move_selected_type = "crane"
         st.session_state.editor_move_selected_index = obj_index
         st.session_state.editor_move_selected_vertex_index = -1
         st.session_state.editor_move_selected_workflow_point_index = -1
+        move_label = f"crane {_safe_crane_label(obj_index)}"
 
     else:
         _clear_move_mode_state()
@@ -294,10 +328,7 @@ def _begin_move_from_click_info(click_info):
         return
 
     st.session_state.editor_move_awaiting_target = True
-    st.session_state.editor_phase3_status = (
-        f"Move mode armed for {st.session_state.editor_move_selected_type} "
-        f"index {st.session_state.editor_move_selected_index}. Click destination point."
-    )
+    st.session_state.editor_phase3_status = f"Moving {move_label}: click destination."
 
 def _apply_move_to_click(point_data):
     click_info = _resolve_canvas_click(point_data)
