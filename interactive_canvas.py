@@ -386,7 +386,7 @@ def build_interactive_canvas_figure():
         floor_click_step = 1.0
 
     # Keep density and interference reasonable
-    floor_click_step = max(floor_click_step, 2.0)
+    floor_click_step = max(floor_click_step, 5.0)
 
     floor_x = []
     floor_y = []
@@ -406,12 +406,11 @@ def build_interactive_canvas_figure():
             y=floor_y,
             mode="markers",
             marker=dict(
-                size=4,
-                #color="rgba(0,0,0,0.001)",
-                color="rgba(1,1,1,1.0)",
+                size=6,
+                color="rgba(0,0,0,0.001)",
             ),
             showlegend=False,
-            hoverinfo="skip",
+            hovertemplate="Floor<br>X=%{x:.2f}<br>Y=%{y:.2f}<extra></extra>",
             customdata=[["floor", -1, "FLOOR", -1]] * len(floor_x),
             name="floor_click_grid",
         )
