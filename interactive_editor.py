@@ -7,6 +7,115 @@ import streamlit as st
 from streamlit_plotly_events import plotly_events
 from interactive_canvas import build_interactive_canvas_figure, apply_canvas_pick
 
+def render_dimension_regression_panel():
+    with st.expander("Dimension Regression Checks", expanded=False):
+        st.caption("Temporary web-based regression checks for dim-mode behavior.")
+
+        if st.button("Run Dim Visibility Check"):
+            results = []
+            original_mode = st.session_state.get("editor_canvas_mode", "select")
+
+            try:
+                # Ensure at least one machine exists for the check
+                if not st.session_state.get("placed_machines"):
+                    st.session_state.placed_machines = [{
+                        "id": "M-TEST-001",
+                        "x": 20.0,
+                        "y": 20.0,
+                        "Width": 8.0,
+                        "Height": 6.0,
+                        "Standoff": 2.0,
+                        "dim_visible": True,
+                        "dim_x_line_offset_ft": 0.0,
+                        "dim_y_line_offset_ft": 0.0,
+                        "dim_x_text_offset_ft": 0.0,
+                        "dim_y_text_offset_ft": 0.0,
+                        "dim_x_text_anchor_ft": 0.0,
+                        "dim_y_text_anchor_ft": 0.0,
+                        "dim_x_side": "below",
+                        "dim_y_side": "left",
+                    }]
+
+                # Select mode check
+                st.session_state.editor_canvas_mode = "select"
+                fig = build_interactive_canvas_figure()
+                trace_types = [t["entity_type"] for t in st.session_state.editor_trace_map]
+                select_ok = not any(tt.startswith("dimension_") for tt in trace_types)
+                results.append(("Select mode hides dimensions", select_ok, trace_types))
+
+                # Move mode check
+                st.session_state.editor_canvas_mode = "move"
+                fig = build_interactive_canvas_figure()
+                trace_types = [t["entity_type"] for t in st.session_state.editor_trace_map]
+                move_ok = not any(tt.startswith("dimension_") for tt in trace_types)
+                results.append(("Move mode hides dimensions", move_ok, trace_types))
+
+                # Dim mode check
+                st.session_state.editor_canvas_mode = "dim"
+                fig = build_interactive_canvas_figure()
+                trace_types = [t["entity_type"] for t in st.session_state.editor_trace_map]
+                dim_ok = (
+                    "dimension_machine_x_text" in trace_types
+                    and "dimension_machine_y_text" in trace_types
+                )
+                results.append(("Dim mode shows machine dimensions", dim_ok, trace_types))
+
+            finally:
+                st.session_state.editor_canvas_mode = original_mode
+
+            all_ok = all(item[1] for item in results)
+
+            if all_ok:
+                st.success("All dim visibility regression checks passed.")
+            else:
+                st.error("One or more dim visibility regression checks failed.")
+
+            for label, passed, trace_types in results:
+                if passed:
+                    st.success(label)
+                else:
+                    st.error(label)
+                st.write("Trace types:", trace_types)
+        if st.button("Run Dim Move Logic Check"):
+            if not st.session_state.get("placed_machines"):
+                st.error("No machine available for dim move test.")
+            else:
+                m = st.session_state.placed_machines[0]
+
+                # Reset known values
+                m["dim_x_side"] = "below"
+                m["dim_y_side"] = "left"
+                m["dim_x_line_offset_ft"] = 0.0
+                m["dim_y_line_offset_ft"] = 0.0
+                m["dim_x_text_anchor_ft"] = 0.0
+                m["dim_y_text_anchor_ft"] = 0.0
+
+                # Test X move above
+                _apply_machine_dimension_move(0, "x", click_x=10.0, click_y=80.0)
+                x_above_ok = m.get("dim_x_side") == "above"
+
+                # Test Y move right
+                _apply_machine_dimension_move(0, "y", click_x=80.0, click_y=10.0)
+                y_right_ok = m.get("dim_y_side") == "right"
+
+                if x_above_ok:
+                    st.success("X dimension mirrors above correctly.")
+                else:
+                    st.error(f"X dimension did not mirror above. Current side={m.get('dim_x_side')}")
+
+                if y_right_ok:
+                    st.success("Y dimension mirrors right correctly.")
+                else:
+                    st.error(f"Y dimension did not mirror right. Current side={m.get('dim_y_side')}")
+
+                st.write("Machine dimension state:", {
+                    "dim_x_side": m.get("dim_x_side"),
+                    "dim_y_side": m.get("dim_y_side"),
+                    "dim_x_line_offset_ft": m.get("dim_x_line_offset_ft"),
+                    "dim_y_line_offset_ft": m.get("dim_y_line_offset_ft"),
+                    "dim_x_text_anchor_ft": m.get("dim_x_text_anchor_ft"),
+                    "dim_y_text_anchor_ft": m.get("dim_y_text_anchor_ft"),
+                })                
 
 def _snap_value(value, snap_ft, enabled=True):
     if not enabled:
@@ -2010,6 +2119,8 @@ def render_interactive_editor():
     phase3_msg = st.session_state.get("editor_phase3_status", "")
     if phase3_msg:
         st.info(phase3_msg)
+    
+    render_dimension_regression_panel()    
 
 def _set_selected_conduit_vertex_xy(new_x, new_y):
     result = _get_selected_object()
