@@ -429,7 +429,7 @@ def build_interactive_canvas_figure():
             y=floor_y,
             mode="markers",
             marker=dict(
-                size=4,
+                size=10,
                 #color="rgba(0,0,0,0.001)",
                 color="rgba(1,1,1,1.0)",
             ),
