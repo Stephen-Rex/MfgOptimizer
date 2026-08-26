@@ -815,6 +815,7 @@ def draw_asme_drawing(
         if not dim_visible:
             continue
 
+
         x_text_gap_in = 0.14
         y_text_gap_in = 0.65
 
