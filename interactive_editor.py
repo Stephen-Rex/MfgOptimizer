@@ -11,7 +11,7 @@ from interactive_canvas import build_interactive_canvas_figure, apply_canvas_pic
 def _snap_value(value, snap_ft, enabled=True):
     if not enabled:
         return float(value)
-    snap_ft = max(float(snap_ft), 0.01)
+    snap_ft = max(float(snap_ft), 5.0)
     return round(float(value) / snap_ft) * snap_ft
 
 
