@@ -44,9 +44,12 @@ def _draw_point_locator_dims(
   _draw_tick(ax, O_x, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
   _draw_tick(ax, px_in, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
+  x_text_gap_in = 0.10
+  y_text_gap_in = 0.18
+
   ax.text(
       (O_x + px_in) / 2.0,
-      x_dim_y - 0.05,
+      x_dim_y - x_text_gap_in,
       f"{prefix}{idx+1} X = {float(pt_x_ft):.1f} ft",
       fontsize=5.3,
       color=txt_color,
@@ -64,7 +67,7 @@ def _draw_point_locator_dims(
   _draw_tick(ax, y_dim_x, py_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
   ax.text(
-      y_dim_x - 0.05,
+      y_dim_x - y_text_gap_in,
       (O_y + py_in) / 2.0,
       f"{prefix}{idx+1} Y = {float(pt_y_ft):.1f} ft",
       fontsize=5.3,
