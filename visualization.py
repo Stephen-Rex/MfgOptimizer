@@ -817,7 +817,7 @@ def draw_asme_drawing(
 
 
         x_text_gap_in = 0.14
-        y_text_gap_in = 0.65
+        y_text_gap_in = 2.0
 
         if dim_x_side == "above":
             x_dim_y = my_in + half_h_in + so_in + clear_pad_in + dim_x_line_offset_in
