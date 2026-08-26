@@ -1762,8 +1762,24 @@ def render_interactive_editor():
         select_event=False,
         override_height=650,
         override_width="100%",
-        key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
-    )
+        config={
+            "displayModeBar": True,
+            "modeBarButtonsToRemove": [
+                "hoverCompareCartesian",
+                "zoom2d",
+                "pan2d",
+                "select2d",
+                "lasso2d",
+                "zoomIn2d",
+                "zoomOut2d",
+                "autoScale2d",
+                "resetScale2d",
+                "toggleSpikelines",
+                "toImage",
+            ],
+        },
+    key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
+)
 
     if selected_points:
         canvas_mode = st.session_state.get("editor_canvas_mode", "select")
