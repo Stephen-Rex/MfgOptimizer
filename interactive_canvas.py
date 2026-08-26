@@ -65,44 +65,7 @@ def build_interactive_canvas_figure():
         layer="below",
     )
 
-    # Floor click target grid
-    floor_click_step = float(st.session_state.get("editor_snap_ft", 1.0))
-    if floor_click_step <= 0:
-        floor_click_step = 1.0
-
-    # Keep density reasonable for performance
-    floor_click_step = max(floor_click_step, 2.0)
-
-    floor_x = []
-    floor_y = []
-
-    x = 0.0
-    while x <= floor_w:
-        y = 0.0
-        while y <= floor_h:
-            floor_x.append(float(x))
-            floor_y.append(float(y))
-            y += floor_click_step
-        x += floor_click_step
-
-    fig.add_trace(
-        go.Scatter(
-            x=floor_x,
-            y=floor_y,
-            mode="markers",
-            marker=dict(
-                size=10,
-                color="rgba(0,0,0,0.001)",
-            ),
-            showlegend=False,
-            hoverinfo="skip",
-            customdata=[["floor", -1, "FLOOR", -1]] * len(floor_x),
-            name="floor_click_grid",
-        )
-    )
-    _register_trace("floor", -1, -1, "FLOOR")    
-
-    
+   
     # Grid
     if st.session_state.get("editor_show_grid", True):
         grid_step = float(st.session_state.get("editor_snap_ft", 1.0))
@@ -438,6 +401,44 @@ def build_interactive_canvas_figure():
         ),
         dragmode=False,
     )
+
+    # Floor click target grid
+    # Add this late so object traces win clicks when overlapping.
+    floor_click_step = float(st.session_state.get("editor_snap_ft", 1.0))
+    if floor_click_step <= 0:
+        floor_click_step = 1.0
+
+    # Keep density and interference reasonable
+    floor_click_step = max(floor_click_step, 2.0)
+
+    floor_x = []
+    floor_y = []
+
+    x = 0.0
+    while x <= floor_w:
+        y = 0.0
+        while y <= floor_h:
+            floor_x.append(float(x))
+            floor_y.append(float(y))
+            y += floor_click_step
+        x += floor_click_step
+
+    fig.add_trace(
+        go.Scatter(
+            x=floor_x,
+            y=floor_y,
+            mode="markers",
+            marker=dict(
+                size=4,
+                color="rgba(0,0,0,0.001)",
+            ),
+            showlegend=False,
+            hoverinfo="skip",
+            customdata=[["floor", -1, "FLOOR", -1]] * len(floor_x),
+            name="floor_click_grid",
+        )
+    )
+    _register_trace("floor", -1, -1, "FLOOR")
 
     return fig
 
