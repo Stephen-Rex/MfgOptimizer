@@ -359,25 +359,6 @@ def build_interactive_canvas_figure():
         )
         _register_trace("crane", idx, -1, crid)
 
-    # Click marker
-    last_x = st.session_state.get("editor_last_mouse_x", None)
-    last_y = st.session_state.get("editor_last_mouse_y", None)
-    if last_x is not None and last_y is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=[float(last_x)],
-                y=[float(last_y)],
-                mode="markers+text",
-                marker=dict(size=12, color="#FF00FF", symbol="x"),
-                text=["Pick"],
-                textposition="top right",
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-        _register_trace("pick_marker", -1, -1, "PICK")
-
-
     # Floor click target grid
     # Add this late so object traces win clicks when overlapping.
     floor_click_step = float(st.session_state.get("editor_snap_ft", 10.0))
@@ -412,6 +393,25 @@ def build_interactive_canvas_figure():
     )
     _register_trace("floor", -1, -1, "FLOOR")
 
+    # Click marker
+    last_x = st.session_state.get("editor_last_mouse_x", None)
+    last_y = st.session_state.get("editor_last_mouse_y", None)
+    if last_x is not None and last_y is not None:
+        fig.add_trace(
+            go.Scatter(
+                x=[float(last_x)],
+                y=[float(last_y)],
+                mode="markers+text",
+                marker=dict(size=12, color="#FF00FF", symbol="x"),
+                text=["Pick"],
+                textposition="top right",
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+        _register_trace("pick_marker", -1, -1, "PICK")
+
+    
     fig.update_layout(
         height=650,
         paper_bgcolor="#0B1E2D",
