@@ -248,10 +248,6 @@ def build_interactive_canvas_figure():
                         color="#FFD700" if is_move_armed_line else "#FFA500",
                         width=5 if is_move_armed_line else (4 if is_selected else 3),
                     ),
-                    marker=dict(
-                        size=9 if is_move_armed_line else 8,
-                        color="#FFD700",
-                    ),
                     name=cid,
                     showlegend=False,
                     customdata=[["conduit", idx, cid, -1]] * len(xs),
@@ -312,10 +308,6 @@ def build_interactive_canvas_figure():
                 line=dict(
                     color="#FFD700" if is_move_armed_line else "#808080",
                     width=6 if is_move_armed_line else (5 if is_selected else 4),
-                ),
-                marker=dict(
-                    size=9 if is_move_armed_line else 8,
-                    color="#00E5FF",
                 ),
                 name="WF-001",
                 showlegend=False,
