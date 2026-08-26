@@ -1644,8 +1644,8 @@ def render_interactive_editor_controls():
     with top3:
         st.number_input(
             "Snap/Grid Increment (ft)",
-            min_value=0.1,
-            step=0.1,
+            min_value=1.0,
+            step=1.0,
             key="editor_snap_ft",
         )
 
