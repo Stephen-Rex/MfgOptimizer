@@ -68,9 +68,8 @@ def build_interactive_canvas_figure():
    
     # Grid
     if st.session_state.get("editor_show_grid", True):
-        grid_step = float(st.session_state.get("editor_snap_ft", 1.0))
-        if grid_step <= 0:
-            grid_step = 1.0
+        grid_step = float(st.session_state.get("editor_snap_ft", 10.0))
+        grid_step = max(grid_step, 1.0)
 
         x = 0.0
         while x <= floor_w:
@@ -381,12 +380,8 @@ def build_interactive_canvas_figure():
 
     # Floor click target grid
     # Add this late so object traces win clicks when overlapping.
-    floor_click_step = float(st.session_state.get("editor_snap_ft", 1.0))
-    if floor_click_step <= 0:
-        floor_click_step = 1.0
-
-    # Keep density and interference reasonable
-    floor_click_step = max(floor_click_step, 5.0)
+    floor_click_step = float(st.session_state.get("editor_snap_ft", 10.0))
+    floor_click_step = max(floor_click_step, 1.0)
 
     floor_x = []
     floor_y = []
