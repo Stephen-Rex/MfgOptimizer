@@ -1,4 +1,4 @@
-# interactive_canvas.py
+    # interactive_canvas.py
 import math
 import pandas as pd
 import plotly.graph_objects as go
@@ -297,10 +297,9 @@ def build_interactive_canvas_figure():
                     x=[g["x_text_x"]],
                     y=[g["x_text_y"]],
                     mode="markers+text",
-                    mode="markers+text",
                     marker=dict(
                         size=34,
-                        color="rgba(255,215,0,0.18)" if (is_x_armed or is_y_armed) else "rgba(0,255,255,0.12)",
+                        color="rgba(255,215,0,0.18)" if is_x_armed else "rgba(0,255,255,0.12)",
                         line=dict(width=1, color="rgba(255,255,255,0.20)")
                     ),
                     text=[f"X = {g['mx']:.1f} ft"],
