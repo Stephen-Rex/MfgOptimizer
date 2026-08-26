@@ -1778,8 +1778,8 @@ def render_interactive_editor():
                 "toImage",
             ],
         },
-    key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
-)
+        key=f"interactive_canvas_events_{st.session_state.get('editor_canvas_refresh_token', 0)}",
+    )
 
     if selected_points:
         canvas_mode = st.session_state.get("editor_canvas_mode", "select")
