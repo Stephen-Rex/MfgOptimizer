@@ -291,26 +291,40 @@ def build_interactive_canvas_figure():
             )
             _register_trace("dimension_machine_x_ext", idx, -1, mid)
 
-            # X dimension text
+            # X dimension visible text
             fig.add_trace(
                 go.Scatter(
                     x=[g["x_text_x"]],
                     y=[g["x_text_y"]],
-                    mode="markers+text",
-                    marker=dict(
-                        size=34,
-                        color="rgba(255,215,0,0.18)" if is_x_armed else "rgba(0,255,255,0.12)",
-                        line=dict(width=1, color="rgba(255,255,255,0.20)")
-                    ),
+                    mode="text",
                     text=[f"X = {g['mx']:.1f} ft"],
                     textposition="middle center",
                     textfont=dict(color=x_color, size=12),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    #hovertemplate=f"{mid} X dimension<extra></extra>",
+                )
+            )
+            _register_trace("dimension_machine_x_text_visual", idx, -1, mid)
+
+            # X dimension click hitbox
+            fig.add_trace(
+                go.Scatter(
+                    x=[g["x_text_x"]],
+                    y=[g["x_text_y"]],
+                    mode="markers",
+                    marker=dict(
+                        size=44,
+                        color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.10)",
+                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    ),
                     showlegend=False,
                     customdata=[["dimension_machine_x_text", idx, mid, -1]],
                     hovertemplate=f"{mid} X dimension<extra></extra>",
                 )
             )
             _register_trace("dimension_machine_x_text", idx, -1, mid)
+            
 
             # Y dimension line
             fig.add_trace(
@@ -340,20 +354,32 @@ def build_interactive_canvas_figure():
             )
             _register_trace("dimension_machine_y_ext", idx, -1, mid)
 
-            # Y dimension text
+            # Y dimension visible text
             fig.add_trace(
                 go.Scatter(
                     x=[g["y_text_x"]],
                     y=[g["y_text_y"]],
-                    mode="markers+text",
-                    marker=dict(
-                        size=34,
-                        color="rgba(255,215,0,0.18)" if is_y_armed else "rgba(0,255,255,0.12)",
-                        line=dict(width=1, color="rgba(255,255,255,0.20)")
-                    ),
+                    mode="text",
                     text=[f"Y = {g['my']:.1f} ft"],
                     textposition="middle center",
                     textfont=dict(color=y_color, size=12),
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
+            )
+            _register_trace("dimension_machine_y_text_visual", idx, -1, mid)
+
+            # Y dimension click hitbox
+            fig.add_trace(
+                go.Scatter(
+                    x=[g["y_text_x"]],
+                    y=[g["y_text_y"]],
+                    mode="markers",
+                    marker=dict(
+                        size=44,
+                        color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.10)",
+                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    ),
                     showlegend=False,
                     customdata=[["dimension_machine_y_text", idx, mid, -1]],
                     hovertemplate=f"{mid} Y dimension<extra></extra>",
