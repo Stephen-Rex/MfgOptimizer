@@ -387,7 +387,7 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     if "editor_snap_enabled" not in st.session_state:
         st.session_state.editor_snap_enabled = True
     if "editor_snap_ft" not in st.session_state:
-        st.session_state.editor_snap_ft = 1.0
+        st.session_state.editor_snap_ft = 10.0
     if "editor_show_grid" not in st.session_state:
         st.session_state.editor_show_grid = True
     if "editor_show_labels" not in st.session_state:
