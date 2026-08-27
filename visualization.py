@@ -1055,12 +1055,42 @@ def draw_asme_drawing(
         dim_y_text_offset_in = float(l.get("dim_y_text_offset_ft", 0.0)) * S
         dim_show_fixture_note = bool(l.get("dim_show_fixture_note", True))
 
+        dim_x_text_anchor_in = float(l.get("dim_x_text_anchor_ft", 0.0)) * S
+        dim_y_text_anchor_in = float(l.get("dim_y_text_anchor_ft", 0.0)) * S
+        dim_x_side = str(l.get("dim_x_side", "below"))
+        dim_y_side = str(l.get("dim_y_side", "left"))
+
         dim_color = "#66FFFF"
         ext_color = "#AAAAAA"
         txt_color = "#FFFFFF"
 
-        x_dim_y = O_y - 0.45 - dim_x_line_offset_in
-        y_dim_x = O_x - 0.45 - dim_y_line_offset_in
+        x_text_gap_in = 0.14
+        y_text_gap_in = 2.0
+
+        if dim_x_side == "above":
+          x_dim_y = ly_in + 0.45 + dim_x_line_offset_in
+          x_text_y = x_dim_y + x_text_gap_in + dim_x_text_offset_in
+          x_ext_obj_y = ly_in + 0.05
+          x_text_va = "bottom"
+        else:
+          x_dim_y = ly_in - 0.45 - dim_x_line_offset_in
+          x_text_y = x_dim_y - x_text_gap_in - dim_x_text_offset_in
+          x_ext_obj_y = ly_in - 0.05
+          x_text_va = "top"
+
+        if dim_y_side == "right":
+          y_dim_x = lx_in + 0.45 + dim_y_line_offset_in
+          y_text_x = y_dim_x + y_text_gap_in + dim_y_text_offset_in
+          y_ext_obj_x = lx_in + 0.05
+          y_text_ha = "left"
+        else:
+          y_dim_x = lx_in - 0.45 - dim_y_line_offset_in
+          y_text_x = y_dim_x - y_text_gap_in - dim_y_text_offset_in
+          y_ext_obj_x = lx_in - 0.05
+          y_text_ha = "right"
+
+        x_text_x = ((O_x + lx_in) / 2.0) + dim_x_text_anchor_in
+        y_text_y = ((O_y + ly_in) / 2.0) + dim_y_text_anchor_in
 
         _draw_dim_line(
             ax, O_x, x_dim_y, lx_in, x_dim_y,
@@ -1071,20 +1101,21 @@ def draw_asme_drawing(
             color=ext_color, lw=0.7, z=6
         )
         _draw_ext_line(
-            ax, lx_in, ly_in, lx_in, x_dim_y + 0.05,
+            ax, lx_in, x_ext_obj_y, lx_in,
+            x_dim_y + (0.05 if dim_x_side == "below" else -0.05),
             color=ext_color, lw=0.7, z=6
         )
         _draw_tick(ax, O_x, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
         _draw_tick(ax, lx_in, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
         ax.text(
-            (O_x + lx_in) / 2.0,
-            x_dim_y - 0.05 - dim_x_text_offset_in,
+            x_text_x,
+            x_text_y,
             f"X = {lx_ft:.1f} ft",
             fontsize=5.5,
             color=txt_color,
             ha="center",
-            va="top",
+            va=x_text_va,
             zorder=8,
             bbox=dict(
                 facecolor="#222222",
@@ -1103,19 +1134,20 @@ def draw_asme_drawing(
             color=ext_color, lw=0.7, z=6
         )
         _draw_ext_line(
-            ax, lx_in, ly_in, y_dim_x + 0.05, ly_in,
+            ax, y_ext_obj_x, ly_in,
+            y_dim_x + (0.05 if dim_y_side == "left" else -0.05), ly_in,
             color=ext_color, lw=0.7, z=6
         )
         _draw_tick(ax, y_dim_x, O_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
         _draw_tick(ax, y_dim_x, ly_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
         ax.text(
-            y_dim_x - 0.05 - dim_y_text_offset_in,
-            (O_y + ly_in) / 2.0,
+            y_text_x,
+            y_text_y,
             f"Y = {ly_ft:.1f} ft",
             fontsize=5.5,
             color=txt_color,
-            ha="right",
+            ha=y_text_ha,
             va="center",
             rotation=90,
             zorder=8,
