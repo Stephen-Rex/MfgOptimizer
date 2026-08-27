@@ -245,6 +245,8 @@ def ensure_workflow_dimension_fields():
         df = st.session_state.path_points.copy()
 
         for col in [
+            "dim_x_line_dy_ft",
+            "dim_y_line_dx_ft",
             "dim_x_text_dx_ft",
             "dim_x_text_dy_ft",
             "dim_y_text_dx_ft",
