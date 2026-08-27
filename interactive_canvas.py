@@ -190,13 +190,15 @@ def _point_dimension_geometry(
     base_x_offset=2.5,
     base_y_offset=2.5,
     stack_pitch=1.0,
+    x_line_dy_ft=0.0,
+    y_line_dx_ft=0.0,
     x_text_dx_ft=0.0,
     x_text_dy_ft=0.0,
     y_text_dx_ft=0.0,
     y_text_dy_ft=0.0,
 ):
-    x_dim_y = 0.0 - base_x_offset - (idx * stack_pitch)
-    y_dim_x = 0.0 - base_y_offset - (idx * stack_pitch)
+    x_dim_y = (0.0 - base_x_offset - (idx * stack_pitch)) + float(x_line_dy_ft)
+    y_dim_x = (0.0 - base_y_offset - (idx * stack_pitch)) + float(y_line_dx_ft)
 
     x_text_x = ((0.0 + float(px)) / 2.0) + float(x_text_dx_ft)
     x_text_y = (x_dim_y - 1.3) + float(x_text_dy_ft)
