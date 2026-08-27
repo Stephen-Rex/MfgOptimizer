@@ -217,6 +217,7 @@ def _point_dimension_geometry(
         "y_text_y": y_text_y,
     }
 
+
 def build_interactive_canvas_figure():
     floor_w = float(st.session_state.floor_w)
     floor_h = float(st.session_state.floor_h)
@@ -749,6 +750,7 @@ def build_interactive_canvas_figure():
                 if show_dim_traces and bool(c.get("dim_visible", True)):
                     vertex_dim_offsets = c.get("vertex_dim_offsets", {})
                     v_off = vertex_dim_offsets.get(str(p_idx), {})
+                    
                     g = _point_dimension_geometry(
                         px,
                         py,
@@ -980,6 +982,10 @@ def build_interactive_canvas_figure():
                 y_dx = 0.0
                 y_dy = 0.0
 
+                if "dim_x_line_dy_ft" in wdf.columns:
+                    x_line_dy = float(wdf.iloc[p_idx].get("dim_x_line_dy_ft", 0.0))
+                if "dim_y_line_dx_ft" in wdf.columns:
+                    y_line_dx = float(wdf.iloc[p_idx].get("dim_y_line_dx_ft", 0.0))
                 if "dim_x_text_dx_ft" in wdf.columns:
                     x_dx = float(wdf.iloc[p_idx].get("dim_x_text_dx_ft", 0.0))
                 if "dim_x_text_dy_ft" in wdf.columns:
