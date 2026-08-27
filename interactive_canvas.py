@@ -539,10 +539,18 @@ def build_interactive_canvas_figure():
                 y=[ly],
                 mode="markers+text",
                 marker=dict(
-                    size=18 if is_move_armed else (16 if is_selected else 12),
+                    size=(
+                        10 if is_move_armed else (9 if is_selected else 7)
+                    ) if show_dim_traces else (
+                        18 if is_move_armed else (16 if is_selected else 12)
+                    ),
                     color="#FF00FF" if is_move_armed else "#FFD700",
                     symbol="diamond",
-                    line=dict(color="#FFFFFF", width=3 if is_move_armed else (2 if is_selected else 1)),
+                    line=dict(
+                        color="#FFFFFF",
+                        width=(2 if is_move_armed else (1.5 if is_selected else 1)) if show_dim_traces
+                        else (3 if is_move_armed else (2 if is_selected else 1)),
+                    ),
                 ),
                 text=[lid],
                 textposition="top center",
@@ -613,9 +621,9 @@ def build_interactive_canvas_figure():
                 y=[g["x_text_y"]],
                 mode="markers",
                 marker=dict(
-                    size=44,
-                    color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.10)",
-                    line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    size=56,
+                    color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.14)",
+                    line=dict(width=1, color="rgba(255,255,255,0.18)")
                 ),
                 showlegend=False,
                 customdata=[["dimension_lighting_x_text", idx, lid, -1]],
@@ -662,9 +670,9 @@ def build_interactive_canvas_figure():
                 y=[g["y_text_y"]],
                 mode="markers",
                 marker=dict(
-                    size=44,
-                    color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.10)",
-                    line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    size=56,
+                    color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.14)",
+                    line=dict(width=1, color="rgba(255,255,255,0.18)")
                 ),
                 showlegend=False,
                 customdata=[["dimension_lighting_y_text", idx, lid, -1]],
