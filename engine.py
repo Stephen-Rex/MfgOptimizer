@@ -311,14 +311,94 @@ def build_machine_schedule_report(placed_machines):
         "machines": rows,
     }
 
+def build_lighting_report(placed_lighting):
+    rows = []
+    for idx, l in enumerate(placed_lighting):
+        rows.append({
+            "id": l.get("id", f"L-{idx+1:03d}"),
+            "make": l.get("Make", ""),
+            "brand": l.get("Brand", ""),
+            "type": l.get("Type", ""),
+            "wattage": l.get("Wattage", 0.0),
+            "kelvin": l.get("Kelvin", 0.0),
+            "lumens": l.get("Lumens", 0.0),
+            "x": l.get("x", 0.0),
+            "y": l.get("y", 0.0),
+        })
+
+    return {
+        "report_type": "lighting_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "lighting": rows,
+    }
+
+
+def build_crane_report(placed_cranes):
+    rows = []
+    for idx, cr in enumerate(placed_cranes):
+        ll_x = float(cr.get("ll_x", 0.0))
+        ll_y = float(cr.get("ll_y", 0.0))
+        ur_x = float(cr.get("ur_x", 0.0))
+        ur_y = float(cr.get("ur_y", 0.0))
+
+        rows.append({
+            "id": cr.get("id", f"CR-{idx+1:03d}"),
+            "center_x": (ll_x + ur_x) / 2.0,
+            "center_y": (ll_y + ur_y) / 2.0,
+            "width": ur_x - ll_x,
+            "height": ur_y - ll_y,
+            "ll_x": ll_x,
+            "ll_y": ll_y,
+            "ur_x": ur_x,
+            "ur_y": ur_y,
+        })
+
+    return {
+        "report_type": "crane_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "cranes": rows,
+    }
+
+
+def build_workflow_report(workflow_paths):
+    rows = []
+    for idx, path in enumerate(workflow_paths or []):
+        points = path.get("points", [])
+        xs = [float(p.get("x", 0.0)) for p in points]
+        ys = [float(p.get("y", 0.0)) for p in points]
+
+        total_len = 0.0
+        if len(xs) >= 2 and len(xs) == len(ys):
+            for i in range(1, len(xs)):
+                dx = xs[i] - xs[i - 1]
+                dy = ys[i] - ys[i - 1]
+                total_len += float(np.sqrt(dx**2 + dy**2))
+
+        rows.append({
+            "id": path.get("id", f"WF-{idx+1:03d}"),
+            "point_count": len(points),
+            "route_length_ft": round(total_len, 2),
+            "movement_mode": path.get("movement_mode", ""),
+            "speed_fpm": path.get("speed_fpm", None),
+            "width_ft": path.get("width_ft", None),
+            "centroid_x": (sum(xs) / len(xs)) if xs else 0.0,
+            "centroid_y": (sum(ys) / len(ys)) if ys else 0.0,
+        })
+
+    return {
+        "report_type": "workflow_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "workflow_paths": rows,
+    }
 
 def build_full_report_bundle(session_state, workflow_paths=None):
     placed_machines = session_state.get("placed_machines", [])
+    placed_lighting = session_state.get("placed_lighting", [])
     placed_conduits = session_state.get("placed_conduits", [])
     placed_cranes = session_state.get("placed_cranes", [])
 
     return {
-        "schema_version": "report_bundle_1.0",
+        "schema_version": "report_bundle_1.1",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "project_summary": build_project_summary_report(session_state),
         "safety_report": build_safety_report(
@@ -330,4 +410,7 @@ def build_full_report_bundle(session_state, workflow_paths=None):
         "production_report": build_production_report(placed_machines),
         "utility_report": build_utility_report(placed_conduits),
         "machine_schedule": build_machine_schedule_report(placed_machines),
+        "lighting_report": build_lighting_report(placed_lighting),
+        "crane_report": build_crane_report(placed_cranes),
+        "workflow_report": build_workflow_report(workflow_paths or []),
     }
