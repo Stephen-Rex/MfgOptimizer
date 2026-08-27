@@ -283,7 +283,7 @@ def build_interactive_canvas_figure():
             )
             y += grid_step
 
-       # Machines
+    # Machines
     if show_machines:
         for idx, m in enumerate(st.session_state.placed_machines):
             mx = float(m["x"])
@@ -521,7 +521,7 @@ def build_interactive_canvas_figure():
 
 
     
-       # Lighting
+    # Lighting
     if show_lighting:
         for idx, l in enumerate(st.session_state.placed_lighting):
             lx = float(l["x"])
@@ -1161,7 +1161,7 @@ def build_interactive_canvas_figure():
             ))
             _register_trace("dimension_workflow_note", 0, -1, "WF-001")
 
-       # Cranes
+    # Cranes
     if show_cranes:
         for idx, cr in enumerate(st.session_state.placed_cranes):
             ll_x = float(cr.get("ll_x", 0.0))
