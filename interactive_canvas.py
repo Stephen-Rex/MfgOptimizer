@@ -337,7 +337,7 @@ def build_interactive_canvas_figure():
 
 # Machine dimension traces for moveable dimensions on plotly
         
-        if show_dim_traces and bool(m.get("dim_visible", True)):
+    if show_dim_traces and bool(m.get("dim_visible", True)):
             g = _machine_dimension_geometry(m)
 
             is_x_armed = (
