@@ -965,6 +965,8 @@ def build_interactive_canvas_figure():
             _register_trace("workflow_point", 0, p_idx, "WF-001")
 
             if show_dim_traces and bool(st.session_state.get("workflow_dim_visible", True)):
+                x_line_dy = 0.0
+                y_line_dx = 0.0
                 x_dx = 0.0
                 x_dy = 0.0
                 y_dx = 0.0
