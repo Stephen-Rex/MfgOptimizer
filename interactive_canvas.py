@@ -183,6 +183,27 @@ def _crane_note_geometry(cr):
     ty = cy + float(cr.get("dim_label_y_offset_ft", 0.0))
     return {"cx": cx, "cy": cy, "tx": tx, "ty": ty}
 
+def _point_dimension_geometry(px, py, idx, base_x_offset=2.5, base_y_offset=2.5, stack_pitch=1.0):
+    x_dim_y = 0.0 - base_x_offset - (idx * stack_pitch)
+    y_dim_x = 0.0 - base_y_offset - (idx * stack_pitch)
+
+    x_text_x = (0.0 + float(px)) / 2.0
+    x_text_y = x_dim_y - 0.8
+
+    y_text_x = y_dim_x - 0.8
+    y_text_y = (0.0 + float(py)) / 2.0
+
+    return {
+        "px": float(px),
+        "py": float(py),
+        "x_dim_y": x_dim_y,
+        "x_text_x": x_text_x,
+        "x_text_y": x_text_y,
+        "y_dim_x": y_dim_x,
+        "y_text_x": y_text_x,
+        "y_text_y": y_text_y,
+    }
+
 def build_interactive_canvas_figure():
     floor_w = float(st.session_state.floor_w)
     floor_h = float(st.session_state.floor_h)
@@ -704,6 +725,119 @@ def build_interactive_canvas_figure():
                 )
                 _register_trace("conduit_vertex", idx, p_idx, cid)
 
+                if show_dim_traces and bool(c.get("dim_visible", True)):
+                    g = _point_dimension_geometry(px, py, p_idx, base_x_offset=2.5, base_y_offset=2.5, stack_pitch=1.0)
+                    dim_color = "#FFD700" if v_selected else "#66FFFF"
+                    ext_color = "#AAAAAA"
+
+                    # X dim line
+                    fig.add_trace(go.Scatter(
+                        x=[0.0, g["px"]],
+                        y=[g["x_dim_y"], g["x_dim_y"]],
+                        mode="lines",
+                        line=dict(color=dim_color, width=1.5),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[[f"dimension_conduit_vertex_x_line", idx, cid, p_idx]] * 2,
+                    ))
+                    _register_trace("dimension_conduit_vertex_x_line", idx, p_idx, cid)
+
+                    # X ext lines
+                    fig.add_trace(go.Scatter(
+                        x=[0.0, 0.0, None, g["px"], g["px"]],
+                        y=[0.0, g["x_dim_y"], None, g["py"], g["x_dim_y"]],
+                        mode="lines",
+                        line=dict(color=ext_color, width=1),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[[f"dimension_conduit_vertex_x_ext", idx, cid, p_idx]] * 5,
+                    ))
+                    _register_trace("dimension_conduit_vertex_x_ext", idx, p_idx, cid)
+
+                    # X text
+                    fig.add_trace(go.Scatter(
+                        x=[g["x_text_x"]],
+                        y=[g["x_text_y"]],
+                        mode="text",
+                        text=[f"X = {g['px']:.1f} ft"],
+                        textposition="middle center",
+                        textfont=dict(color=dim_color, size=11),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ))
+                    _register_trace("dimension_conduit_vertex_x_text_visual", idx, p_idx, cid)
+
+                    # X hitbox
+                    fig.add_trace(go.Scatter(
+                        x=[g["x_text_x"]],
+                        y=[g["x_text_y"]],
+                        mode="markers",
+                        marker=dict(
+                            size=36,
+                            color="rgba(0,255,255,0.08)",
+                            line=dict(width=1, color="rgba(255,255,255,0.15)")
+                        ),
+                        showlegend=False,
+                        customdata=[["dimension_conduit_vertex_x_text", idx, cid, p_idx]],
+                        hovertemplate=f"{cid} vertex {p_idx+1} X dimension<extra></extra>",
+                    ))
+                    _register_trace("dimension_conduit_vertex_x_text", idx, p_idx, cid)
+
+                    # Y dim line
+                    fig.add_trace(go.Scatter(
+                        x=[g["y_dim_x"], g["y_dim_x"]],
+                        y=[0.0, g["py"]],
+                        mode="lines",
+                        line=dict(color=dim_color, width=1.5),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[[f"dimension_conduit_vertex_y_line", idx, cid, p_idx]] * 2,
+                    ))
+                    _register_trace("dimension_conduit_vertex_y_line", idx, p_idx, cid)
+
+                    # Y ext lines
+                    fig.add_trace(go.Scatter(
+                        x=[0.0, g["y_dim_x"], None, g["px"], g["y_dim_x"]],
+                        y=[0.0, 0.0, None, g["py"], g["py"]],
+                        mode="lines",
+                        line=dict(color=ext_color, width=1),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[[f"dimension_conduit_vertex_y_ext", idx, cid, p_idx]] * 5,
+                    ))
+                    _register_trace("dimension_conduit_vertex_y_ext", idx, p_idx, cid)
+
+                    # Y text
+                    fig.add_trace(go.Scatter(
+                        x=[g["y_text_x"]],
+                        y=[g["y_text_y"]],
+                        mode="text",
+                        text=[f"Y = {g['py']:.1f} ft"],
+                        textposition="middle center",
+                        textfont=dict(color=dim_color, size=11),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ))
+                    _register_trace("dimension_conduit_vertex_y_text_visual", idx, p_idx, cid)
+
+                    # Y hitbox
+                    fig.add_trace(go.Scatter(
+                        x=[g["y_text_x"]],
+                        y=[g["y_text_y"]],
+                        mode="markers",
+                        marker=dict(
+                            size=36,
+                            color="rgba(0,255,255,0.08)",
+                            line=dict(width=1, color="rgba(255,255,255,0.15)")
+                        ),
+                        showlegend=False,
+                        customdata=[["dimension_conduit_vertex_y_text", idx, cid, p_idx]],
+                        hovertemplate=f"{cid} vertex {p_idx+1} Y dimension<extra></extra>",
+                    ))
+                    _register_trace("dimension_conduit_vertex_y_text", idx, p_idx, cid)
+
+
+            
             if show_dim_traces and bool(c.get("dim_visible", True)):
                 g = _conduit_note_geometry(c)
                 is_note_armed = (
@@ -801,6 +935,117 @@ def build_interactive_canvas_figure():
                 )
             )
             _register_trace("workflow_point", 0, p_idx, "WF-001")
+
+            if show_dim_traces and bool(st.session_state.get("workflow_dim_visible", True)):
+                g = _point_dimension_geometry(px, py, p_idx, base_x_offset=3.0, base_y_offset=3.0, stack_pitch=1.0)
+                dim_color = "#FFD700" if p_selected else "#66FFFF"
+                ext_color = "#AAAAAA"
+
+                # X dim line
+                fig.add_trace(go.Scatter(
+                    x=[0.0, g["px"]],
+                    y=[g["x_dim_y"], g["x_dim_y"]],
+                    mode="lines",
+                    line=dict(color=dim_color, width=1.5),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_workflow_point_x_line", 0, "WF-001", p_idx]] * 2,
+                ))
+                _register_trace("dimension_workflow_point_x_line", 0, p_idx, "WF-001")
+
+                # X ext lines
+                fig.add_trace(go.Scatter(
+                    x=[0.0, 0.0, None, g["px"], g["px"]],
+                    y=[0.0, g["x_dim_y"], None, g["py"], g["x_dim_y"]],
+                    mode="lines",
+                    line=dict(color=ext_color, width=1),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_workflow_point_x_ext", 0, "WF-001", p_idx]] * 5,
+                ))
+                _register_trace("dimension_workflow_point_x_ext", 0, p_idx, "WF-001")
+
+                # X text
+                fig.add_trace(go.Scatter(
+                    x=[g["x_text_x"]],
+                    y=[g["x_text_y"]],
+                    mode="text",
+                    text=[f"X = {g['px']:.1f} ft"],
+                    textposition="middle center",
+                    textfont=dict(color=dim_color, size=11),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+                _register_trace("dimension_workflow_point_x_text_visual", 0, p_idx, "WF-001")
+
+                # X hitbox
+                fig.add_trace(go.Scatter(
+                    x=[g["x_text_x"]],
+                    y=[g["x_text_y"]],
+                    mode="markers",
+                    marker=dict(
+                        size=36,
+                        color="rgba(0,255,255,0.08)",
+                        line=dict(width=1, color="rgba(255,255,255,0.15)")
+                    ),
+                    showlegend=False,
+                    customdata=[["dimension_workflow_point_x_text", 0, "WF-001", p_idx]],
+                    hovertemplate=f"Workflow point {p_idx+1} X dimension<extra></extra>",
+                ))
+                _register_trace("dimension_workflow_point_x_text", 0, p_idx, "WF-001")
+
+                # Y dim line
+                fig.add_trace(go.Scatter(
+                    x=[g["y_dim_x"], g["y_dim_x"]],
+                    y=[0.0, g["py"]],
+                    mode="lines",
+                    line=dict(color=dim_color, width=1.5),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_workflow_point_y_line", 0, "WF-001", p_idx]] * 2,
+                ))
+                _register_trace("dimension_workflow_point_y_line", 0, p_idx, "WF-001")
+
+                # Y ext lines
+                fig.add_trace(go.Scatter(
+                    x=[0.0, g["y_dim_x"], None, g["px"], g["y_dim_x"]],
+                    y=[0.0, 0.0, None, g["py"], g["py"]],
+                    mode="lines",
+                    line=dict(color=ext_color, width=1),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["dimension_workflow_point_y_ext", 0, "WF-001", p_idx]] * 5,
+                ))
+                _register_trace("dimension_workflow_point_y_ext", 0, p_idx, "WF-001")
+
+                # Y text
+                fig.add_trace(go.Scatter(
+                    x=[g["y_text_x"]],
+                    y=[g["y_text_y"]],
+                    mode="text",
+                    text=[f"Y = {g['py']:.1f} ft"],
+                    textposition="middle center",
+                    textfont=dict(color=dim_color, size=11),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+                _register_trace("dimension_workflow_point_y_text_visual", 0, p_idx, "WF-001")
+
+                # Y hitbox
+                fig.add_trace(go.Scatter(
+                    x=[g["y_text_x"]],
+                    y=[g["y_text_y"]],
+                    mode="markers",
+                    marker=dict(
+                        size=36,
+                        color="rgba(0,255,255,0.08)",
+                        line=dict(width=1, color="rgba(255,255,255,0.15)")
+                    ),
+                    showlegend=False,
+                    customdata=[["dimension_workflow_point_y_text", 0, "WF-001", p_idx]],
+                    hovertemplate=f"Workflow point {p_idx+1} Y dimension<extra></extra>",
+                ))
+                _register_trace("dimension_workflow_point_y_text", 0, p_idx, "WF-001")
 
         if show_dim_traces and bool(st.session_state.get("workflow_dim_visible", True)):
             g = _workflow_note_geometry()
