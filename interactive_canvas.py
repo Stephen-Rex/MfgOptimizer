@@ -335,9 +335,8 @@ def build_interactive_canvas_figure():
         )
         _register_trace("machine", idx, -1, mid)
 
-# Machine dimension traces for moveable dimensions on plotly
-        
-    if show_dim_traces and bool(m.get("dim_visible", True)):
+        # Machine dimension traces for moveable dimensions on plotly
+        if show_dim_traces and bool(m.get("dim_visible", True)):
             g = _machine_dimension_geometry(m)
 
             is_x_armed = (
@@ -900,7 +899,7 @@ def build_interactive_canvas_figure():
         )
         _register_trace("crane", idx, -1, crid)
 
-            if show_dim_traces and bool(cr.get("dim_visible", True)):
+        if show_dim_traces and bool(cr.get("dim_visible", True)):
             g = _crane_note_geometry(cr)
 
             is_note_armed = (
