@@ -240,7 +240,7 @@ def _resolve_canvas_click(point_data):
                     "x": float(x_val) if x_val is not None else None,
                     "y": float(y_val) if y_val is not None else None,
                 }
-                        if entity_type == "dimension_conduit_vertex_x_text":
+            if entity_type == "dimension_conduit_vertex_x_text":
                 return {
                     "entity_type": "dimension",
                     "owner_type": "conduit_vertex",
