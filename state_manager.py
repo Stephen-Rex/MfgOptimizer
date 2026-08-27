@@ -212,6 +212,20 @@ def ensure_conduit_dimension_fields():
         if "dim_show_metadata" not in item:
             item["dim_show_metadata"] = True
 
+def ensure_crane_dimension_fields():
+    """Backfill editable crane annotation fields in feet."""
+    if "placed_cranes" not in st.session_state:
+        return
+
+    for item in st.session_state.placed_cranes:
+        if "dim_visible" not in item:
+            item["dim_visible"] = True
+        if "dim_label_x_offset_ft" not in item:
+            item["dim_label_x_offset_ft"] = 0.0
+        if "dim_label_y_offset_ft" not in item:
+            item["dim_label_y_offset_ft"] = 0.0
+        if "dim_show_metadata" not in item:
+            item["dim_show_metadata"] = True
 
 def ensure_workflow_dimension_fields():
     """Backfill workflow annotation settings stored in session state, in feet."""
@@ -300,6 +314,7 @@ def apply_imported_layout():
             ensure_machine_dimension_fields()
             ensure_lighting_dimension_fields()
             ensure_conduit_dimension_fields()
+            ensure_crane_dimension_fields()
             ensure_workflow_dimension_fields()
 
             # Validate imported objects
@@ -687,4 +702,5 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     ensure_machine_dimension_fields()
     ensure_lighting_dimension_fields()
     ensure_conduit_dimension_fields()
+    ensure_crane_dimension_fields()
     ensure_workflow_dimension_fields()
