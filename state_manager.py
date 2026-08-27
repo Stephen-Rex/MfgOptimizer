@@ -211,6 +211,8 @@ def ensure_conduit_dimension_fields():
             item["dim_show_length"] = True
         if "dim_show_metadata" not in item:
             item["dim_show_metadata"] = True
+        if "vertex_dim_offsets" not in item or not isinstance(item.get("vertex_dim_offsets"), dict):
+            item["vertex_dim_offsets"] = {}
 
 def ensure_crane_dimension_fields():
     """Backfill editable crane annotation fields in feet."""
@@ -239,6 +241,19 @@ def ensure_workflow_dimension_fields():
         st.session_state.workflow_dim_show_length = True
     if "workflow_dim_show_metadata" not in st.session_state:
         st.session_state.workflow_dim_show_metadata = True
+    if "path_points" in st.session_state and len(st.session_state.path_points) > 0:
+        df = st.session_state.path_points.copy()
+
+        for col in [
+            "dim_x_text_dx_ft",
+            "dim_x_text_dy_ft",
+            "dim_y_text_dx_ft",
+            "dim_y_text_dy_ft",
+        ]:
+            if col not in df.columns:
+                df[col] = 0.0
+
+        st.session_state.path_points = df
 
 def on_crane_select_change(crane_lib):
     """Callback function to update crane input fields when library dropdown changes."""
