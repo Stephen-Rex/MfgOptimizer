@@ -199,9 +199,9 @@ def _point_dimension_geometry(
     y_dim_x = 0.0 - base_y_offset - (idx * stack_pitch)
 
     x_text_x = ((0.0 + float(px)) / 2.0) + float(x_text_dx_ft)
-    x_text_y = (x_dim_y - 0.8) + float(x_text_dy_ft)
+    x_text_y = (x_dim_y - 1.3) + float(x_text_dy_ft)
 
-    y_text_x = (y_dim_x - 0.8) + float(y_text_dx_ft)
+    y_text_x = (y_dim_x - 1.3) + float(y_text_dx_ft)
     y_text_y = ((0.0 + float(py)) / 2.0) + float(y_text_dy_ft)
 
     return {
@@ -797,9 +797,9 @@ def build_interactive_canvas_figure():
                         y=[g["x_text_y"]],
                         mode="markers",
                         marker=dict(
-                            size=36,
-                            color="rgba(0,255,255,0.08)",
-                            line=dict(width=1, color="rgba(255,255,255,0.15)")
+                            size=56,
+                            color="rgba(255,215,0,0.22)" if v_selected else "rgba(0,255,255,0.14)",
+                            line=dict(width=1, color="rgba(255,255,255,0.18)")
                         ),
                         showlegend=False,
                         customdata=[["dimension_conduit_vertex_x_text", idx, cid, p_idx]],
@@ -850,9 +850,9 @@ def build_interactive_canvas_figure():
                         y=[g["y_text_y"]],
                         mode="markers",
                         marker=dict(
-                            size=36,
-                            color="rgba(0,255,255,0.08)",
-                            line=dict(width=1, color="rgba(255,255,255,0.15)")
+                            size=56,
+                            color="rgba(255,215,0,0.22)" if v_selected else "rgba(0,255,255,0.14)",
+                            line=dict(width=1, color="rgba(255,255,255,0.18)")
                         ),
                         showlegend=False,
                         customdata=[["dimension_conduit_vertex_y_text", idx, cid, p_idx]],
@@ -1033,9 +1033,9 @@ def build_interactive_canvas_figure():
                     y=[g["x_text_y"]],
                     mode="markers",
                     marker=dict(
-                        size=36,
-                        color="rgba(0,255,255,0.08)",
-                        line=dict(width=1, color="rgba(255,255,255,0.15)")
+                        size=56,
+                        color="rgba(255,215,0,0.22)" if p_selected else "rgba(0,255,255,0.14)",
+                        line=dict(width=1, color="rgba(255,255,255,0.18)")
                     ),
                     showlegend=False,
                     customdata=[["dimension_workflow_point_x_text", 0, "WF-001", p_idx]],
@@ -1086,9 +1086,9 @@ def build_interactive_canvas_figure():
                     y=[g["y_text_y"]],
                     mode="markers",
                     marker=dict(
-                        size=36,
-                        color="rgba(0,255,255,0.08)",
-                        line=dict(width=1, color="rgba(255,255,255,0.15)")
+                        size=56,
+                        color="rgba(255,215,0,0.22)" if p_selected else "rgba(0,255,255,0.14)",
+                        line=dict(width=1, color="rgba(255,255,255,0.18)")
                     ),
                     showlegend=False,
                     customdata=[["dimension_workflow_point_y_text", 0, "WF-001", p_idx]],
