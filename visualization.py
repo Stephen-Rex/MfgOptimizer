@@ -87,7 +87,6 @@ def _draw_point_locator_dims(
       bbox=dict(facecolor="#111111", edgecolor="none", alpha=0.35, pad=0.6),
   )
 
-
 def _machine_occ_box(m, O_x, O_y, S, include_standoff=True):
   mx_in = O_x + float(m['x']) * S
   my_in = O_y + float(m['y']) * S
