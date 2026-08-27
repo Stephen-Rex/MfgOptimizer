@@ -717,7 +717,7 @@ def _begin_dimension_move_from_click_info(click_info):
     st.session_state.editor_dim_selected_owner_index = obj_index
     st.session_state.editor_dim_selected_sub_index = sub_index
     st.session_state.editor_dim_selected_owner_id = owner_id
-    st.session_state.editor_dim_selected_axis = axi
+    st.session_state.editor_dim_selected_axis = axis
 
     st.session_state.editor_phase3_status = (
         f"Moving {owner_type} {owner_id} {axis.upper()} dimension: click destination."
