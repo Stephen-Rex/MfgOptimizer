@@ -1350,6 +1350,8 @@ def _normalize_workflow_df():
         "Y Coordinate",
         "Safety Standoff (ft)",
         "Movement Speed",
+        "dim_x_line_dy_ft",
+        "dim_y_line_dx_ft",        
         "dim_x_text_dx_ft",
         "dim_x_text_dy_ft",
         "dim_y_text_dx_ft",
