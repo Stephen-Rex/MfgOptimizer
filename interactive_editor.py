@@ -1048,11 +1048,11 @@ def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
 
     if axis == "x":
         default_x = (0.0 + px) / 2.0
-        default_y = 0.0 - 3.0 - (point_index * 1.0) - 0.8
+        default_y = 0.0 - 3.0 - (point_index * 1.0) - 1.3
         df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_x
         df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_y
     elif axis == "y":
-        default_x = 0.0 - 3.0 - (point_index * 1.0) - 0.8
+        default_x = 0.0 - 3.0 - (point_index * 1.0) - 1.3
         default_y = (0.0 + py) / 2.0
         df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_x
         df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_y
@@ -1062,47 +1062,6 @@ def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
         f"Moved workflow point {point_index + 1} {axis.upper()} dimension."
     )
 
-def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
-    if "path_points" not in st.session_state or len(st.session_state.path_points) == 0:
-        st.session_state.editor_phase3_status = "Workflow geometry invalid."
-        return
-
-    _normalize_workflow_df()
-    df = st.session_state.path_points.copy()
-
-    if point_index < 0 or point_index >= len(df):
-        st.session_state.editor_phase3_status = "Invalid workflow point dimension target."
-        return
-
-    px = float(df.iloc[point_index]["X Coordinate"])
-    py = float(df.iloc[point_index]["Y Coordinate"])
-
-    offset_col_map = {
-        "x_dx": "dim_x_text_dx_ft",
-        "x_dy": "dim_x_text_dy_ft",
-        "y_dx": "dim_y_text_dx_ft",
-        "y_dy": "dim_y_text_dy_ft",
-    }
-
-    for col in offset_col_map.values():
-        if col not in df.columns:
-            df[col] = 0.0
-
-    if axis == "x":
-        default_x = (0.0 + px) / 2.0
-        default_y = 0.0 - 3.0 - (point_index * 1.0) - 0.8
-        df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_x
-        df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_y
-    elif axis == "y":
-        default_x = 0.0 - 3.0 - (point_index * 1.0) - 0.8
-        default_y = (0.0 + py) / 2.0
-        df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_x
-        df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_y
-
-    st.session_state.path_points = df
-    st.session_state.editor_phase3_status = (
-        f"Moved workflow point {point_index + 1} {axis.upper()} dimension."
-    )
 
 def _apply_crane_dimension_move(idx, click_x, click_y):
     cranes = st.session_state.placed_cranes
