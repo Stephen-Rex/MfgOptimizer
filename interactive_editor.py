@@ -1002,6 +1002,8 @@ def _apply_conduit_vertex_dimension_move(obj_index, vertex_index, axis, click_x,
     key = str(vertex_index)
     if key not in c["vertex_dim_offsets"] or not isinstance(c["vertex_dim_offsets"][key], dict):
         c["vertex_dim_offsets"][key] = {
+            "x_line_dy_ft": 0.0,
+            "y_line_dx_ft": 0.0,
             "x_text_dx_ft": 0.0,
             "x_text_dy_ft": 0.0,
             "y_text_dx_ft": 0.0,
@@ -1009,15 +1011,19 @@ def _apply_conduit_vertex_dimension_move(obj_index, vertex_index, axis, click_x,
         }
 
     if axis == "x":
-        default_x = (0.0 + px) / 2.0
-        default_y = 0.0 - 2.5 - (vertex_index * 1.0) - 1.3
-        c["vertex_dim_offsets"][key]["x_text_dx_ft"] = float(click_x) - default_x
-        c["vertex_dim_offsets"][key]["x_text_dy_ft"] = float(click_y) - default_y
+        default_line_y = 0.0 - 2.5 - (vertex_index * 1.0)
+        default_text_x = (0.0 + px) / 2.0
+        default_text_y = default_line_y - 1.3
+        c["vertex_dim_offsets"][key]["x_line_dy_ft"] = float(click_y) - default_line_y
+        c["vertex_dim_offsets"][key]["x_text_dx_ft"] = float(click_x) - default_text_x
+        c["vertex_dim_offsets"][key]["x_text_dy_ft"] = float(click_y) - default_text_y        
     elif axis == "y":
-        default_x = 0.0 - 2.5 - (vertex_index * 1.0) - 1.3
-        default_y = (0.0 + py) / 2.0
-        c["vertex_dim_offsets"][key]["y_text_dx_ft"] = float(click_x) - default_x
-        c["vertex_dim_offsets"][key]["y_text_dy_ft"] = float(click_y) - default_y
+        default_line_x = 0.0 - 2.5 - (vertex_index * 1.0)
+        default_text_x = default_line_x - 1.3
+        default_text_y = (0.0 + py) / 2.0
+        c["vertex_dim_offsets"][key]["y_line_dx_ft"] = float(click_x) - default_line_x
+        c["vertex_dim_offsets"][key]["y_text_dx_ft"] = float(click_x) - default_text_x
+        c["vertex_dim_offsets"][key]["y_text_dy_ft"] = float(click_y) - default_text_y
 
     st.session_state.editor_phase3_status = (
         f"Moved conduit {c.get('id', obj_index)} vertex {vertex_index + 1} {axis.upper()} dimension."
