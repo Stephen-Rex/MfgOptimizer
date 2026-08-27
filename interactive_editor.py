@@ -298,6 +298,72 @@ def _resolve_canvas_click(point_data):
                     "x": float(x_val) if x_val is not None else None,
                     "y": float(y_val) if y_val is not None else None,
                 }
+
+            if entity_type == "dimension_lighting_x_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "lighting",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "x",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_lighting_y_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "lighting",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "y",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_conduit_note":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "conduit",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "note",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_workflow_note":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "workflow",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "note",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_crane_note":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "crane",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "note",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+        
         except Exception:
             pass
 
@@ -722,6 +788,115 @@ def _apply_machine_dimension_move(idx, axis, click_x, click_y):
         f"Moved machine {m.get('id', idx)} {axis.upper()} dimension."
     )
 
+def _apply_lighting_dimension_move(idx, axis, click_x, click_y):
+    lights = st.session_state.placed_lighting
+    if idx < 0 or idx >= len(lights):
+        st.session_state.editor_phase3_status = "Invalid lighting dimension target."
+        return
+
+    l = lights[idx]
+    lx = float(l.get("x", 0.0))
+    ly = float(l.get("y", 0.0))
+    clear_pad = 1.0
+
+    if axis == "x":
+        top_ref = ly + clear_pad
+        bot_ref = ly - clear_pad
+
+        if click_y >= ly:
+            l["dim_x_side"] = "above"
+            l["dim_x_line_offset_ft"] = max(0.0, click_y - top_ref)
+            l["dim_x_text_offset_ft"] = 0.0
+        else:
+            l["dim_x_side"] = "below"
+            l["dim_x_line_offset_ft"] = max(0.0, bot_ref - click_y)
+            l["dim_x_text_offset_ft"] = 0.0
+
+        l["dim_x_text_anchor_ft"] = click_x - ((0.0 + lx) / 2.0)
+
+    elif axis == "y":
+        right_ref = lx + clear_pad
+        left_ref = lx - clear_pad
+
+        if click_x >= lx:
+            l["dim_y_side"] = "right"
+            l["dim_y_line_offset_ft"] = max(0.0, click_x - right_ref)
+            l["dim_y_text_offset_ft"] = 0.0
+        else:
+            l["dim_y_side"] = "left"
+            l["dim_y_line_offset_ft"] = max(0.0, left_ref - click_x)
+            l["dim_y_text_offset_ft"] = 0.0
+
+        l["dim_y_text_anchor_ft"] = click_y - ((0.0 + ly) / 2.0)
+
+    st.session_state.editor_phase3_status = (
+        f"Moved lighting {l.get('id', idx)} {axis.upper()} dimension."
+    )
+
+
+def _apply_conduit_dimension_move(idx, click_x, click_y):
+    conduits = st.session_state.placed_conduits
+    if idx < 0 or idx >= len(conduits):
+        st.session_state.editor_phase3_status = "Invalid conduit dimension target."
+        return
+
+    c = conduits[idx]
+    xs = [float(v) for v in c.get("x", [])]
+    ys = [float(v) for v in c.get("y", [])]
+    if not xs or not ys or len(xs) != len(ys):
+        st.session_state.editor_phase3_status = "Conduit geometry invalid."
+        return
+
+    cx = sum(xs) / len(xs)
+    cy = sum(ys) / len(ys)
+
+    c["dim_label_x_offset_ft"] = click_x - cx
+    c["dim_label_y_offset_ft"] = click_y - cy
+
+    st.session_state.editor_phase3_status = (
+        f"Moved conduit {c.get('id', idx)} note."
+    )
+
+
+def _apply_workflow_dimension_move(click_x, click_y):
+    if "path_points" not in st.session_state or len(st.session_state.path_points) == 0:
+        st.session_state.editor_phase3_status = "Workflow geometry invalid."
+        return
+
+    wdf = st.session_state.path_points
+    xs = [float(v) for v in wdf["X Coordinate"].tolist()]
+    ys = [float(v) for v in wdf["Y Coordinate"].tolist()]
+    cx = sum(xs) / len(xs)
+    cy = sum(ys) / len(ys)
+
+    st.session_state.workflow_dim_label_x_offset_ft = click_x - cx
+    st.session_state.workflow_dim_label_y_offset_ft = click_y - cy
+
+    st.session_state.editor_phase3_status = "Moved workflow note."
+
+
+def _apply_crane_dimension_move(idx, click_x, click_y):
+    cranes = st.session_state.placed_cranes
+    if idx < 0 or idx >= len(cranes):
+        st.session_state.editor_phase3_status = "Invalid crane dimension target."
+        return
+
+    cr = cranes[idx]
+    ll_x = float(cr.get("ll_x", 0.0))
+    ll_y = float(cr.get("ll_y", 0.0))
+    ur_x = float(cr.get("ur_x", 0.0))
+    ur_y = float(cr.get("ur_y", 0.0))
+    cx = (ll_x + ur_x) / 2.0
+    cy = (ll_y + ur_y) / 2.0
+
+    cr["dim_label_x_offset_ft"] = click_x - cx
+    cr["dim_label_y_offset_ft"] = click_y - cy
+
+    st.session_state.editor_phase3_status = (
+        f"Moved crane {cr.get('id', idx)} note."
+    )
+
+
 def _apply_dimension_move_to_click(point_data):
     click_info = _resolve_canvas_click(point_data)
     if not click_info:
@@ -747,12 +922,20 @@ def _apply_dimension_move_to_click(point_data):
 
     if owner_type == "machine":
         _apply_machine_dimension_move(owner_index, axis, x_val, y_val)
+    elif owner_type == "lighting":
+        _apply_lighting_dimension_move(owner_index, axis, x_val, y_val)
+    elif owner_type == "conduit":
+        _apply_conduit_dimension_move(owner_index, x_val, y_val)
+    elif owner_type == "workflow":
+        _apply_workflow_dimension_move(x_val, y_val)
+    elif owner_type == "crane":
+        _apply_crane_dimension_move(owner_index, x_val, y_val)
     else:
         st.session_state.editor_phase3_status = (
             f"Unsupported dimension owner type: {owner_type}"
         )
         return
-
+        
     st.session_state.editor_last_mouse_x = x_val
     st.session_state.editor_last_mouse_y = y_val
     st.session_state.editor_last_pick_x = x_val
