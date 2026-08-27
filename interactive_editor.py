@@ -1047,35 +1047,37 @@ def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
     px = float(df.iloc[point_index]["X Coordinate"])
     py = float(df.iloc[point_index]["Y Coordinate"])
 
-    offset_col_map = {
-        "x_line_dy": "dim_x_line_dy_ft",
-        "y_line_dx": "dim_y_line_dx_ft",
-        "x_dx": "dim_x_text_dx_ft",
-        "x_dy": "dim_x_text_dy_ft",
-        "y_dx": "dim_y_text_dx_ft",
-        "y_dy": "dim_y_text_dy_ft",
-    }
-
-    for col in offset_col_map.values():
+    for col in [
+        "dim_x_line_dy_ft",
+        "dim_y_line_dx_ft",
+        "dim_x_text_dx_ft",
+        "dim_x_text_dy_ft",
+        "dim_y_text_dx_ft",
+        "dim_y_text_dy_ft",
+    ]:
         if col not in df.columns:
             df[col] = 0.0
 
     if axis == "x":
         default_line_y = 0.0 - 3.0 - (point_index * 1.0)
         default_text_x = (0.0 + px) / 2.0
-        default_text_y = default_line_y - 1.3
 
+        # Move line vertically to clicked Y
         df.at[point_index, "dim_x_line_dy_ft"] = float(click_y) - default_line_y
+
+        # Move text only along X; keep its vertical gap tied to the moved line
         df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_text_x
-        df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_text_y
+        df.at[point_index, "dim_x_text_dy_ft"] = 0.0
 
     elif axis == "y":
         default_line_x = 0.0 - 3.0 - (point_index * 1.0)
-        default_text_x = default_line_x - 1.3
         default_text_y = (0.0 + py) / 2.0
 
+        # Move line horizontally to clicked X
         df.at[point_index, "dim_y_line_dx_ft"] = float(click_x) - default_line_x
-        df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_text_x
+
+        # Move text only along Y; keep its horizontal gap tied to the moved line
+        df.at[point_index, "dim_y_text_dx_ft"] = 0.0
         df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_text_y
 
     st.session_state.path_points = df
