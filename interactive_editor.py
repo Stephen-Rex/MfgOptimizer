@@ -2424,11 +2424,6 @@ def render_interactive_editor_controls():
     with top4:
         st.checkbox("Show Grid", key="editor_show_grid")
 
-    show_labels_col, spacer_col = st.columns([1, 3])
-
-    with show_labels_col:
-        st.checkbox("Show Labels", key="editor_show_labels")
-
     st.markdown("### Selected Item")
 
     sel_type = st.session_state.get("editor_selected_type", "machine")
