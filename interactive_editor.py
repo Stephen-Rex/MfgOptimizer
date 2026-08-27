@@ -1014,13 +1014,16 @@ def _apply_conduit_vertex_dimension_move(obj_index, vertex_index, axis, click_x,
         default_line_y = 0.0 - 2.5 - (vertex_index * 1.0)
         default_text_x = (0.0 + px) / 2.0
         default_text_y = default_line_y - 1.3
+
         c["vertex_dim_offsets"][key]["x_line_dy_ft"] = float(click_y) - default_line_y
         c["vertex_dim_offsets"][key]["x_text_dx_ft"] = float(click_x) - default_text_x
-        c["vertex_dim_offsets"][key]["x_text_dy_ft"] = float(click_y) - default_text_y        
+        c["vertex_dim_offsets"][key]["x_text_dy_ft"] = float(click_y) - default_text_y
+
     elif axis == "y":
         default_line_x = 0.0 - 2.5 - (vertex_index * 1.0)
         default_text_x = default_line_x - 1.3
         default_text_y = (0.0 + py) / 2.0
+
         c["vertex_dim_offsets"][key]["y_line_dx_ft"] = float(click_x) - default_line_x
         c["vertex_dim_offsets"][key]["y_text_dx_ft"] = float(click_x) - default_text_x
         c["vertex_dim_offsets"][key]["y_text_dy_ft"] = float(click_y) - default_text_y
