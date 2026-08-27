@@ -540,7 +540,7 @@ def build_interactive_canvas_figure():
                 mode="markers+text",
                 marker=dict(
                     size=(
-                        10 if is_move_armed else (9 if is_selected else 7)
+                        16 if is_move_armed else (14 if is_selected else 12)
                     ) if show_dim_traces else (
                         18 if is_move_armed else (16 if is_selected else 12)
                     ),
