@@ -355,22 +355,22 @@ def draw_asme_drawing(
           ),
           zorder=3,
       )
-      if show_locator_dims and bool(cr.get("dim_visible", True)):
-        cx_ft = (float(cr.get("ll_x", 0.0)) + float(cr.get("ur_x", 0.0))) / 2.0
-        cy_ft = (float(cr.get("ll_y", 0.0)) + float(cr.get("ur_y", 0.0))) / 2.0
+      if show_locator_dims and bool(crane.get("dim_visible", True)):
+        cx_ft = (float(crane.get("ll_x", 0.0)) + float(crane.get("ur_x", 0.0))) / 2.0
+        cy_ft = (float(crane.get("ll_y", 0.0)) + float(crane.get("ur_y", 0.0))) / 2.0
         cx_in = O_x + cx_ft * S
         cy_in = O_y + cy_ft * S
 
-        label_x_offset_in = float(cr.get("dim_label_x_offset_ft", 0.0)) * S
-        label_y_offset_in = float(cr.get("dim_label_y_offset_ft", 0.0)) * S
-        show_metadata = bool(cr.get("dim_show_metadata", True))
+        label_x_offset_in = float(crane.get("dim_label_x_offset_ft", 0.0)) * S
+        label_y_offset_in = float(crane.get("dim_label_y_offset_ft", 0.0)) * S
+        show_metadata = bool(crane.get("dim_show_metadata", True))
 
-        note_lines = [str(cr.get("id", f"CR-{idx+1:03d}"))]
+        note_lines = [str(crane.get("id", f"CR-{idx+1:03d}"))]
 
         if show_metadata:
           note_lines.append(
-              f"{float(cr.get('ur_x', 0.0)) - float(cr.get('ll_x', 0.0)):.1f} x "
-              f"{float(cr.get('ur_y', 0.0)) - float(cr.get('ll_y', 0.0)):.1f} ft"
+              f"{float(crane.get('ur_x', 0.0)) - float(crane.get('ll_x', 0.0)):.1f} x "
+              f"{float(crane.get('ur_y', 0.0)) - float(crane.get('ll_y', 0.0)):.1f} ft"
           )
 
         ax.text(
