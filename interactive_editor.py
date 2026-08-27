@@ -704,6 +704,7 @@ def _begin_dimension_move_from_click_info(click_info):
 
     owner_type = str(click_info.get("owner_type", ""))
     obj_index = int(click_info.get("obj_index", -1))
+    sub_index = int(click_info.get("sub_index", -1))
     owner_id = str(click_info.get("owner_id", ""))
     axis = str(click_info.get("axis", ""))
 
@@ -714,6 +715,7 @@ def _begin_dimension_move_from_click_info(click_info):
     st.session_state.editor_dim_move_awaiting_target = True
     st.session_state.editor_dim_selected_owner_type = owner_type
     st.session_state.editor_dim_selected_owner_index = obj_index
+    st.session_state.editor_dim_selected_sub_index = sub_index
     st.session_state.editor_dim_selected_owner_id = owner_id
     st.session_state.editor_dim_selected_axis = axis
 
@@ -1008,11 +1010,11 @@ def _apply_conduit_vertex_dimension_move(obj_index, vertex_index, axis, click_x,
 
     if axis == "x":
         default_x = (0.0 + px) / 2.0
-        default_y = 0.0 - 2.5 - (vertex_index * 1.0) - 0.8
+        default_y = 0.0 - 2.5 - (vertex_index * 1.0) - 1.3
         c["vertex_dim_offsets"][key]["x_text_dx_ft"] = float(click_x) - default_x
         c["vertex_dim_offsets"][key]["x_text_dy_ft"] = float(click_y) - default_y
     elif axis == "y":
-        default_x = 0.0 - 2.5 - (vertex_index * 1.0) - 0.8
+        default_x = 0.0 - 2.5 - (vertex_index * 1.0) - 1.3
         default_y = (0.0 + py) / 2.0
         c["vertex_dim_offsets"][key]["y_text_dx_ft"] = float(click_x) - default_x
         c["vertex_dim_offsets"][key]["y_text_dy_ft"] = float(click_y) - default_y
@@ -1107,6 +1109,7 @@ def _apply_dimension_move_to_click(point_data):
 
     owner_type = st.session_state.get("editor_dim_selected_owner_type", "")
     owner_index = int(st.session_state.get("editor_dim_selected_owner_index", -1))
+    owner_sub_index = int(st.session_state.get("editor_dim_selected_sub_index", -1))
     axis = st.session_state.get("editor_dim_selected_axis", "")
 
     if owner_type == "machine":
@@ -1120,10 +1123,8 @@ def _apply_dimension_move_to_click(point_data):
     elif owner_type == "crane":
         _apply_crane_dimension_move(owner_index, x_val, y_val)
     elif owner_type == "conduit_vertex":
-        owner_sub_index = int(click_info.get("sub_index", -1))
         _apply_conduit_vertex_dimension_move(owner_index, owner_sub_index, axis, x_val, y_val)
     elif owner_type == "workflow_point":
-        owner_sub_index = int(click_info.get("sub_index", -1))
         _apply_workflow_point_dimension_move(owner_sub_index, axis, x_val, y_val)
     else:
         st.session_state.editor_phase3_status = (
