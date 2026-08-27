@@ -164,7 +164,82 @@ def build_machine_layout_figure():
     )
 
 
-def build_utility_layout_figure():
+def build_lighting_layout_figure():
+    return draw_asme_drawing(
+        size_char=st.session_state.sheet_size,
+        floor_width_ft=st.session_state.floor_w,
+        floor_height_ft=st.session_state.floor_h,
+        machines=[],
+        conduits=[],
+        lighting=st.session_state.placed_lighting,
+        workflow_paths=[],
+        cranes=[],
+        show_machines=False,
+        show_lighting=True,
+        show_cranes=False,
+        show_workflow=False,
+        show_electrical=False,
+        show_safety=False,
+        show_contour=False,
+        show_decibel=False,
+        show_locator_dims=True,
+        designer_name=st.session_state.designer_name,
+        dwg_title=f"{st.session_state.dwg_title} - Lighting Drawing",
+        dwg_num=f"{st.session_state.dwg_num}-L",
+    )
+
+
+def build_crane_layout_figure():
+    return draw_asme_drawing(
+        size_char=st.session_state.sheet_size,
+        floor_width_ft=st.session_state.floor_w,
+        floor_height_ft=st.session_state.floor_h,
+        machines=[],
+        conduits=[],
+        lighting=[],
+        workflow_paths=[],
+        cranes=st.session_state.placed_cranes,
+        show_machines=False,
+        show_lighting=False,
+        show_cranes=True,
+        show_workflow=False,
+        show_electrical=False,
+        show_safety=False,
+        show_contour=False,
+        show_decibel=False,
+        show_locator_dims=True,
+        designer_name=st.session_state.designer_name,
+        dwg_title=f"{st.session_state.dwg_title} - Crane Drawing",
+        dwg_num=f"{st.session_state.dwg_num}-C",
+    )
+
+
+def build_workflow_layout_figure():
+    return draw_asme_drawing(
+        size_char=st.session_state.sheet_size,
+        floor_width_ft=st.session_state.floor_w,
+        floor_height_ft=st.session_state.floor_h,
+        machines=[],
+        conduits=[],
+        lighting=[],
+        workflow_paths=active_workflow_paths,
+        cranes=[],
+        show_machines=False,
+        show_lighting=False,
+        show_cranes=False,
+        show_workflow=True,
+        show_electrical=False,
+        show_safety=False,
+        show_contour=False,
+        show_decibel=False,
+        show_locator_dims=True,
+        designer_name=st.session_state.designer_name,
+        dwg_title=f"{st.session_state.dwg_title} - Workflow Drawing",
+        dwg_num=f"{st.session_state.dwg_num}-W",
+    )
+
+
+def build_conduit_layout_figure():
     return draw_asme_drawing(
         size_char=st.session_state.sheet_size,
         floor_width_ft=st.session_state.floor_w,
@@ -182,11 +257,11 @@ def build_utility_layout_figure():
         show_safety=False,
         show_contour=False,
         show_decibel=False,
+        show_locator_dims=True,
         designer_name=st.session_state.designer_name,
-        dwg_title=f"{st.session_state.dwg_title} - Utility Routing Drawing",
+        dwg_title=f"{st.session_state.dwg_title} - Conduit Drawing",
         dwg_num=f"{st.session_state.dwg_num}-U",
     )
-
 
 # Main viewport routing
 if viewport_mode == "📐 2D ASME Y14.1 Blueprint View":
@@ -348,9 +423,6 @@ with tab_reports:
     production_report = report_bundle["production_report"]
     utility_report = report_bundle["utility_report"]
     machine_schedule = report_bundle["machine_schedule"]
-    lighting_report = report_bundle["lighting_report"]
-    crane_report = report_bundle["crane_report"]
-    workflow_report = report_bundle["workflow_report"]
 
     st.subheader("Project Summary")
     st.json(summary_report, expanded=False)
@@ -376,25 +448,7 @@ with tab_reports:
     st.dataframe(
         pd.DataFrame(machine_schedule["machines"]),
         use_container_width=True,
-    )
-
-    st.subheader("Lighting Report")
-    st.dataframe(
-        pd.DataFrame(lighting_report["lighting"]),
-        use_container_width=True,
-    )
-
-    st.subheader("Crane Report")
-    st.dataframe(
-        pd.DataFrame(crane_report["cranes"]),
-        use_container_width=True,
-    )
-
-    st.subheader("Workflow Report")
-    st.dataframe(
-        pd.DataFrame(workflow_report["workflow_paths"]),
-        use_container_width=True,
-    )    
+    ) 
 
     
     st.subheader("Download Report Bundle")
@@ -412,23 +466,17 @@ with tab_reports:
 
     st.subheader("Architectural Drawing Exports")
 
-    full_fig = build_full_layout_figure()
     machine_fig = build_machine_layout_figure()
-    utility_fig = build_utility_layout_figure()
+    lighting_fig = build_lighting_layout_figure()
+    crane_fig = build_crane_layout_figure()
+    workflow_fig = build_workflow_layout_figure()
+    conduit_fig = build_conduit_layout_figure()
 
-    draw_col1, draw_col2, draw_col3 = st.columns(3)
+    draw_row1_col1, draw_row1_col2 = st.columns(2)
+    draw_row2_col1, draw_row2_col2 = st.columns(2)
+    draw_row3_col1, _ = st.columns([1, 1])
 
-    with draw_col1:
-        st.caption("Full Layout Drawing")
-        st.pyplot(full_fig, use_container_width=True)
-        st.download_button(
-            label="⬇️ Download Full Layout PNG",
-            data=fig_to_png_bytes(full_fig),
-            file_name=f"{st.session_state.dwg_num}_full_layout.png",
-            mime="image/png",
-        )
-
-    with draw_col2:
+    with draw_row1_col1:
         st.caption("Machine Drawing")
         st.pyplot(machine_fig, use_container_width=True)
         st.download_button(
@@ -438,15 +486,42 @@ with tab_reports:
             mime="image/png",
         )
 
-    with draw_col3:
-        st.caption("Utility Routing Drawing")
-        st.pyplot(utility_fig, use_container_width=True)
+    with draw_row1_col2:
+        st.caption("Lighting Drawing")
+        st.pyplot(lighting_fig, use_container_width=True)
         st.download_button(
-            label="⬇️ Download Utility Drawing PNG",
-            data=fig_to_png_bytes(utility_fig),
-            file_name=f"{st.session_state.dwg_num}_utility_layout.png",
+            label="⬇️ Download Lighting Drawing PNG",
+            data=fig_to_png_bytes(lighting_fig),
+            file_name=f"{st.session_state.dwg_num}_lighting_layout.png",
             mime="image/png",
         )
 
-    with st.expander("Preview Full Report Bundle JSON"):
-        st.code(report_json, language="json")
+    with draw_row2_col1:
+        st.caption("Crane Drawing")
+        st.pyplot(crane_fig, use_container_width=True)
+        st.download_button(
+            label="⬇️ Download Crane Drawing PNG",
+            data=fig_to_png_bytes(crane_fig),
+            file_name=f"{st.session_state.dwg_num}_crane_layout.png",
+            mime="image/png",
+        )
+
+    with draw_row2_col2:
+        st.caption("Workflow Drawing")
+        st.pyplot(workflow_fig, use_container_width=True)
+        st.download_button(
+            label="⬇️ Download Workflow Drawing PNG",
+            data=fig_to_png_bytes(workflow_fig),
+            file_name=f"{st.session_state.dwg_num}_workflow_layout.png",
+            mime="image/png",
+        )
+
+    with draw_row3_col1:
+        st.caption("Conduit Drawing")
+        st.pyplot(conduit_fig, use_container_width=True)
+        st.download_button(
+            label="⬇️ Download Conduit Drawing PNG",
+            data=fig_to_png_bytes(conduit_fig),
+            file_name=f"{st.session_state.dwg_num}_conduit_layout.png",
+            mime="image/png",
+        )
