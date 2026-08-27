@@ -241,6 +241,31 @@ def _resolve_canvas_click(point_data):
                     "x": float(x_val) if x_val is not None else None,
                     "y": float(y_val) if y_val is not None else None,
                 }
+            if entity_type == "dimension_lighting_x_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "lighting",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "x",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_lighting_y_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "lighting",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "y",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
             if entity_type == "dimension_conduit_vertex_x_text":
                 return {
                     "entity_type": "dimension",
@@ -342,6 +367,33 @@ def _resolve_canvas_click(point_data):
                         "x": float(x_val) if x_val is not None else None,
                         "y": float(y_val) if y_val is not None else None,
                     }
+
+                if entity_type == "dimension_lighting_x_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "lighting",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "x",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_lighting_y_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "lighting",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "y",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
                 if entity_type == "dimension_conduit_vertex_x_text":
                     return {
                         "entity_type": "dimension",
@@ -392,7 +444,46 @@ def _resolve_canvas_click(point_data):
                         "part": "text",
                         "x": float(x_val) if x_val is not None else None,
                         "y": float(y_val) if y_val is not None else None,
-                    }                    
+                    }
+
+                if entity_type == "dimension_conduit_note":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "conduit",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "note",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_workflow_note":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "workflow",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "note",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_crane_note":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "crane",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "note",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
 
                 return {
                     "entity_type": entity_type,
@@ -402,71 +493,6 @@ def _resolve_canvas_click(point_data):
                     "y": float(y_val) if y_val is not None else None,
                 }
 
-            if entity_type == "dimension_lighting_x_text":
-                return {
-                    "entity_type": "dimension",
-                    "owner_type": "lighting",
-                    "obj_index": obj_index,
-                    "sub_index": sub_index,
-                    "owner_id": obj_id,
-                    "axis": "x",
-                    "part": "text",
-                    "x": float(x_val) if x_val is not None else None,
-                    "y": float(y_val) if y_val is not None else None,
-                }
-
-            if entity_type == "dimension_lighting_y_text":
-                return {
-                    "entity_type": "dimension",
-                    "owner_type": "lighting",
-                    "obj_index": obj_index,
-                    "sub_index": sub_index,
-                    "owner_id": obj_id,
-                    "axis": "y",
-                    "part": "text",
-                    "x": float(x_val) if x_val is not None else None,
-                    "y": float(y_val) if y_val is not None else None,
-                }
-
-            if entity_type == "dimension_conduit_note":
-                return {
-                    "entity_type": "dimension",
-                    "owner_type": "conduit",
-                    "obj_index": obj_index,
-                    "sub_index": sub_index,
-                    "owner_id": obj_id,
-                    "axis": "note",
-                    "part": "text",
-                    "x": float(x_val) if x_val is not None else None,
-                    "y": float(y_val) if y_val is not None else None,
-                }
-
-            if entity_type == "dimension_workflow_note":
-                return {
-                    "entity_type": "dimension",
-                    "owner_type": "workflow",
-                    "obj_index": obj_index,
-                    "sub_index": sub_index,
-                    "owner_id": obj_id,
-                    "axis": "note",
-                    "part": "text",
-                    "x": float(x_val) if x_val is not None else None,
-                    "y": float(y_val) if y_val is not None else None,
-                }
-
-            if entity_type == "dimension_crane_note":
-                return {
-                    "entity_type": "dimension",
-                    "owner_type": "crane",
-                    "obj_index": obj_index,
-                    "sub_index": sub_index,
-                    "owner_id": obj_id,
-                    "axis": "note",
-                    "part": "text",
-                    "x": float(x_val) if x_val is not None else None,
-                    "y": float(y_val) if y_val is not None else None,
-                }
-        
         except Exception:
             pass
 
