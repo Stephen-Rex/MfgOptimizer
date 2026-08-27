@@ -441,7 +441,7 @@ def build_interactive_canvas_figure():
                     y=[g["x_text_y"]],
                     mode="markers",
                     marker=dict(
-                        size=44,
+                        size=56,
                         color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.10)",
                         line=dict(width=1, color="rgba(255,255,255,0.20)")
                     ),
@@ -503,7 +503,7 @@ def build_interactive_canvas_figure():
                     y=[g["y_text_y"]],
                     mode="markers",
                     marker=dict(
-                        size=44,
+                        size=56,
                         color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.10)",
                         line=dict(width=1, color="rgba(255,255,255,0.20)")
                     ),
