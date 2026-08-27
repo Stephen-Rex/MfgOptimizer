@@ -1039,6 +1039,8 @@ def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
     py = float(df.iloc[point_index]["Y Coordinate"])
 
     offset_col_map = {
+        "x_line_dy": "dim_x_line_dy_ft",
+        "y_line_dx": "dim_y_line_dx_ft",
         "x_dx": "dim_x_text_dx_ft",
         "x_dy": "dim_x_text_dy_ft",
         "y_dx": "dim_y_text_dx_ft",
@@ -1050,15 +1052,22 @@ def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
             df[col] = 0.0
 
     if axis == "x":
-        default_x = (0.0 + px) / 2.0
-        default_y = 0.0 - 3.0 - (point_index * 1.0) - 1.3
-        df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_x
-        df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_y
+        default_line_y = 0.0 - 3.0 - (point_index * 1.0)
+        default_text_x = (0.0 + px) / 2.0
+        default_text_y = default_line_y - 1.3
+
+        df.at[point_index, "dim_x_line_dy_ft"] = float(click_y) - default_line_y
+        df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_text_x
+        df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_text_y
+
     elif axis == "y":
-        default_x = 0.0 - 3.0 - (point_index * 1.0) - 1.3
-        default_y = (0.0 + py) / 2.0
-        df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_x
-        df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_y
+        default_line_x = 0.0 - 3.0 - (point_index * 1.0)
+        default_text_x = default_line_x - 1.3
+        default_text_y = (0.0 + py) / 2.0
+
+        df.at[point_index, "dim_y_line_dx_ft"] = float(click_x) - default_line_x
+        df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_text_x
+        df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_text_y
 
     st.session_state.path_points = df
     st.session_state.editor_phase3_status = (
