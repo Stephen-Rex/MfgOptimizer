@@ -1269,7 +1269,9 @@ def build_interactive_canvas_figure():
     # Click marker
     last_x = st.session_state.get("editor_last_mouse_x", None)
     last_y = st.session_state.get("editor_last_mouse_y", None)
-    if last_x is not None and last_y is not None:
+    canvas_mode = st.session_state.get("editor_canvas_mode", "select")
+
+    if canvas_mode != "dim" and last_x is not None and last_y is not None:
         fig.add_trace(
             go.Scatter(
                 x=[float(last_x)],
