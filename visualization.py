@@ -29,6 +29,10 @@ def _draw_point_locator_dims(
     base_x_offset_in=0.45,
     base_y_offset_in=0.45,
     stack_pitch_in=0.22,
+    x_text_dx_in=0.0,
+    x_text_dy_in=0.0,
+    y_text_dx_in=0.0,
+    y_text_dy_in=0.0,
 ):
   """Draw X/Y locator dimensions from drawing origin to a point."""
   px_in = O_x + float(pt_x_ft) * S
@@ -48,9 +52,9 @@ def _draw_point_locator_dims(
   y_text_gap_in = 0.18
 
   ax.text(
-      (O_x + px_in) / 2.0,
-      x_dim_y - x_text_gap_in,
-      f"{prefix}{idx+1} X = {float(pt_x_ft):.1f} ft",
+      ((O_x + px_in) / 2.0) + x_text_dx_in,
+      (x_dim_y - 0.05) + x_text_dy_in,
+      f"X = {pt_x_ft:.1f} ft",
       fontsize=5.3,
       color=txt_color,
       ha="center",
@@ -67,9 +71,9 @@ def _draw_point_locator_dims(
   _draw_tick(ax, y_dim_x, py_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
   ax.text(
-      y_dim_x - y_text_gap_in,
-      (O_y + py_in) / 2.0,
-      f"{prefix}{idx+1} Y = {float(pt_y_ft):.1f} ft",
+      (y_dim_x - 0.05) + y_text_dx_in,
+      ((O_y + py_in) / 2.0) + y_text_dy_in,
+      f"Y = {pt_y_ft:.1f} ft",
       fontsize=5.3,
       color=txt_color,
       ha="right",
