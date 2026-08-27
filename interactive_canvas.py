@@ -225,8 +225,13 @@ def build_interactive_canvas_figure():
     fig = go.Figure()
 
     canvas_mode = st.session_state.get("editor_canvas_mode", "select")
-    show_dim_traces = canvas_mode == "dim"    
+    show_dim_traces = canvas_mode == "dim"
 
+    show_machines = bool(st.session_state.get("show_machines", True))
+    show_lighting = bool(st.session_state.get("show_lighting", True))
+    show_cranes = bool(st.session_state.get("show_cranes", True))
+    show_workflow = bool(st.session_state.get("show_workflow", True))
+    show_electrical = bool(st.session_state.get("show_electrical", True))
     # Trace map for Phase 3 click resolution via curveNumber
     st.session_state.editor_trace_map = []
 
@@ -278,443 +283,444 @@ def build_interactive_canvas_figure():
             )
             y += grid_step
 
-    # Machines
-    for idx, m in enumerate(st.session_state.placed_machines):
-        mx = float(m["x"])
-        my = float(m["y"])
-        mw = float(m["Width"])
-        mh = float(m["Height"])
-        so = float(m.get("Standoff", 0.0))
-        mid = str(m.get("id", f"M-{idx+1:03d}"))
+       # Machines
+    if show_machines:
+        for idx, m in enumerate(st.session_state.placed_machines):
+            mx = float(m["x"])
+            my = float(m["y"])
+            mw = float(m["Width"])
+            mh = float(m["Height"])
+            so = float(m.get("Standoff", 0.0))
+            mid = str(m.get("id", f"M-{idx+1:03d}"))
 
-        is_selected = (
-            st.session_state.editor_selected_type == "machine"
-            and int(st.session_state.editor_selected_index) == idx
-        )
-        is_move_armed = (
-            st.session_state.get("editor_move_awaiting_target", False)
-            and st.session_state.get("editor_move_selected_type", "") == "machine"
-            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
-        )
+            is_selected = (
+                st.session_state.editor_selected_type == "machine"
+                and int(st.session_state.editor_selected_index) == idx
+            )
+            is_move_armed = (
+                st.session_state.get("editor_move_awaiting_target", False)
+                and st.session_state.get("editor_move_selected_type", "") == "machine"
+                and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+            )
 
-        x0 = mx - mw / 2.0
-        x1 = mx + mw / 2.0
-        y0 = my - mh / 2.0
-        y1 = my + mh / 2.0
+            x0 = mx - mw / 2.0
+            x1 = mx + mw / 2.0
+            y0 = my - mh / 2.0
+            y1 = my + mh / 2.0
 
-        fig.add_shape(
-            type="rect",
-            x0=x0,
-            y0=y0,
-            x1=x1,
-            y1=y1,
-            line=dict(
-                color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#87CEEB"),
-                width=4 if is_move_armed else (3 if is_selected else 2),
-            ),
-            fillcolor=(
-                "rgba(255,215,0,0.25)" if is_move_armed
-                else ("rgba(0,229,255,0.22)" if is_selected else "rgba(135,206,235,0.18)")
-            ),
-            layer="below",
-        )
-
-        if so > 0:
             fig.add_shape(
                 type="rect",
-                x0=x0 - so,
-                y0=y0 - so,
-                x1=x1 + so,
-                y1=y1 + so,
+                x0=x0,
+                y0=y0,
+                x1=x1,
+                y1=y1,
                 line=dict(
-                    color="rgba(255,255,255,0.35)" if not is_selected else "rgba(255,215,0,0.65)",
-                    width=1,
-                    dash="dot",
+                    color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#87CEEB"),
+                    width=4 if is_move_armed else (3 if is_selected else 2),
                 ),
-                fillcolor="rgba(0,0,0,0)",
+                fillcolor=(
+                    "rgba(255,215,0,0.25)" if is_move_armed
+                    else ("rgba(0,229,255,0.22)" if is_selected else "rgba(135,206,235,0.18)")
+                ),
                 layer="below",
             )
 
-        fig.add_trace(
-            go.Scatter(
-                x=[x0, x1, x1, x0, x0],
-                y=[y0, y0, y1, y1, y0],
-                mode="lines",
-                fill="toself",
-                fillcolor="rgba(0,0,0,0.001)",
-                line=dict(color="rgba(0,0,0,0)", width=0),
-                showlegend=False,
-                hoverinfo="skip",
-                customdata=[["machine", idx, mid, -1]] * 5,
-            )
-        )
-        _register_trace("machine", idx, -1, mid)
+            if so > 0:
+                fig.add_shape(
+                    type="rect",
+                    x0=x0 - so,
+                    y0=y0 - so,
+                    x1=x1 + so,
+                    y1=y1 + so,
+                    line=dict(
+                        color="rgba(255,255,255,0.35)" if not is_selected else "rgba(255,215,0,0.65)",
+                        width=1,
+                        dash="dot",
+                    ),
+                    fillcolor="rgba(0,0,0,0)",
+                    layer="below",
+                )
 
-        fig.add_trace(
-            go.Scatter(
-                x=[mx],
-                y=[my],
-                mode="markers+text",
-                marker=dict(
-                    size=16 if is_move_armed else (14 if is_selected else 10),
-                    color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#87CEEB"),
-                    line=dict(color="white", width=2 if is_move_armed else 1),
-                ),
-                text=[mid],
-                textposition="top center",
-                name=mid,
-                showlegend=False,
-                customdata=[["machine", idx, mid, -1]],
-                hovertemplate=f"{mid}<br>X={mx:.2f}<br>Y={my:.2f}<extra></extra>",
-            )
-        )
-        _register_trace("machine", idx, -1, mid)
-
-        # Machine dimension traces for moveable dimensions on plotly
-        if show_dim_traces and bool(m.get("dim_visible", True)):
-            g = _machine_dimension_geometry(m)
-
-            is_x_armed = (
-                st.session_state.get("editor_dim_move_awaiting_target", False)
-                and st.session_state.get("editor_dim_selected_owner_type", "") == "machine"
-                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
-                and st.session_state.get("editor_dim_selected_axis", "") == "x"
-            )
-            is_y_armed = (
-                st.session_state.get("editor_dim_move_awaiting_target", False)
-                and st.session_state.get("editor_dim_selected_owner_type", "") == "machine"
-                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
-                and st.session_state.get("editor_dim_selected_axis", "") == "y"
-            )
-
-            x_color = "#FFD700" if is_x_armed else "#66FFFF"
-            y_color = "#FFD700" if is_y_armed else "#66FFFF"
-            ext_color = "#AAAAAA"
-
-            # X dimension line
             fig.add_trace(
                 go.Scatter(
-                    x=[0.0, g["mx"]],
+                    x=[x0, x1, x1, x0, x0],
+                    y=[y0, y0, y1, y1, y0],
+                    mode="lines",
+                    fill="toself",
+                    fillcolor="rgba(0,0,0,0.001)",
+                    line=dict(color="rgba(0,0,0,0)", width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    customdata=[["machine", idx, mid, -1]] * 5,
+                )
+            )
+            _register_trace("machine", idx, -1, mid)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[mx],
+                    y=[my],
+                    mode="markers+text",
+                    marker=dict(
+                        size=16 if is_move_armed else (14 if is_selected else 10),
+                        color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#87CEEB"),
+                        line=dict(color="white", width=2 if is_move_armed else 1),
+                    ),
+                    text=[mid],
+                    textposition="top center",
+                    name=mid,
+                    showlegend=False,
+                    customdata=[["machine", idx, mid, -1]],
+                    hovertemplate=f"{mid}<br>X={mx:.2f}<br>Y={my:.2f}<extra></extra>",
+                )
+            )
+            _register_trace("machine", idx, -1, mid)
+
+            # Machine dimension traces for moveable dimensions on plotly
+            if show_dim_traces and bool(m.get("dim_visible", True)):
+                g = _machine_dimension_geometry(m)
+
+                is_x_armed = (
+                    st.session_state.get("editor_dim_move_awaiting_target", False)
+                    and st.session_state.get("editor_dim_selected_owner_type", "") == "machine"
+                    and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                    and st.session_state.get("editor_dim_selected_axis", "") == "x"
+                )
+                is_y_armed = (
+                    st.session_state.get("editor_dim_move_awaiting_target", False)
+                    and st.session_state.get("editor_dim_selected_owner_type", "") == "machine"
+                    and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                    and st.session_state.get("editor_dim_selected_axis", "") == "y"
+                )
+
+                x_color = "#FFD700" if is_x_armed else "#66FFFF"
+                y_color = "#FFD700" if is_y_armed else "#66FFFF"
+                ext_color = "#AAAAAA"
+
+                # X dimension line
+                fig.add_trace(
+                    go.Scatter(
+                        x=[0.0, g["mx"]],
+                        y=[g["x_dim_y"], g["x_dim_y"]],
+                        mode="lines",
+                        line=dict(color=x_color, width=2),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[["dimension_machine_x_line", idx, mid, -1]] * 2,
+                    )
+                )
+                _register_trace("dimension_machine_x_line", idx, -1, mid)
+
+                # X extension lines
+                fig.add_trace(
+                    go.Scatter(
+                        x=[0.0, 0.0, None, g["mx"], g["mx"]],
+                        y=[0.0, g["x_dim_y"], None, g["x_ext_obj_y"], g["x_dim_y"]],
+                        mode="lines",
+                        line=dict(color=ext_color, width=1),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[["dimension_machine_x_ext", idx, mid, -1]] * 5,
+                    )
+                )
+                _register_trace("dimension_machine_x_ext", idx, -1, mid)
+
+                # X dimension visible text
+                fig.add_trace(
+                    go.Scatter(
+                        x=[g["x_text_x"]],
+                        y=[g["x_text_y"]],
+                        mode="text",
+                        text=[f"X = {g['mx']:.1f} ft"],
+                        textposition="middle center",
+                        textfont=dict(color=x_color, size=12),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
+                _register_trace("dimension_machine_x_text_visual", idx, -1, mid)
+
+                # X dimension click hitbox
+                fig.add_trace(
+                    go.Scatter(
+                        x=[g["x_text_x"]],
+                        y=[g["x_text_y"]],
+                        mode="markers",
+                        marker=dict(
+                            size=56,
+                            color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.10)",
+                            line=dict(width=1, color="rgba(255,255,255,0.20)")
+                        ),
+                        showlegend=False,
+                        customdata=[["dimension_machine_x_text", idx, mid, -1]],
+                        hovertemplate=f"{mid} X dimension<extra></extra>",
+                    )
+                )
+                _register_trace("dimension_machine_x_text", idx, -1, mid)
+
+                # Y dimension line
+                fig.add_trace(
+                    go.Scatter(
+                        x=[g["y_dim_x"], g["y_dim_x"]],
+                        y=[0.0, g["my"]],
+                        mode="lines",
+                        line=dict(color=y_color, width=2),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[["dimension_machine_y_line", idx, mid, -1]] * 2,
+                    )
+                )
+                _register_trace("dimension_machine_y_line", idx, -1, mid)
+
+                # Y extension lines
+                fig.add_trace(
+                    go.Scatter(
+                        x=[0.0, g["y_dim_x"], None, g["y_ext_obj_x"], g["y_dim_x"]],
+                        y=[0.0, 0.0, None, g["my"], g["my"]],
+                        mode="lines",
+                        line=dict(color=ext_color, width=1),
+                        showlegend=False,
+                        hoverinfo="skip",
+                        customdata=[["dimension_machine_y_ext", idx, mid, -1]] * 5,
+                    )
+                )
+                _register_trace("dimension_machine_y_ext", idx, -1, mid)
+
+                # Y dimension visible text
+                fig.add_trace(
+                    go.Scatter(
+                        x=[g["y_text_x"]],
+                        y=[g["y_text_y"]],
+                        mode="text",
+                        text=[f"Y = {g['my']:.1f} ft"],
+                        textposition="middle center",
+                        textfont=dict(color=y_color, size=12),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
+                _register_trace("dimension_machine_y_text_visual", idx, -1, mid)
+
+                # Y dimension click hitbox
+                fig.add_trace(
+                    go.Scatter(
+                        x=[g["y_text_x"]],
+                        y=[g["y_text_y"]],
+                        mode="markers",
+                        marker=dict(
+                            size=56,
+                            color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.10)",
+                            line=dict(width=1, color="rgba(255,255,255,0.20)")
+                        ),
+                        showlegend=False,
+                        customdata=[["dimension_machine_y_text", idx, mid, -1]],
+                        hovertemplate=f"{mid} Y dimension<extra></extra>",
+                    )
+                )
+                _register_trace("dimension_machine_y_text", idx, -1, mid)
+
+
+    
+       # Lighting
+    if show_lighting:
+        for idx, l in enumerate(st.session_state.placed_lighting):
+            lx = float(l["x"])
+            ly = float(l["y"])
+            lid = str(l.get("id", f"L-{idx+1:03d}"))
+
+            is_selected = (
+                st.session_state.editor_selected_type == "lighting"
+                and int(st.session_state.editor_selected_index) == idx
+            )
+
+            is_move_armed = (
+                st.session_state.get("editor_move_awaiting_target", False)
+                and st.session_state.get("editor_move_selected_type", "") == "lighting"
+                and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[lx],
+                    y=[ly],
+                    mode="markers+text",
+                    marker=dict(
+                        size=(
+                            16 if is_move_armed else (14 if is_selected else 12)
+                        ) if show_dim_traces else (
+                            18 if is_move_armed else (16 if is_selected else 12)
+                        ),
+                        color="#FF00FF" if is_move_armed else "#FFD700",
+                        symbol="diamond",
+                        line=dict(
+                            color="#FFFFFF",
+                            width=(2 if is_move_armed else (1.5 if is_selected else 1)) if show_dim_traces
+                            else (3 if is_move_armed else (2 if is_selected else 1)),
+                        ),
+                    ),
+                    text=[lid],
+                    textposition="top center",
+                    name=lid,
+                    showlegend=False,
+                    customdata=[["lighting", idx, lid, -1]],
+                    hovertemplate=f"{lid}<br>X={lx:.2f}<br>Y={ly:.2f}<extra></extra>",
+                )
+            )
+            _register_trace("lighting", idx, -1, lid)
+
+            if show_dim_traces and bool(l.get("dim_visible", True)):
+                g = _lighting_dimension_geometry(l)
+
+                is_x_armed = (
+                    st.session_state.get("editor_dim_move_awaiting_target", False)
+                    and st.session_state.get("editor_dim_selected_owner_type", "") == "lighting"
+                    and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                    and st.session_state.get("editor_dim_selected_axis", "") == "x"
+                )
+                is_y_armed = (
+                    st.session_state.get("editor_dim_move_awaiting_target", False)
+                    and st.session_state.get("editor_dim_selected_owner_type", "") == "lighting"
+                    and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                    and st.session_state.get("editor_dim_selected_axis", "") == "y"
+                )
+
+                x_color = "#FFD700" if is_x_armed else "#66FFFF"
+                y_color = "#FFD700" if is_y_armed else "#66FFFF"
+                ext_color = "#AAAAAA"
+
+                fig.add_trace(go.Scatter(
+                    x=[0.0, g["lx"]],
                     y=[g["x_dim_y"], g["x_dim_y"]],
                     mode="lines",
                     line=dict(color=x_color, width=2),
                     showlegend=False,
                     hoverinfo="skip",
-                    customdata=[["dimension_machine_x_line", idx, mid, -1]] * 2,
-                )
-            )
-            _register_trace("dimension_machine_x_line", idx, -1, mid)
+                    customdata=[["dimension_lighting_x_line", idx, lid, -1]] * 2,
+                ))
+                _register_trace("dimension_lighting_x_line", idx, -1, lid)
 
-            # X extension lines
-            fig.add_trace(
-                go.Scatter(
-                    x=[0.0, 0.0, None, g["mx"], g["mx"]],
+                fig.add_trace(go.Scatter(
+                    x=[0.0, 0.0, None, g["lx"], g["lx"]],
                     y=[0.0, g["x_dim_y"], None, g["x_ext_obj_y"], g["x_dim_y"]],
                     mode="lines",
                     line=dict(color=ext_color, width=1),
                     showlegend=False,
                     hoverinfo="skip",
-                    customdata=[["dimension_machine_x_ext", idx, mid, -1]] * 5,
-                )
-            )
-            _register_trace("dimension_machine_x_ext", idx, -1, mid)
+                    customdata=[["dimension_lighting_x_ext", idx, lid, -1]] * 5,
+                ))
+                _register_trace("dimension_lighting_x_ext", idx, -1, lid)
 
-            # X dimension visible text
-            fig.add_trace(
-                go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=[g["x_text_x"]],
                     y=[g["x_text_y"]],
                     mode="text",
-                    text=[f"X = {g['mx']:.1f} ft"],
+                    text=[f"X = {g['lx']:.1f} ft"],
                     textposition="middle center",
                     textfont=dict(color=x_color, size=12),
                     showlegend=False,
                     hoverinfo="skip",
-                    #hovertemplate=f"{mid} X dimension<extra></extra>",
-                )
-            )
-            _register_trace("dimension_machine_x_text_visual", idx, -1, mid)
+                ))
+                _register_trace("dimension_lighting_x_text_visual", idx, -1, lid)
 
-            # X dimension click hitbox
-            fig.add_trace(
-                go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=[g["x_text_x"]],
                     y=[g["x_text_y"]],
                     mode="markers",
                     marker=dict(
                         size=56,
-                        color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.10)",
-                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                        color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.14)",
+                        line=dict(width=1, color="rgba(255,255,255,0.18)")
                     ),
                     showlegend=False,
-                    customdata=[["dimension_machine_x_text", idx, mid, -1]],
-                    hovertemplate=f"{mid} X dimension<extra></extra>",
-                )
-            )
-            _register_trace("dimension_machine_x_text", idx, -1, mid)
-            
+                    customdata=[["dimension_lighting_x_text", idx, lid, -1]],
+                    hovertemplate=f"{lid} X dimension<extra></extra>",
+                ))
+                _register_trace("dimension_lighting_x_text", idx, -1, lid)
 
-            # Y dimension line
-            fig.add_trace(
-                go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=[g["y_dim_x"], g["y_dim_x"]],
-                    y=[0.0, g["my"]],
+                    y=[0.0, g["ly"]],
                     mode="lines",
                     line=dict(color=y_color, width=2),
                     showlegend=False,
                     hoverinfo="skip",
-                    customdata=[["dimension_machine_y_line", idx, mid, -1]] * 2,
-                )
-            )
-            _register_trace("dimension_machine_y_line", idx, -1, mid)
+                    customdata=[["dimension_lighting_y_line", idx, lid, -1]] * 2,
+                ))
+                _register_trace("dimension_lighting_y_line", idx, -1, lid)
 
-            # Y extension lines
-            fig.add_trace(
-                go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=[0.0, g["y_dim_x"], None, g["y_ext_obj_x"], g["y_dim_x"]],
-                    y=[0.0, 0.0, None, g["my"], g["my"]],
+                    y=[0.0, 0.0, None, g["ly"], g["ly"]],
                     mode="lines",
                     line=dict(color=ext_color, width=1),
                     showlegend=False,
                     hoverinfo="skip",
-                    customdata=[["dimension_machine_y_ext", idx, mid, -1]] * 5,
-                )
-            )
-            _register_trace("dimension_machine_y_ext", idx, -1, mid)
+                    customdata=[["dimension_lighting_y_ext", idx, lid, -1]] * 5,
+                ))
+                _register_trace("dimension_lighting_y_ext", idx, -1, lid)
 
-            # Y dimension visible text
-            fig.add_trace(
-                go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=[g["y_text_x"]],
                     y=[g["y_text_y"]],
                     mode="text",
-                    text=[f"Y = {g['my']:.1f} ft"],
+                    text=[f"Y = {g['ly']:.1f} ft"],
                     textposition="middle center",
                     textfont=dict(color=y_color, size=12),
                     showlegend=False,
                     hoverinfo="skip",
-                )
-            )
-            _register_trace("dimension_machine_y_text_visual", idx, -1, mid)
+                ))
+                _register_trace("dimension_lighting_y_text_visual", idx, -1, lid)
 
-            # Y dimension click hitbox
-            fig.add_trace(
-                go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=[g["y_text_x"]],
                     y=[g["y_text_y"]],
                     mode="markers",
                     marker=dict(
                         size=56,
-                        color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.10)",
-                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                        color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.14)",
+                        line=dict(width=1, color="rgba(255,255,255,0.18)")
                     ),
                     showlegend=False,
-                    customdata=[["dimension_machine_y_text", idx, mid, -1]],
-                    hovertemplate=f"{mid} Y dimension<extra></extra>",
-                )
-            )
-            _register_trace("dimension_machine_y_text", idx, -1, mid)
-
-
-    
-    # Lighting
-    for idx, l in enumerate(st.session_state.placed_lighting):
-        lx = float(l["x"])
-        ly = float(l["y"])
-        lid = str(l.get("id", f"L-{idx+1:03d}"))
-
-        is_selected = (
-            st.session_state.editor_selected_type == "lighting"
-            and int(st.session_state.editor_selected_index) == idx
-        )
-
-        is_move_armed = (
-            st.session_state.get("editor_move_awaiting_target", False)
-            and st.session_state.get("editor_move_selected_type", "") == "lighting"
-            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
-        )
-
-        fig.add_trace(
-            go.Scatter(
-                x=[lx],
-                y=[ly],
-                mode="markers+text",
-                marker=dict(
-                    size=(
-                        16 if is_move_armed else (14 if is_selected else 12)
-                    ) if show_dim_traces else (
-                        18 if is_move_armed else (16 if is_selected else 12)
-                    ),
-                    color="#FF00FF" if is_move_armed else "#FFD700",
-                    symbol="diamond",
-                    line=dict(
-                        color="#FFFFFF",
-                        width=(2 if is_move_armed else (1.5 if is_selected else 1)) if show_dim_traces
-                        else (3 if is_move_armed else (2 if is_selected else 1)),
-                    ),
-                ),
-                text=[lid],
-                textposition="top center",
-                name=lid,
-                showlegend=False,
-                customdata=[["lighting", idx, lid, -1]],
-                hovertemplate=f"{lid}<br>X={lx:.2f}<br>Y={ly:.2f}<extra></extra>",
-            )
-        )
-        _register_trace("lighting", idx, -1, lid)
-
-        if show_dim_traces and bool(l.get("dim_visible", True)):
-            g = _lighting_dimension_geometry(l)
-
-            is_x_armed = (
-                st.session_state.get("editor_dim_move_awaiting_target", False)
-                and st.session_state.get("editor_dim_selected_owner_type", "") == "lighting"
-                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
-                and st.session_state.get("editor_dim_selected_axis", "") == "x"
-            )
-            is_y_armed = (
-                st.session_state.get("editor_dim_move_awaiting_target", False)
-                and st.session_state.get("editor_dim_selected_owner_type", "") == "lighting"
-                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
-                and st.session_state.get("editor_dim_selected_axis", "") == "y"
-            )
-
-            x_color = "#FFD700" if is_x_armed else "#66FFFF"
-            y_color = "#FFD700" if is_y_armed else "#66FFFF"
-            ext_color = "#AAAAAA"
-
-            fig.add_trace(go.Scatter(
-                x=[0.0, g["lx"]],
-                y=[g["x_dim_y"], g["x_dim_y"]],
-                mode="lines",
-                line=dict(color=x_color, width=2),
-                showlegend=False,
-                hoverinfo="skip",
-                customdata=[["dimension_lighting_x_line", idx, lid, -1]] * 2,
-            ))
-            _register_trace("dimension_lighting_x_line", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[0.0, 0.0, None, g["lx"], g["lx"]],
-                y=[0.0, g["x_dim_y"], None, g["x_ext_obj_y"], g["x_dim_y"]],
-                mode="lines",
-                line=dict(color=ext_color, width=1),
-                showlegend=False,
-                hoverinfo="skip",
-                customdata=[["dimension_lighting_x_ext", idx, lid, -1]] * 5,
-            ))
-            _register_trace("dimension_lighting_x_ext", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[g["x_text_x"]],
-                y=[g["x_text_y"]],
-                mode="text",
-                text=[f"X = {g['lx']:.1f} ft"],
-                textposition="middle center",
-                textfont=dict(color=x_color, size=12),
-                showlegend=False,
-                hoverinfo="skip",
-            ))
-            _register_trace("dimension_lighting_x_text_visual", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[g["x_text_x"]],
-                y=[g["x_text_y"]],
-                mode="markers",
-                marker=dict(
-                    size=56,
-                    color="rgba(255,215,0,0.22)" if is_x_armed else "rgba(0,255,255,0.14)",
-                    line=dict(width=1, color="rgba(255,255,255,0.18)")
-                ),
-                showlegend=False,
-                customdata=[["dimension_lighting_x_text", idx, lid, -1]],
-                hovertemplate=f"{lid} X dimension<extra></extra>",
-            ))
-            _register_trace("dimension_lighting_x_text", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[g["y_dim_x"], g["y_dim_x"]],
-                y=[0.0, g["ly"]],
-                mode="lines",
-                line=dict(color=y_color, width=2),
-                showlegend=False,
-                hoverinfo="skip",
-                customdata=[["dimension_lighting_y_line", idx, lid, -1]] * 2,
-            ))
-            _register_trace("dimension_lighting_y_line", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[0.0, g["y_dim_x"], None, g["y_ext_obj_x"], g["y_dim_x"]],
-                y=[0.0, 0.0, None, g["ly"], g["ly"]],
-                mode="lines",
-                line=dict(color=ext_color, width=1),
-                showlegend=False,
-                hoverinfo="skip",
-                customdata=[["dimension_lighting_y_ext", idx, lid, -1]] * 5,
-            ))
-            _register_trace("dimension_lighting_y_ext", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[g["y_text_x"]],
-                y=[g["y_text_y"]],
-                mode="text",
-                text=[f"Y = {g['ly']:.1f} ft"],
-                textposition="middle center",
-                textfont=dict(color=y_color, size=12),
-                showlegend=False,
-                hoverinfo="skip",
-            ))
-            _register_trace("dimension_lighting_y_text_visual", idx, -1, lid)
-
-            fig.add_trace(go.Scatter(
-                x=[g["y_text_x"]],
-                y=[g["y_text_y"]],
-                mode="markers",
-                marker=dict(
-                    size=56,
-                    color="rgba(255,215,0,0.22)" if is_y_armed else "rgba(0,255,255,0.14)",
-                    line=dict(width=1, color="rgba(255,255,255,0.18)")
-                ),
-                showlegend=False,
-                customdata=[["dimension_lighting_y_text", idx, lid, -1]],
-                hovertemplate=f"{lid} Y dimension<extra></extra>",
-            ))
-            _register_trace("dimension_lighting_y_text", idx, -1, lid)
+                    customdata=[["dimension_lighting_y_text", idx, lid, -1]],
+                    hovertemplate=f"{lid} Y dimension<extra></extra>",
+                ))
+                _register_trace("dimension_lighting_y_text", idx, -1, lid)
 
     # Conduits
-    for idx, c in enumerate(st.session_state.placed_conduits):
-        xs = [float(v) for v in c.get("x", [])]
-        ys = [float(v) for v in c.get("y", [])]
-        cid = str(c.get("id", f"C-{idx+1:03d}"))
+    if show_electrical:
+        for idx, c in enumerate(st.session_state.placed_conduits):
+            xs = [float(v) for v in c.get("x", [])]
+            ys = [float(v) for v in c.get("y", [])]
+            cid = str(c.get("id", f"C-{idx+1:03d}"))
 
-        is_selected = (
-            st.session_state.editor_selected_type == "conduit"
-            and int(st.session_state.editor_selected_index) == idx
-        )
-
-        is_move_armed_line = (
-            st.session_state.get("editor_move_awaiting_target", False)
-            and st.session_state.get("editor_move_selected_type", "") == "conduit"
-            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
-        )
-
-        if len(xs) >= 2 and len(xs) == len(ys):
-            fig.add_trace(
-                go.Scatter(
-                    x=xs,
-                    y=ys,
-                    mode="lines",
-                    line=dict(
-                        color="#FFD700" if is_move_armed_line else "#FFA500",
-                        width=5 if is_move_armed_line else (4 if is_selected else 3),
-                    ),
-                    name=cid,
-                    showlegend=False,
-                    customdata=[["conduit", idx, cid, -1]] * len(xs),
-                    hovertemplate=f"{cid}<extra></extra>",
-                )
+            is_selected = (
+                st.session_state.editor_selected_type == "conduit"
+                and int(st.session_state.editor_selected_index) == idx
             )
-            _register_trace("conduit", idx, -1, cid)
+
+            is_move_armed_line = (
+                st.session_state.get("editor_move_awaiting_target", False)
+                and st.session_state.get("editor_move_selected_type", "") == "conduit"
+                and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+            )
+
+            if len(xs) >= 2 and len(xs) == len(ys):
+                fig.add_trace(
+                    go.Scatter(
+                        x=xs,
+                        y=ys,
+                        mode="lines",
+                        line=dict(
+                            color="#FFD700" if is_move_armed_line else "#FFA500",
+                            width=5 if is_move_armed_line else (4 if is_selected else 3),
+                        ),
+                        name=cid,
+                        showlegend=False,
+                        customdata=[["conduit", idx, cid, -1]] * len(xs),
+                        hovertemplate=f"{cid}<extra></extra>",
+                    )
+                )
+                _register_trace("conduit", idx, -1, cid)
 
             for p_idx, (px, py) in enumerate(zip(xs, ys)):
                 v_selected = (
@@ -915,7 +921,7 @@ def build_interactive_canvas_figure():
                 _register_trace("dimension_conduit_note", idx, -1, cid)
 
     # Workflow
-    if "path_points" in st.session_state and len(st.session_state.path_points) >= 2:
+    if show_workflow and "path_points" in st.session_state and len(st.session_state.path_points) >= 2:
         wdf = st.session_state.path_points
         xs = [float(v) for v in wdf["X Coordinate"].tolist()]
         ys = [float(v) for v in wdf["Y Coordinate"].tolist()]
@@ -1155,104 +1161,105 @@ def build_interactive_canvas_figure():
             ))
             _register_trace("dimension_workflow_note", 0, -1, "WF-001")
 
-    # Cranes
-    for idx, cr in enumerate(st.session_state.placed_cranes):
-        ll_x = float(cr.get("ll_x", 0.0))
-        ll_y = float(cr.get("ll_y", 0.0))
-        ur_x = float(cr.get("ur_x", 0.0))
-        ur_y = float(cr.get("ur_y", 0.0))
-        crid = str(cr.get("id", f"CR-{idx+1:03d}"))
+       # Cranes
+    if show_cranes:
+        for idx, cr in enumerate(st.session_state.placed_cranes):
+            ll_x = float(cr.get("ll_x", 0.0))
+            ll_y = float(cr.get("ll_y", 0.0))
+            ur_x = float(cr.get("ur_x", 0.0))
+            ur_y = float(cr.get("ur_y", 0.0))
+            crid = str(cr.get("id", f"CR-{idx+1:03d}"))
 
-        is_selected = (
-            st.session_state.editor_selected_type == "crane"
-            and int(st.session_state.editor_selected_index) == idx
-        )
+            is_selected = (
+                st.session_state.editor_selected_type == "crane"
+                and int(st.session_state.editor_selected_index) == idx
+            )
 
-        is_move_armed = (
-            st.session_state.get("editor_move_awaiting_target", False)
-            and st.session_state.get("editor_move_selected_type", "") == "crane"
-            and int(st.session_state.get("editor_move_selected_index", -1)) == idx
-        )
+            is_move_armed = (
+                st.session_state.get("editor_move_awaiting_target", False)
+                and st.session_state.get("editor_move_selected_type", "") == "crane"
+                and int(st.session_state.get("editor_move_selected_index", -1)) == idx
+            )
 
-        fig.add_shape(
-            type="rect",
-            x0=ll_x,
-            y0=ll_y,
-            x1=ur_x,
-            y1=ur_y,
-            line=dict(
-                color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#BBBBBB"),
-                width=4 if is_move_armed else (3 if is_selected else 2),
-                dash="dash",
-            ),
-            fillcolor="rgba(255,215,0,0.22)" if is_move_armed else "rgba(160,160,160,0.18)",
-        )
-
-        cx = (ll_x + ur_x) / 2.0
-        cy = (ll_y + ur_y) / 2.0
-
-        fig.add_trace(
-            go.Scatter(
-                x=[cx],
-                y=[cy],
-                mode="markers+text",
-                marker=dict(
-                    size=18 if is_move_armed else (16 if is_selected else 12),
+            fig.add_shape(
+                type="rect",
+                x0=ll_x,
+                y0=ll_y,
+                x1=ur_x,
+                y1=ur_y,
+                line=dict(
                     color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#BBBBBB"),
-                    symbol="square",
-                    line=dict(
-                        color="#FF00FF" if is_move_armed else "white",
-                        width=2 if is_move_armed else 1.5,
+                    width=4 if is_move_armed else (3 if is_selected else 2),
+                    dash="dash",
+                ),
+                fillcolor="rgba(255,215,0,0.22)" if is_move_armed else "rgba(160,160,160,0.18)",
+            )
+
+            cx = (ll_x + ur_x) / 2.0
+            cy = (ll_y + ur_y) / 2.0
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[cx],
+                    y=[cy],
+                    mode="markers+text",
+                    marker=dict(
+                        size=18 if is_move_armed else (16 if is_selected else 12),
+                        color="#FFD700" if is_move_armed else ("#00E5FF" if is_selected else "#BBBBBB"),
+                        symbol="square",
+                        line=dict(
+                            color="#FF00FF" if is_move_armed else "white",
+                            width=2 if is_move_armed else 1.5,
+                        ),
                     ),
-                ),
-                text=[crid],
-                textposition="top center",
-                name=crid,
-                customdata=[["crane", idx, crid, -1]],
-                hovertemplate=f"{crid}<br>X={cx:.2f}<br>Y={cy:.2f}<extra></extra>",
-                showlegend=False,
+                    text=[crid],
+                    textposition="top center",
+                    name=crid,
+                    customdata=[["crane", idx, crid, -1]],
+                    hovertemplate=f"{crid}<br>X={cx:.2f}<br>Y={cy:.2f}<extra></extra>",
+                    showlegend=False,
+                )
             )
-        )
-        _register_trace("crane", idx, -1, crid)
+            _register_trace("crane", idx, -1, crid)
 
-        if show_dim_traces and bool(cr.get("dim_visible", True)):
-            g = _crane_note_geometry(cr)
+            if show_dim_traces and bool(cr.get("dim_visible", True)):
+                g = _crane_note_geometry(cr)
 
-            is_note_armed = (
-                st.session_state.get("editor_dim_move_awaiting_target", False)
-                and st.session_state.get("editor_dim_selected_owner_type", "") == "crane"
-                and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
-                and st.session_state.get("editor_dim_selected_axis", "") == "note"
-            )
+                is_note_armed = (
+                    st.session_state.get("editor_dim_move_awaiting_target", False)
+                    and st.session_state.get("editor_dim_selected_owner_type", "") == "crane"
+                    and int(st.session_state.get("editor_dim_selected_owner_index", -1)) == idx
+                    and st.session_state.get("editor_dim_selected_axis", "") == "note"
+                )
 
-            note_color = "#FFD700" if is_note_armed else "#FFFFFF"
+                note_color = "#FFD700" if is_note_armed else "#FFFFFF"
 
-            fig.add_trace(go.Scatter(
-                x=[g["tx"]],
-                y=[g["ty"]],
-                mode="text",
-                text=[crid],
-                textposition="middle center",
-                textfont=dict(color=note_color, size=12),
-                showlegend=False,
-                hoverinfo="skip",
-            ))
-            _register_trace("dimension_crane_note_visual", idx, -1, crid)
+                fig.add_trace(go.Scatter(
+                    x=[g["tx"]],
+                    y=[g["ty"]],
+                    mode="text",
+                    text=[crid],
+                    textposition="middle center",
+                    textfont=dict(color=note_color, size=12),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+                _register_trace("dimension_crane_note_visual", idx, -1, crid)
 
-            fig.add_trace(go.Scatter(
-                x=[g["tx"]],
-                y=[g["ty"]],
-                mode="markers",
-                marker=dict(
-                    size=48,
-                    color="rgba(255,215,0,0.20)" if is_note_armed else "rgba(255,255,255,0.08)",
-                    line=dict(width=1, color="rgba(255,255,255,0.20)")
-                ),
-                showlegend=False,
-                customdata=[["dimension_crane_note", idx, crid, -1]],
-                hovertemplate=f"{crid} note<extra></extra>",
-            ))
-            _register_trace("dimension_crane_note", idx, -1, crid)
+                fig.add_trace(go.Scatter(
+                    x=[g["tx"]],
+                    y=[g["ty"]],
+                    mode="markers",
+                    marker=dict(
+                        size=48,
+                        color="rgba(255,215,0,0.20)" if is_note_armed else "rgba(255,255,255,0.08)",
+                        line=dict(width=1, color="rgba(255,255,255,0.20)")
+                    ),
+                    showlegend=False,
+                    customdata=[["dimension_crane_note", idx, crid, -1]],
+                    hovertemplate=f"{crid} note<extra></extra>",
+                ))
+                _register_trace("dimension_crane_note", idx, -1, crid)
 
     # Floor click target grid
     # Add this late so object traces win clicks when overlapping.
