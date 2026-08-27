@@ -724,7 +724,7 @@ def draw_asme_drawing(
       cy_in = [O_y + val * S for val in cond["y"]]
       ax.plot(cx_in, cy_in, color="#FFA500", linestyle="-", lw=2, zorder=3)
 
-       if show_locator_dims and bool(cond.get("dim_visible", True)):
+      if show_locator_dims and bool(cond.get("dim_visible", True)):
         xs_ft = [float(v) for v in cond.get("x", [])]
         ys_ft = [float(v) for v in cond.get("y", [])]
         vertex_dim_offsets = cond.get("vertex_dim_offsets", {})
@@ -755,10 +755,6 @@ def draw_asme_drawing(
                 y_text_dx_in=float(v_off.get("y_text_dx_ft", 0.0)) * S,
                 y_text_dy_in=float(v_off.get("y_text_dy_ft", 0.0)) * S,
             )
-      
-      if show_locator_dims and bool(cond.get("dim_visible", True)):
-        xs_ft = [float(v) for v in cond.get("x", [])]
-        ys_ft = [float(v) for v in cond.get("y", [])]
 
         if len(xs_ft) >= 2 and len(xs_ft) == len(ys_ft):
           cx_ft = sum(xs_ft) / len(xs_ft)
@@ -782,12 +778,9 @@ def draw_asme_drawing(
             note_lines.append(f"Len: {total_len:.1f} ft")
 
           if show_metadata:
-            utility_type = str(cond.get("utility_type", "electrical"))
-            depth = cond.get("depth_in", None)
-            if depth is not None:
-              note_lines.append(f"{utility_type} / {depth} in")
-            else:
-              note_lines.append(utility_type)
+            utility_type = cond.get("type", None)
+            if utility_type:
+              note_lines.append(str(utility_type))
 
           ax.text(
               cx_note + label_x_offset_in,
@@ -800,7 +793,7 @@ def draw_asme_drawing(
               zorder=8,
               bbox=dict(
                   facecolor="#222222",
-                  edgecolor="orange",
+                  edgecolor="#FFA500",
                   alpha=0.55,
                   pad=1.0,
               ),
