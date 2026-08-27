@@ -2553,8 +2553,13 @@ def render_interactive_editor():
                     st.session_state.editor_prime_inputs = True
                     return
                 else:
+                    clicked_type = None
+                    if click_info:
+                        clicked_type = click_info.get("entity_type", None)
+
                     st.session_state.editor_phase3_status = (
-                        "Dim mode: click a visible dimension label."
+                        f"Dim mode: click a dimension label. "
+                        f"Last click resolved as: {clicked_type}"
                     )
                     return
             else:
