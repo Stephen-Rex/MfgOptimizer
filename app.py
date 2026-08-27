@@ -9,6 +9,9 @@ from engine import (
     calculate_production_metrics,
     run_layout_analysis,
     build_full_report_bundle,
+    build_lighting_report,
+    build_crane_report,
+    build_workflow_report,
 )
 from library_loader import (
     get_default_cranes,
@@ -345,6 +348,9 @@ with tab_reports:
     production_report = report_bundle["production_report"]
     utility_report = report_bundle["utility_report"]
     machine_schedule = report_bundle["machine_schedule"]
+    lighting_report = report_bundle["lighting_report"]
+    crane_report = report_bundle["crane_report"]
+    workflow_report = report_bundle["workflow_report"]
 
     st.subheader("Project Summary")
     st.json(summary_report, expanded=False)
@@ -372,6 +378,25 @@ with tab_reports:
         use_container_width=True,
     )
 
+    st.subheader("Lighting Report")
+    st.dataframe(
+        pd.DataFrame(lighting_report["lighting"]),
+        use_container_width=True,
+    )
+
+    st.subheader("Crane Report")
+    st.dataframe(
+        pd.DataFrame(crane_report["cranes"]),
+        use_container_width=True,
+    )
+
+    st.subheader("Workflow Report")
+    st.dataframe(
+        pd.DataFrame(workflow_report["workflow_paths"]),
+        use_container_width=True,
+    )    
+
+    
     st.subheader("Download Report Bundle")
     report_json = json.dumps(report_bundle, indent=2)
 
