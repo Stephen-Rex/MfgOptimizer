@@ -173,9 +173,9 @@ def _clear_dimension_move_state():
     st.session_state.editor_dim_move_awaiting_target = False
     st.session_state.editor_dim_selected_owner_type = ""
     st.session_state.editor_dim_selected_owner_index = -1
+    st.session_state.editor_dim_selected_sub_index = -1
     st.session_state.editor_dim_selected_owner_id = ""
     st.session_state.editor_dim_selected_axis = ""
-    st.session_state.editor_dim_selected_sub_index = -1
 
 
 def _resolve_canvas_click(point_data):
@@ -717,7 +717,7 @@ def _begin_dimension_move_from_click_info(click_info):
     st.session_state.editor_dim_selected_owner_index = obj_index
     st.session_state.editor_dim_selected_sub_index = sub_index
     st.session_state.editor_dim_selected_owner_id = owner_id
-    st.session_state.editor_dim_selected_axis = axis
+    st.session_state.editor_dim_selected_axis = axi
 
     st.session_state.editor_phase3_status = (
         f"Moving {owner_type} {owner_id} {axis.upper()} dimension: click destination."
