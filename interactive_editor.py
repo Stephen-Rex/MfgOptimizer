@@ -240,6 +240,57 @@ def _resolve_canvas_click(point_data):
                     "x": float(x_val) if x_val is not None else None,
                     "y": float(y_val) if y_val is not None else None,
                 }
+                        if entity_type == "dimension_conduit_vertex_x_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "conduit_vertex",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "x",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_conduit_vertex_y_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "conduit_vertex",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "y",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_workflow_point_x_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "workflow_point",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "x",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }
+
+            if entity_type == "dimension_workflow_point_y_text":
+                return {
+                    "entity_type": "dimension",
+                    "owner_type": "workflow_point",
+                    "obj_index": obj_index,
+                    "sub_index": sub_index,
+                    "owner_id": obj_id,
+                    "axis": "y",
+                    "part": "text",
+                    "x": float(x_val) if x_val is not None else None,
+                    "y": float(y_val) if y_val is not None else None,
+                }    
 
             return {
                 "entity_type": entity_type,
@@ -290,6 +341,57 @@ def _resolve_canvas_click(point_data):
                         "x": float(x_val) if x_val is not None else None,
                         "y": float(y_val) if y_val is not None else None,
                     }
+                if entity_type == "dimension_conduit_vertex_x_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "conduit_vertex",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "x",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_conduit_vertex_y_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "conduit_vertex",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "y",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_workflow_point_x_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "workflow_point",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "x",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }
+
+                if entity_type == "dimension_workflow_point_y_text":
+                    return {
+                        "entity_type": "dimension",
+                        "owner_type": "workflow_point",
+                        "obj_index": obj_index,
+                        "sub_index": sub_index,
+                        "owner_id": obj_id,
+                        "axis": "y",
+                        "part": "text",
+                        "x": float(x_val) if x_val is not None else None,
+                        "y": float(y_val) if y_val is not None else None,
+                    }                    
 
                 return {
                     "entity_type": entity_type,
@@ -874,6 +976,133 @@ def _apply_workflow_dimension_move(click_x, click_y):
 
     st.session_state.editor_phase3_status = "Moved workflow note."
 
+def _apply_conduit_vertex_dimension_move(obj_index, vertex_index, axis, click_x, click_y):
+    conduits = st.session_state.get("placed_conduits", [])
+    if obj_index < 0 or obj_index >= len(conduits):
+        st.session_state.editor_phase3_status = "Invalid conduit vertex dimension target."
+        return
+
+    c = conduits[obj_index]
+    xs = [float(v) for v in c.get("x", [])]
+    ys = [float(v) for v in c.get("y", [])]
+
+    if vertex_index < 0 or vertex_index >= len(xs) or vertex_index >= len(ys):
+        st.session_state.editor_phase3_status = "Invalid conduit vertex index."
+        return
+
+    px = xs[vertex_index]
+    py = ys[vertex_index]
+
+    if "vertex_dim_offsets" not in c or not isinstance(c.get("vertex_dim_offsets"), dict):
+        c["vertex_dim_offsets"] = {}
+
+    key = str(vertex_index)
+    if key not in c["vertex_dim_offsets"] or not isinstance(c["vertex_dim_offsets"][key], dict):
+        c["vertex_dim_offsets"][key] = {
+            "x_text_dx_ft": 0.0,
+            "x_text_dy_ft": 0.0,
+            "y_text_dx_ft": 0.0,
+            "y_text_dy_ft": 0.0,
+        }
+
+    if axis == "x":
+        default_x = (0.0 + px) / 2.0
+        default_y = 0.0 - 2.5 - (vertex_index * 1.0) - 0.8
+        c["vertex_dim_offsets"][key]["x_text_dx_ft"] = float(click_x) - default_x
+        c["vertex_dim_offsets"][key]["x_text_dy_ft"] = float(click_y) - default_y
+    elif axis == "y":
+        default_x = 0.0 - 2.5 - (vertex_index * 1.0) - 0.8
+        default_y = (0.0 + py) / 2.0
+        c["vertex_dim_offsets"][key]["y_text_dx_ft"] = float(click_x) - default_x
+        c["vertex_dim_offsets"][key]["y_text_dy_ft"] = float(click_y) - default_y
+
+    st.session_state.editor_phase3_status = (
+        f"Moved conduit {c.get('id', obj_index)} vertex {vertex_index + 1} {axis.upper()} dimension."
+    )
+
+def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
+    if "path_points" not in st.session_state or len(st.session_state.path_points) == 0:
+        st.session_state.editor_phase3_status = "Workflow geometry invalid."
+        return
+
+    _normalize_workflow_df()
+    df = st.session_state.path_points.copy()
+
+    if point_index < 0 or point_index >= len(df):
+        st.session_state.editor_phase3_status = "Invalid workflow point dimension target."
+        return
+
+    px = float(df.iloc[point_index]["X Coordinate"])
+    py = float(df.iloc[point_index]["Y Coordinate"])
+
+    offset_col_map = {
+        "x_dx": "dim_x_text_dx_ft",
+        "x_dy": "dim_x_text_dy_ft",
+        "y_dx": "dim_y_text_dx_ft",
+        "y_dy": "dim_y_text_dy_ft",
+    }
+
+    for col in offset_col_map.values():
+        if col not in df.columns:
+            df[col] = 0.0
+
+    if axis == "x":
+        default_x = (0.0 + px) / 2.0
+        default_y = 0.0 - 3.0 - (point_index * 1.0) - 0.8
+        df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_x
+        df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_y
+    elif axis == "y":
+        default_x = 0.0 - 3.0 - (point_index * 1.0) - 0.8
+        default_y = (0.0 + py) / 2.0
+        df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_x
+        df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_y
+
+    st.session_state.path_points = df
+    st.session_state.editor_phase3_status = (
+        f"Moved workflow point {point_index + 1} {axis.upper()} dimension."
+    )
+
+def _apply_workflow_point_dimension_move(point_index, axis, click_x, click_y):
+    if "path_points" not in st.session_state or len(st.session_state.path_points) == 0:
+        st.session_state.editor_phase3_status = "Workflow geometry invalid."
+        return
+
+    _normalize_workflow_df()
+    df = st.session_state.path_points.copy()
+
+    if point_index < 0 or point_index >= len(df):
+        st.session_state.editor_phase3_status = "Invalid workflow point dimension target."
+        return
+
+    px = float(df.iloc[point_index]["X Coordinate"])
+    py = float(df.iloc[point_index]["Y Coordinate"])
+
+    offset_col_map = {
+        "x_dx": "dim_x_text_dx_ft",
+        "x_dy": "dim_x_text_dy_ft",
+        "y_dx": "dim_y_text_dx_ft",
+        "y_dy": "dim_y_text_dy_ft",
+    }
+
+    for col in offset_col_map.values():
+        if col not in df.columns:
+            df[col] = 0.0
+
+    if axis == "x":
+        default_x = (0.0 + px) / 2.0
+        default_y = 0.0 - 3.0 - (point_index * 1.0) - 0.8
+        df.at[point_index, "dim_x_text_dx_ft"] = float(click_x) - default_x
+        df.at[point_index, "dim_x_text_dy_ft"] = float(click_y) - default_y
+    elif axis == "y":
+        default_x = 0.0 - 3.0 - (point_index * 1.0) - 0.8
+        default_y = (0.0 + py) / 2.0
+        df.at[point_index, "dim_y_text_dx_ft"] = float(click_x) - default_x
+        df.at[point_index, "dim_y_text_dy_ft"] = float(click_y) - default_y
+
+    st.session_state.path_points = df
+    st.session_state.editor_phase3_status = (
+        f"Moved workflow point {point_index + 1} {axis.upper()} dimension."
+    )
 
 def _apply_crane_dimension_move(idx, click_x, click_y):
     cranes = st.session_state.placed_cranes
@@ -930,6 +1159,12 @@ def _apply_dimension_move_to_click(point_data):
         _apply_workflow_dimension_move(x_val, y_val)
     elif owner_type == "crane":
         _apply_crane_dimension_move(owner_index, x_val, y_val)
+    elif owner_type == "conduit_vertex":
+        owner_sub_index = int(click_info.get("sub_index", -1))
+        _apply_conduit_vertex_dimension_move(owner_index, owner_sub_index, axis, x_val, y_val)
+    elif owner_type == "workflow_point":
+        owner_sub_index = int(click_info.get("sub_index", -1))
+        _apply_workflow_point_dimension_move(owner_sub_index, axis, x_val, y_val)
     else:
         st.session_state.editor_phase3_status = (
             f"Unsupported dimension owner type: {owner_type}"
