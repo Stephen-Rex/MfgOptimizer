@@ -175,6 +175,7 @@ def _clear_dimension_move_state():
     st.session_state.editor_dim_selected_owner_index = -1
     st.session_state.editor_dim_selected_owner_id = ""
     st.session_state.editor_dim_selected_axis = ""
+    st.session_state.editor_dim_selected_sub_index = -1
 
 
 def _resolve_canvas_click(point_data):
