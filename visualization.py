@@ -26,9 +26,11 @@ def _draw_point_locator_dims(
     dim_color="#66FFFF",
     ext_color="#AAAAAA",
     txt_color="#FFFFFF",
-    base_x_offset_in=0.85,
-    base_y_offset_in=0.85,
+    base_x_offset_in=0.45,
+    base_y_offset_in=0.45,
     stack_pitch_in=0.22,
+    x_line_dy_in=0.0,
+    y_line_dx_in=0.0,
     x_text_dx_in=0.0,
     x_text_dy_in=0.0,
     y_text_dx_in=0.0,
@@ -38,8 +40,14 @@ def _draw_point_locator_dims(
   px_in = O_x + float(pt_x_ft) * S
   py_in = O_y + float(pt_y_ft) * S
 
-  x_dim_y = O_y - base_x_offset_in - (idx * stack_pitch_in)
-  y_dim_x = O_x - base_y_offset_in - (idx * stack_pitch_in)
+  x_dim_y = O_y - base_x_offset_in - (idx * stack_pitch_in) + float(x_line_dy_in)
+  y_dim_x = O_x - base_y_offset_in - (idx * stack_pitch_in) + float(y_line_dx_in)
+
+  x_text_x = ((O_x + px_in) / 2.0) + float(x_text_dx_in)
+  x_text_y = (x_dim_y - 0.14) + float(x_text_dy_in)
+
+  y_text_x = (y_dim_x - 0.14) + float(y_text_dx_in)
+  y_text_y = ((O_y + py_in) / 2.0) + float(y_text_dy_in)
 
   # X dimension
   _draw_dim_line(ax, O_x, x_dim_y, px_in, x_dim_y, color=dim_color, lw=0.8, z=7)
@@ -48,19 +56,16 @@ def _draw_point_locator_dims(
   _draw_tick(ax, O_x, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
   _draw_tick(ax, px_in, x_dim_y, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
-  x_text_gap_in = 0.10
-  y_text_gap_in = 0.18
-
   ax.text(
-      ((O_x + px_in) / 2.0) + x_text_dx_in,
-      (x_dim_y - 0.05) + x_text_dy_in,
-      f"X = {pt_x_ft:.1f} ft",
-      fontsize=5.3,
+      x_text_x,
+      x_text_y,
+      f"X = {float(pt_x_ft):.1f} ft",
+      fontsize=5.5,
       color=txt_color,
       ha="center",
       va="top",
       zorder=8,
-      bbox=dict(facecolor="#222222", edgecolor="none", alpha=0.5, pad=0.8),
+      bbox=dict(facecolor="#111111", edgecolor="none", alpha=0.35, pad=0.6),
   )
 
   # Y dimension
@@ -71,16 +76,15 @@ def _draw_point_locator_dims(
   _draw_tick(ax, y_dim_x, py_in, 0.03, 0.03, color=dim_color, lw=0.8, z=7)
 
   ax.text(
-      (y_dim_x - 0.05) + y_text_dx_in,
-      ((O_y + py_in) / 2.0) + y_text_dy_in,
-      f"Y = {pt_y_ft:.1f} ft",
-      fontsize=5.3,
+      y_text_x,
+      y_text_y,
+      f"Y = {float(pt_y_ft):.1f} ft",
+      fontsize=5.5,
       color=txt_color,
       ha="right",
       va="center",
-      rotation=90,
       zorder=8,
-      bbox=dict(facecolor="#222222", edgecolor="none", alpha=0.5, pad=0.8),
+      bbox=dict(facecolor="#111111", edgecolor="none", alpha=0.35, pad=0.6),
   )
 
 
@@ -615,19 +619,25 @@ def draw_asme_drawing(
           workflow_df = st.session_state.path_points.copy()
 
           for p_idx, (vx_ft, vy_ft) in enumerate(zip(x_pts, y_pts)):
-            x_dx_in = 0.0
-            x_dy_in = 0.0
-            y_dx_in = 0.0
-            y_dy_in = 0.0
+            x_line_dy_in = 0.0
+            y_line_dx_in = 0.0
+            x_text_dx_in = 0.0
+            x_text_dy_in = 0.0
+            y_text_dx_in = 0.0
+            y_text_dy_in = 0.0
 
+            if "dim_x_line_dy_ft" in workflow_df.columns:
+              x_line_dy_in = float(workflow_df.iloc[p_idx].get("dim_x_line_dy_ft", 0.0)) * S
+            if "dim_y_line_dx_ft" in workflow_df.columns:
+              y_line_dx_in = float(workflow_df.iloc[p_idx].get("dim_y_line_dx_ft", 0.0)) * S
             if "dim_x_text_dx_ft" in workflow_df.columns:
-              x_dx_in = float(workflow_df.iloc[p_idx].get("dim_x_text_dx_ft", 0.0)) * S
+              x_text_dx_in = float(workflow_df.iloc[p_idx].get("dim_x_text_dx_ft", 0.0)) * S
             if "dim_x_text_dy_ft" in workflow_df.columns:
-              x_dy_in = float(workflow_df.iloc[p_idx].get("dim_x_text_dy_ft", 0.0)) * S
+              x_text_dy_in = float(workflow_df.iloc[p_idx].get("dim_x_text_dy_ft", 0.0)) * S
             if "dim_y_text_dx_ft" in workflow_df.columns:
-              y_dx_in = float(workflow_df.iloc[p_idx].get("dim_y_text_dx_ft", 0.0)) * S
+              y_text_dx_in = float(workflow_df.iloc[p_idx].get("dim_y_text_dx_ft", 0.0)) * S
             if "dim_y_text_dy_ft" in workflow_df.columns:
-              y_dy_in = float(workflow_df.iloc[p_idx].get("dim_y_text_dy_ft", 0.0)) * S
+              y_text_dy_in = float(workflow_df.iloc[p_idx].get("dim_y_text_dy_ft", 0.0)) * S
 
             _draw_point_locator_dims(
                 ax,
@@ -644,10 +654,12 @@ def draw_asme_drawing(
                 base_x_offset_in=0.85,
                 base_y_offset_in=0.85,
                 stack_pitch_in=0.18,
-                x_text_dx_in=x_dx_in,
-                x_text_dy_in=x_dy_in,
-                y_text_dx_in=y_dx_in,
-                y_text_dy_in=y_dy_in,
+                x_line_dy_in=x_line_dy_in,
+                y_line_dx_in=y_line_dx_in,
+                x_text_dx_in=x_text_dx_in,
+                x_text_dy_in=x_text_dy_in,
+                y_text_dx_in=y_text_dx_in,
+                y_text_dy_in=y_text_dy_in,
             )
 
         # Workflow centroid annotation box
@@ -713,12 +725,12 @@ def draw_asme_drawing(
       cy_in = [O_y + val * S for val in cond["y"]]
       ax.plot(cx_in, cy_in, color="#FFA500", linestyle="-", lw=2, zorder=3)
 
-      if show_locator_dims and bool(cond.get("dim_visible", True)):
+       if show_locator_dims and bool(cond.get("dim_visible", True)):
         xs_ft = [float(v) for v in cond.get("x", [])]
         ys_ft = [float(v) for v in cond.get("y", [])]
         vertex_dim_offsets = cond.get("vertex_dim_offsets", {})
 
-        if len(xs_ft) == len(ys_ft):
+        if len(xs_ft) >= 2 and len(xs_ft) == len(ys_ft):
           for p_idx, (vx_ft, vy_ft) in enumerate(zip(xs_ft, ys_ft)):
             v_off = vertex_dim_offsets.get(str(p_idx), {})
 
@@ -737,6 +749,8 @@ def draw_asme_drawing(
                 base_x_offset_in=0.55,
                 base_y_offset_in=0.55,
                 stack_pitch_in=0.18,
+                x_line_dy_in=float(v_off.get("x_line_dy_ft", 0.0)) * S,
+                y_line_dx_in=float(v_off.get("y_line_dx_ft", 0.0)) * S,
                 x_text_dx_in=float(v_off.get("x_text_dx_ft", 0.0)) * S,
                 x_text_dy_in=float(v_off.get("x_text_dy_ft", 0.0)) * S,
                 y_text_dx_in=float(v_off.get("y_text_dx_ft", 0.0)) * S,
