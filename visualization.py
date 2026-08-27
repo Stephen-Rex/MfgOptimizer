@@ -1388,9 +1388,9 @@ def draw_3d_asme_factory_viewport(
       vy = [y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max]
       vz = [0, 0, 0, 0, z_crane_beam, z_crane_beam, z_crane_beam, z_crane_beam]
 
-      i_idx = [7, 0, 0, 0, 4, 4, 2, 6, 4, 0, 3, 7]
-      j_idx = [0, 1, 2, 3, 5, 1, 3, 7, 0, 1, 2, 6]
-      k_idx = [4, 5, 6, 7, 1, 5, 7, 5, 1, 2, 6, 2]
+      i_idx = [0, 0, 4, 4, 0, 0, 1, 1, 2, 2, 3, 3]
+      j_idx = [1, 2, 5, 6, 1, 5, 2, 6, 3, 7, 0, 4]
+      k_idx = [2, 3, 6, 7, 5, 4, 6, 5, 7, 6, 4, 7]
 
       fig.add_trace(
           go.Mesh3d(
