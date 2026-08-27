@@ -612,7 +612,23 @@ def draw_asme_drawing(
 
         # Per-vertex locator dimensions for workflow points
         if show_locator_dims and bool(st.session_state.get("workflow_dim_visible", True)):
+          workflow_df = st.session_state.path_points.copy()
+
           for p_idx, (vx_ft, vy_ft) in enumerate(zip(x_pts, y_pts)):
+            x_dx_in = 0.0
+            x_dy_in = 0.0
+            y_dx_in = 0.0
+            y_dy_in = 0.0
+
+            if "dim_x_text_dx_ft" in workflow_df.columns:
+              x_dx_in = float(workflow_df.iloc[p_idx].get("dim_x_text_dx_ft", 0.0)) * S
+            if "dim_x_text_dy_ft" in workflow_df.columns:
+              x_dy_in = float(workflow_df.iloc[p_idx].get("dim_x_text_dy_ft", 0.0)) * S
+            if "dim_y_text_dx_ft" in workflow_df.columns:
+              y_dx_in = float(workflow_df.iloc[p_idx].get("dim_y_text_dx_ft", 0.0)) * S
+            if "dim_y_text_dy_ft" in workflow_df.columns:
+              y_dy_in = float(workflow_df.iloc[p_idx].get("dim_y_text_dy_ft", 0.0)) * S
+
             _draw_point_locator_dims(
                 ax,
                 O_x,
@@ -628,6 +644,10 @@ def draw_asme_drawing(
                 base_x_offset_in=0.85,
                 base_y_offset_in=0.85,
                 stack_pitch_in=0.18,
+                x_text_dx_in=x_dx_in,
+                x_text_dy_in=x_dy_in,
+                y_text_dx_in=y_dx_in,
+                y_text_dy_in=y_dy_in,
             )
 
         # Workflow centroid annotation box
@@ -696,9 +716,12 @@ def draw_asme_drawing(
       if show_locator_dims and bool(cond.get("dim_visible", True)):
         xs_ft = [float(v) for v in cond.get("x", [])]
         ys_ft = [float(v) for v in cond.get("y", [])]
+        vertex_dim_offsets = cond.get("vertex_dim_offsets", {})
 
         if len(xs_ft) == len(ys_ft):
           for p_idx, (vx_ft, vy_ft) in enumerate(zip(xs_ft, ys_ft)):
+            v_off = vertex_dim_offsets.get(str(p_idx), {})
+
             _draw_point_locator_dims(
                 ax,
                 O_x,
@@ -714,8 +737,12 @@ def draw_asme_drawing(
                 base_x_offset_in=0.55,
                 base_y_offset_in=0.55,
                 stack_pitch_in=0.18,
+                x_text_dx_in=float(v_off.get("x_text_dx_ft", 0.0)) * S,
+                x_text_dy_in=float(v_off.get("x_text_dy_ft", 0.0)) * S,
+                y_text_dx_in=float(v_off.get("y_text_dx_ft", 0.0)) * S,
+                y_text_dy_in=float(v_off.get("y_text_dy_ft", 0.0)) * S,
             )
-
+      
       if show_locator_dims and bool(cond.get("dim_visible", True)):
         xs_ft = [float(v) for v in cond.get("x", [])]
         ys_ft = [float(v) for v in cond.get("y", [])]
@@ -855,8 +882,6 @@ def draw_asme_drawing(
 
         if not dim_visible:
             continue
-
-
         x_text_gap_in = 0.14
         y_text_gap_in = 0.55
 
