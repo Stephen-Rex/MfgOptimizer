@@ -709,7 +709,10 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
         st.session_state.editor_dim_selected_owner_id = ""
 
     if "editor_dim_selected_axis" not in st.session_state:
-        st.session_state.editor_dim_selected_axis = ""        
+        st.session_state.editor_dim_selected_axis = ""
+
+    if "editor_dim_selected_sub_index" not in st.session_state:
+        st.session_state.editor_dim_selected_sub_index = -1    
 
     
 
