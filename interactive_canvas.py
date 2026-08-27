@@ -183,15 +183,26 @@ def _crane_note_geometry(cr):
     ty = cy + float(cr.get("dim_label_y_offset_ft", 0.0))
     return {"cx": cx, "cy": cy, "tx": tx, "ty": ty}
 
-def _point_dimension_geometry(px, py, idx, base_x_offset=2.5, base_y_offset=2.5, stack_pitch=1.0):
+def _point_dimension_geometry(
+    px,
+    py,
+    idx,
+    base_x_offset=2.5,
+    base_y_offset=2.5,
+    stack_pitch=1.0,
+    x_text_dx_ft=0.0,
+    x_text_dy_ft=0.0,
+    y_text_dx_ft=0.0,
+    y_text_dy_ft=0.0,
+):
     x_dim_y = 0.0 - base_x_offset - (idx * stack_pitch)
     y_dim_x = 0.0 - base_y_offset - (idx * stack_pitch)
 
-    x_text_x = (0.0 + float(px)) / 2.0
-    x_text_y = x_dim_y - 0.8
+    x_text_x = ((0.0 + float(px)) / 2.0) + float(x_text_dx_ft)
+    x_text_y = (x_dim_y - 0.8) + float(x_text_dy_ft)
 
-    y_text_x = y_dim_x - 0.8
-    y_text_y = (0.0 + float(py)) / 2.0
+    y_text_x = (y_dim_x - 0.8) + float(y_text_dx_ft)
+    y_text_y = ((0.0 + float(py)) / 2.0) + float(y_text_dy_ft)
 
     return {
         "px": float(px),
@@ -726,7 +737,20 @@ def build_interactive_canvas_figure():
                 _register_trace("conduit_vertex", idx, p_idx, cid)
 
                 if show_dim_traces and bool(c.get("dim_visible", True)):
-                    g = _point_dimension_geometry(px, py, p_idx, base_x_offset=2.5, base_y_offset=2.5, stack_pitch=1.0)
+                    vertex_dim_offsets = c.get("vertex_dim_offsets", {})
+                    v_off = vertex_dim_offsets.get(str(p_idx), {})
+                    g = _point_dimension_geometry(
+                        px,
+                        py,
+                        p_idx,
+                        base_x_offset=2.5,
+                        base_y_offset=2.5,
+                        stack_pitch=1.0,
+                        x_text_dx_ft=float(v_off.get("x_text_dx_ft", 0.0)),
+                        x_text_dy_ft=float(v_off.get("x_text_dy_ft", 0.0)),
+                        y_text_dx_ft=float(v_off.get("y_text_dx_ft", 0.0)),
+                        y_text_dy_ft=float(v_off.get("y_text_dy_ft", 0.0)),
+                    )
                     dim_color = "#FFD700" if v_selected else "#66FFFF"
                     ext_color = "#AAAAAA"
 
@@ -937,7 +961,32 @@ def build_interactive_canvas_figure():
             _register_trace("workflow_point", 0, p_idx, "WF-001")
 
             if show_dim_traces and bool(st.session_state.get("workflow_dim_visible", True)):
-                g = _point_dimension_geometry(px, py, p_idx, base_x_offset=3.0, base_y_offset=3.0, stack_pitch=1.0)
+                x_dx = 0.0
+                x_dy = 0.0
+                y_dx = 0.0
+                y_dy = 0.0
+
+                if "dim_x_text_dx_ft" in wdf.columns:
+                    x_dx = float(wdf.iloc[p_idx].get("dim_x_text_dx_ft", 0.0))
+                if "dim_x_text_dy_ft" in wdf.columns:
+                    x_dy = float(wdf.iloc[p_idx].get("dim_x_text_dy_ft", 0.0))
+                if "dim_y_text_dx_ft" in wdf.columns:
+                    y_dx = float(wdf.iloc[p_idx].get("dim_y_text_dx_ft", 0.0))
+                if "dim_y_text_dy_ft" in wdf.columns:
+                    y_dy = float(wdf.iloc[p_idx].get("dim_y_text_dy_ft", 0.0))
+
+                g = _point_dimension_geometry(
+                    px,
+                    py,
+                    p_idx,
+                    base_x_offset=3.0,
+                    base_y_offset=3.0,
+                    stack_pitch=1.0,
+                    x_text_dx_ft=x_dx,
+                    x_text_dy_ft=x_dy,
+                    y_text_dx_ft=y_dx,
+                    y_text_dy_ft=y_dy,
+                )
                 dim_color = "#FFD700" if p_selected else "#66FFFF"
                 ext_color = "#AAAAAA"
 
