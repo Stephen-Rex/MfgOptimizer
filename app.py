@@ -423,6 +423,7 @@ with tab_reports:
     production_report = report_bundle["production_report"]
     utility_report = report_bundle["utility_report"]
     machine_schedule = report_bundle["machine_schedule"]
+    optimization_report = report_bundle.get("optimization_report", {})
 
     st.subheader("Project Summary")
     st.json(summary_report, expanded=False)
@@ -438,6 +439,94 @@ with tab_reports:
     st.subheader("Production Metrics Report")
     st.json(production_report, expanded=False)
 
+    st.subheader("Layout Optimization Report")
+
+    if not optimization_report:
+        st.info("No optimization report available.")
+    else:
+        overall_score = optimization_report.get("overall_score", None)
+        bottleneck_machine = optimization_report.get("bottleneck_machine", None)
+        bottleneck_rate = optimization_report.get("bottleneck_effective_rate", None)
+        subscores = optimization_report.get("subscores", {})
+        critical_links = optimization_report.get("critical_links", [])
+        recommendations = optimization_report.get("recommendations", [])
+        findings = optimization_report.get("findings", {})
+        status = optimization_report.get("status", "unknown")
+
+        if overall_score is None:
+            st.info(f"Optimization report status: {status}")
+        else:
+            opt_col1, opt_col2, opt_col3 = st.columns(3)
+
+            with opt_col1:
+                st.metric("Optimization Score", overall_score)
+
+            with opt_col2:
+                st.metric(
+                    "Bottleneck Machine",
+                    bottleneck_machine if bottleneck_machine else "N/A"
+                )
+
+            with opt_col3:
+                st.metric(
+                    "Bottleneck Effective Rate",
+                    bottleneck_rate if bottleneck_rate is not None else "N/A"
+                )
+
+            st.markdown("##### Optimization Subscores")
+            subscore_rows = [
+                {
+                    "Metric": "Flow Efficiency",
+                    "Score": subscores.get("flow_efficiency", None),
+                },
+                {
+                    "Metric": "Bottleneck Support",
+                    "Score": subscores.get("bottleneck_support", None),
+                },
+                {
+                    "Metric": "Safety Compliance",
+                    "Score": subscores.get("safety_compliance", None),
+                },
+                {
+                    "Metric": "Utility Serviceability",
+                    "Score": subscores.get("utility_serviceability", None),
+                },
+                {
+                    "Metric": "Handling / WIP",
+                    "Score": subscores.get("handling_wip", None),
+                },
+            ]
+            st.dataframe(pd.DataFrame(subscore_rows), use_container_width=True)
+
+            st.markdown("##### Critical Value-Added Flow Links")
+            if critical_links:
+                st.dataframe(pd.DataFrame(critical_links), use_container_width=True)
+            else:
+                st.success("No critical value-added flow links flagged by current heuristic.")
+
+            st.markdown("##### Placement Recommendations")
+            if recommendations:
+                for idx, rec in enumerate(recommendations, start=1):
+                    category = rec.get("category", "general")
+                    message = rec.get("message", "")
+                    related_ids = [
+                        rid for rid in rec.get("related_ids", []) if rid
+                    ]
+                    if related_ids:
+                        st.write(
+                            f"{idx}. [{category}] {message} "
+                            f"(Related: {', '.join(map(str, related_ids))})"
+                        )
+                    else:
+                        st.write(f"{idx}. [{category}] {message}")
+            else:
+                st.info("No optimization recommendations generated for the current layout.")
+
+            with st.expander("Optimization Findings (Debug Detail)", expanded=False):
+                st.json(findings, expanded=False)
+
+
+    
     st.subheader("Utility Routing Report")
     st.dataframe(
         pd.DataFrame(utility_report["utilities"]),
