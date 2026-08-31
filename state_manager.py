@@ -29,6 +29,9 @@ def normalize_project_schema_version(raw_version):
     if not version:
         version = "1.0"
 
+    if version not in SUPPORTED_PROJECT_SCHEMA_VERSIONS:
+        version = "1.0"
+
     return version
 
 def migrate_imported_project_dict(imported_data):
