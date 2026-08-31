@@ -4,6 +4,33 @@ import math
 import pandas as pd
 import streamlit as st
 
+# --- Phase 3b additions: schema/version helpers ---
+
+SUPPORTED_PROJECT_SCHEMA_VERSIONS = {
+    "1.0",
+    "1.1",
+    "1.2",
+    "1.3",
+    "1.4",
+}
+
+LATEST_PROJECT_SCHEMA_VERSION = "1.3"
+
+
+def normalize_project_schema_version(raw_version):
+    """
+    Return a safe string schema version.
+    """
+    try:
+        version = str(raw_version).strip()
+    except Exception:
+        version = "1.0"
+
+    if not version:
+        version = "1.0"
+
+    return version
+
 
 def parse_coords(coord_str):
     """Parses comma-separated string list to a list of coordinate floats safely."""
@@ -268,6 +295,146 @@ def on_crane_select_change(crane_lib):
         st.session_state["crane_lsp_add"] = float(spec["MaxLiftSpeed"])
         st.session_state["crane_tsp_add"] = float(spec["MaxTransversalSpeed"])
 
+def normalize_project_state_for_export():
+    """
+    Normalize current project state before export.
+    Safe to call prior to building export JSON.
+    """
+    ensure_object_ids()
+    ensure_machine_dimension_fields()
+    ensure_lighting_dimension_fields()
+    ensure_conduit_dimension_fields()
+    ensure_crane_dimension_fields()
+    ensure_workflow_dimension_fields()
+    ensure_machine_flow_fields()
+
+
+
+def normalize_imported_project_state():
+    """
+    Normalize imported session-state structures so older project files
+    remain compatible with current app expectations.
+    """
+    # Core object ID normalization
+    ensure_object_ids()
+
+    # Existing geometry/dimension normalization
+    ensure_machine_dimension_fields()
+    ensure_lighting_dimension_fields()
+    ensure_conduit_dimension_fields()
+    ensure_crane_dimension_fields()
+    ensure_workflow_dimension_fields()
+
+    # Phase 3b: machine-flow normalization
+    ensure_machine_flow_fields()
+
+    # Defensive defaults for missing collections
+    if "placed_machines" not in st.session_state or st.session_state.placed_machines is None:
+        st.session_state.placed_machines = []
+
+    if "placed_lighting" not in st.session_state or st.session_state.placed_lighting is None:
+        st.session_state.placed_lighting = []
+
+    if "placed_conduits" not in st.session_state or st.session_state.placed_conduits is None:
+        st.session_state.placed_conduits = []
+
+    if "placed_cranes" not in st.session_state or st.session_state.placed_cranes is None:
+        st.session_state.placed_cranes = []
+
+    if "machine_flows" not in st.session_state or st.session_state.machine_flows is None:
+        st.session_state.machine_flows = []
+
+    if "path_points" not in st.session_state or st.session_state.path_points is None:
+        st.session_state.path_points = pd.DataFrame()
+
+def validate_imported_project_state():
+    """
+    Validate all imported layout objects after normalization.
+    Raises ValueError on failure.
+    """
+    # Validate machines
+    for m in st.session_state.placed_machines:
+        ok, msg = validate_machine_record(
+            m,
+            st.session_state.floor_w,
+            st.session_state.floor_h,
+        )
+        if not ok:
+            raise ValueError(
+                f"Imported machine {m.get('id', '?')} invalid: {msg}"
+            )
+
+    # Validate conduits
+    for c in st.session_state.placed_conduits:
+        ok, msg = validate_polyline(
+            c.get("x", []),
+            c.get("y", []),
+            st.session_state.floor_w,
+            st.session_state.floor_h,
+        )
+        if not ok:
+            raise ValueError(
+                f"Imported conduit {c.get('id', '?')} invalid: {msg}"
+            )
+
+    # Validate cranes
+    for cr in st.session_state.placed_cranes:
+        ok, msg = validate_bbox(
+            cr.get("ll_x", 0),
+            cr.get("ll_y", 0),
+            cr.get("ur_x", 0),
+            cr.get("ur_y", 0),
+            st.session_state.floor_w,
+            st.session_state.floor_h,
+        )
+        if not ok:
+            raise ValueError(
+                f"Imported crane {cr.get('id', '?')} invalid: {msg}"
+            )
+
+    # Phase 3b: validate machine flows
+    ok, flow_errors = validate_all_machine_flows(
+        st.session_state.machine_flows,
+        st.session_state.placed_machines,
+    )
+    if not ok:
+        raise ValueError(" ; ".join(flow_errors))
+
+def migrate_imported_project_dict(imported_data):
+    """
+    Apply lightweight backward-compatible migrations to imported project data.
+    Returns a normalized dict.
+    """
+    if not isinstance(imported_data, dict):
+        raise ValueError("Imported project file must decode to a JSON object.")
+
+    schema_version = normalize_project_schema_version(
+        imported_data.get("schema_version", "1.0")
+    )
+    imported_data["schema_version"] = schema_version
+
+    # Backward compatibility: missing machine_flows means empty list
+    if "machine_flows" not in imported_data or imported_data["machine_flows"] is None:
+        imported_data["machine_flows"] = []
+
+    # Backward compatibility: path_points should remain list-like if present
+    if "path_points" in imported_data and imported_data["path_points"] is None:
+        imported_data["path_points"] = []
+
+    # Defensive collection defaults
+    for key in [
+        "placed_machines",
+        "placed_lighting",
+        "placed_conduits",
+        "placed_cranes",
+    ]:
+        if key not in imported_data or imported_data[key] is None:
+            imported_data[key] = []
+
+    return imported_data
+
+
+
 
 def apply_imported_layout():
     """Callback function to apply uploaded project JSON/TXT data to session state."""
@@ -279,10 +446,15 @@ def apply_imported_layout():
             content = st.session_state.uploaded_layout_file.read().decode("utf-8")
             imported_data = json.loads(content)
 
-            # Minimal schema handling
-            schema_version = imported_data.get("schema_version", "1.0")
+            # Phase 3b: normalize imported payload first
+            imported_data = migrate_imported_project_dict(imported_data)
+
+            schema_version = normalize_project_schema_version(
+                imported_data.get("schema_version", "1.0")
+            )
             st.session_state.schema_version = schema_version
 
+            # Copy simple fields
             for key in [
                 "designer_name",
                 "dwg_title",
@@ -318,70 +490,23 @@ def apply_imported_layout():
                 if key in imported_data:
                     st.session_state[key] = imported_data[key]
 
+            # Coerce key numeric/state fields
             if "floor_w" in imported_data:
                 st.session_state.floor_w = float(imported_data["floor_w"])
             if "floor_h" in imported_data:
                 st.session_state.floor_h = float(imported_data["floor_h"])
             if "path_width_ft" in imported_data:
                 st.session_state.path_width_ft = float(imported_data["path_width_ft"])
+
+            # Restore workflow points
             if "path_points" in imported_data:
                 st.session_state.path_points = pd.DataFrame(imported_data["path_points"])
 
-            ensure_object_ids()
-            ensure_machine_dimension_fields()
-            ensure_lighting_dimension_fields()
-            ensure_conduit_dimension_fields()
-            ensure_crane_dimension_fields()
-            ensure_workflow_dimension_fields()
-            ensure_machine_flow_fields()
+            # Phase 3b: normalize all imported state
+            normalize_imported_project_state()
 
-            ok, flow_errors = validate_all_machine_flows(
-                st.session_state.machine_flows,
-                st.session_state.placed_machines,
-            )
-            if not ok:
-                raise ValueError(" ; ".join(flow_errors))
-
-
-
-
-            
-
-            # Validate imported objects
-            for m in st.session_state.placed_machines:
-                ok, msg = validate_machine_record(
-                    m, st.session_state.floor_w, st.session_state.floor_h
-                )
-                if not ok:
-                    raise ValueError(
-                        f"Imported machine {m.get('id', '?')} invalid: {msg}"
-                    )
-
-            for c in st.session_state.placed_conduits:
-                ok, msg = validate_polyline(
-                    c.get("x", []),
-                    c.get("y", []),
-                    st.session_state.floor_w,
-                    st.session_state.floor_h,
-                )
-                if not ok:
-                    raise ValueError(
-                        f"Imported conduit {c.get('id', '?')} invalid: {msg}"
-                    )
-
-            for cr in st.session_state.placed_cranes:
-                ok, msg = validate_bbox(
-                    cr.get("ll_x", 0),
-                    cr.get("ll_y", 0),
-                    cr.get("ur_x", 0),
-                    cr.get("ur_y", 0),
-                    st.session_state.floor_w,
-                    st.session_state.floor_h,
-                )
-                if not ok:
-                    raise ValueError(
-                        f"Imported crane {cr.get('id', '?')} invalid: {msg}"
-                    )
+            # Phase 3b: validate all imported state
+            validate_imported_project_state()
 
             st.session_state["import_status"] = (
                 "success",
@@ -602,7 +727,7 @@ def get_machine_label_map(placed_machines):
 def init_session_state(machinery_lib, lighting_lib, crane_lib):
     """Initializes all required session_state variables."""
     if "schema_version" not in st.session_state:
-        st.session_state.schema_version = "1.1"
+        st.session_state.schema_version = LATEST_PROJECT_SCHEMA_VERSION
 
     if "sheet_size" not in st.session_state:
         st.session_state.sheet_size = "B"
