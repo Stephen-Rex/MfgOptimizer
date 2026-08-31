@@ -374,7 +374,7 @@ st.header("⚙️ Layout Configuration & Component Menus")
         "🔌 Conduit Routing & Edits",
         "💡 Lighting Fixtures & Edits",
         "🏗️ Overhead Cranes & Coverage",
-        "🔄 Machine Flows & Workflow Paths",
+        "🔄 Part Transportation & Machine Workflow",
         "💾 Import / Export Layout",
         "📚 Default Libraries",
         "🧾 Reports",
