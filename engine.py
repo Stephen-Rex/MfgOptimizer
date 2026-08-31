@@ -11,6 +11,75 @@ VALID_MOVEMENT_MODES = {
     "forklift",
 }
 
+# --- Phase 4.6 placeholders: optimization engine hooks ---
+
+TRANSFER_MODE_FACTORS = {
+    "human": 1.00,
+    "autonomous_robot": 0.85,
+    "robotic_arm": 0.60,
+    "overhead_crane": 1.10,
+    "forklift": 1.25,
+}
+
+
+def index_machines_by_id(placed_machines):
+    """
+    Return a dict of machine_id -> machine record.
+    """
+    out = {}
+    for idx, m in enumerate(placed_machines):
+        mid = str(m.get("id", f"M-{idx+1:03d}")).strip()
+        out[mid] = m
+    return out
+
+
+def safe_machine_effective_rate(machine):
+    """
+    Return effective machine rate using current throughput logic assumptions.
+    """
+    try:
+        volume = float(machine.get("Volume", 0.0))
+    except Exception:
+        volume = 0.0
+
+    try:
+        yield_pct = float(machine.get("Yield", 0.0))
+    except Exception:
+        yield_pct = 0.0
+
+    return max(0.0, volume * (yield_pct / 100.0))
+
+
+def machine_center_distance_ft(machine_a, machine_b):
+    """
+    Euclidean distance between machine center points.
+    """
+    try:
+        ax = float(machine_a.get("x", 0.0))
+        ay = float(machine_a.get("y", 0.0))
+        bx = float(machine_b.get("x", 0.0))
+        by = float(machine_b.get("y", 0.0))
+    except Exception:
+        return 0.0
+
+    return round(float(np.sqrt((ax - bx) ** 2 + (ay - by) ** 2)), 2)
+
+
+def empty_optimization_report():
+    """
+    Placeholder empty optimization report for Phase 1.
+    """
+    return {
+        "report_type": "optimization_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "overall_score": None,
+        "subscores": {},
+        "bottleneck_machine": None,
+        "critical_links": [],
+        "recommendations": [],
+        "status": "Phase 1 placeholder - optimization scoring not yet enabled.",
+    }
+
 
 def machine_is_in_any_crane_zone(machine, placed_cranes):
     """Check whether a machine centerpoint falls inside at least one crane envelope."""
@@ -413,4 +482,5 @@ def build_full_report_bundle(session_state, workflow_paths=None):
         "lighting_report": build_lighting_report(placed_lighting),
         "crane_report": build_crane_report(placed_cranes),
         "workflow_report": build_workflow_report(workflow_paths or []),
+        "optimization_report": empty_optimization_report(),
     }
