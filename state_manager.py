@@ -64,6 +64,212 @@ def migrate_imported_project_dict(imported_data):
 
     return imported_data
 
+# --- Phase 4.6 additions: machine flow helpers ---
+
+VALID_FLOW_TRANSFER_MODES = {
+    "human",
+    "autonomous_robot",
+    "robotic_arm",
+    "overhead_crane",
+    "forklift",
+}
+
+
+def build_default_machine_flow():
+    """Return a default empty machine flow record."""
+    return {
+        "id": "",
+        "from_machine_id": "",
+        "to_machine_id": "",
+        "part_family": "",
+        "process_step_order": 1,
+        "flow_rate_per_hr": 0.0,
+        "transfer_mode": "human",
+        "lot_size": 1,
+        "buffer_max_units": 0,
+        "value_added_step": True,
+        "mandatory_adjacency": False,
+        "preferred_max_distance_ft": 25.0,
+        "notes": "",
+    }
+
+
+def ensure_machine_flow_fields():
+    """
+    Normalize all machine_flows in session state so older layouts remain usable.
+    """
+    if "machine_flows" not in st.session_state or st.session_state.machine_flows is None:
+        st.session_state.machine_flows = []
+
+    normalized = []
+    for idx, flow in enumerate(st.session_state.machine_flows):
+        base = build_default_machine_flow()
+        if isinstance(flow, dict):
+            base.update(flow)
+
+        if not base.get("id"):
+            base["id"] = generate_next_id("F", normalized)
+
+        # Defensive normalization
+        try:
+            base["process_step_order"] = int(base.get("process_step_order", 1))
+        except Exception:
+            base["process_step_order"] = 1
+
+        try:
+            base["flow_rate_per_hr"] = float(base.get("flow_rate_per_hr", 0.0))
+        except Exception:
+            base["flow_rate_per_hr"] = 0.0
+
+        try:
+            base["lot_size"] = int(base.get("lot_size", 1))
+        except Exception:
+            base["lot_size"] = 1
+
+        try:
+            base["buffer_max_units"] = int(base.get("buffer_max_units", 0))
+        except Exception:
+            base["buffer_max_units"] = 0
+
+        try:
+            base["preferred_max_distance_ft"] = float(
+                base.get("preferred_max_distance_ft", 25.0)
+            )
+        except Exception:
+            base["preferred_max_distance_ft"] = 25.0
+
+        base["value_added_step"] = bool(base.get("value_added_step", True))
+        base["mandatory_adjacency"] = bool(base.get("mandatory_adjacency", False))
+        base["part_family"] = str(base.get("part_family", "") or "")
+        base["notes"] = str(base.get("notes", "") or "")
+
+        mode = str(base.get("transfer_mode", "human") or "human")
+        if mode not in VALID_FLOW_TRANSFER_MODES:
+            mode = "human"
+        base["transfer_mode"] = mode
+
+        normalized.append(base)
+
+    st.session_state.machine_flows = normalized
+
+
+def validate_machine_flow_record(flow, placed_machines):
+    """
+    Validate a single machine flow record.
+    Returns (ok: bool, msg: str)
+    """
+    required = [
+        "from_machine_id",
+        "to_machine_id",
+        "process_step_order",
+        "flow_rate_per_hr",
+        "transfer_mode",
+        "lot_size",
+        "buffer_max_units",
+        "preferred_max_distance_ft",
+    ]
+
+    for field in required:
+        if field not in flow:
+            return False, f"Flow missing required field: {field}"
+
+    machine_ids = {str(m.get("id", "")).strip() for m in placed_machines}
+
+    from_id = str(flow.get("from_machine_id", "")).strip()
+    to_id = str(flow.get("to_machine_id", "")).strip()
+
+    if not from_id:
+        return False, "Flow source machine ID is required."
+    if not to_id:
+        return False, "Flow destination machine ID is required."
+    if from_id == to_id:
+        return False, "Flow source and destination cannot be the same machine."
+
+    if from_id not in machine_ids:
+        return False, f"Flow source machine '{from_id}' does not exist in layout."
+    if to_id not in machine_ids:
+        return False, f"Flow destination machine '{to_id}' does not exist in layout."
+
+    try:
+        process_step_order = int(flow.get("process_step_order", 1))
+    except Exception:
+        return False, "Process step order must be an integer."
+
+    try:
+        flow_rate_per_hr = float(flow.get("flow_rate_per_hr", 0.0))
+    except Exception:
+        return False, "Flow rate per hour must be numeric."
+
+    try:
+        lot_size = int(flow.get("lot_size", 1))
+    except Exception:
+        return False, "Lot size must be an integer."
+
+    try:
+        buffer_max_units = int(flow.get("buffer_max_units", 0))
+    except Exception:
+        return False, "Buffer max units must be an integer."
+
+    try:
+        preferred_max_distance_ft = float(flow.get("preferred_max_distance_ft", 25.0))
+    except Exception:
+        return False, "Preferred max distance must be numeric."
+
+    if process_step_order < 1:
+        return False, "Process step order must be >= 1."
+    if flow_rate_per_hr < 0:
+        return False, "Flow rate per hour cannot be negative."
+    if lot_size < 1:
+        return False, "Lot size must be >= 1."
+    if buffer_max_units < 0:
+        return False, "Buffer max units cannot be negative."
+    if preferred_max_distance_ft < 0:
+        return False, "Preferred max distance cannot be negative."
+
+    mode = str(flow.get("transfer_mode", "human"))
+    if mode not in VALID_FLOW_TRANSFER_MODES:
+        return False, f"Unsupported transfer mode: {mode}"
+
+    return True, ""
+
+
+def validate_all_machine_flows(machine_flows, placed_machines):
+    """
+    Validate all machine flows. Returns (ok, errors)
+    """
+    errors = []
+    seen_ids = set()
+
+    for idx, flow in enumerate(machine_flows):
+        ok, msg = validate_machine_flow_record(flow, placed_machines)
+        if not ok:
+            errors.append(f"Flow row {idx + 1}: {msg}")
+
+        flow_id = str(flow.get("id", "")).strip()
+        if flow_id:
+            if flow_id in seen_ids:
+                errors.append(f"Duplicate flow ID detected: {flow_id}")
+            seen_ids.add(flow_id)
+
+    return len(errors) == 0, errors
+
+
+def get_machine_label_map(placed_machines):
+    """
+    Build a map of machine ID -> friendly label for UI use.
+    """
+    out = {}
+    for i, m in enumerate(placed_machines):
+        mid = str(m.get("id", f"M-{i+1:03d}"))
+        make = str(m.get("Make", "")).strip()
+        model = str(m.get("Model", "")).strip()
+        if make or model:
+            out[mid] = f"{mid} | {make} {model}".strip()
+        else:
+            out[mid] = mid
+    return out
+
+
 def normalize_project_state_for_export():
     """
     Normalize current project state before export.
@@ -512,210 +718,6 @@ def apply_imported_layout():
                 f"Error parsing layout file: {e}",
             )
 
-# --- Phase 4.6 additions: machine flow helpers ---
-
-VALID_FLOW_TRANSFER_MODES = {
-    "human",
-    "autonomous_robot",
-    "robotic_arm",
-    "overhead_crane",
-    "forklift",
-}
-
-
-def build_default_machine_flow():
-    """Return a default empty machine flow record."""
-    return {
-        "id": "",
-        "from_machine_id": "",
-        "to_machine_id": "",
-        "part_family": "",
-        "process_step_order": 1,
-        "flow_rate_per_hr": 0.0,
-        "transfer_mode": "human",
-        "lot_size": 1,
-        "buffer_max_units": 0,
-        "value_added_step": True,
-        "mandatory_adjacency": False,
-        "preferred_max_distance_ft": 25.0,
-        "notes": "",
-    }
-
-
-def ensure_machine_flow_fields():
-    """
-    Normalize all machine_flows in session state so older layouts remain usable.
-    """
-    if "machine_flows" not in st.session_state or st.session_state.machine_flows is None:
-        st.session_state.machine_flows = []
-
-    normalized = []
-    for idx, flow in enumerate(st.session_state.machine_flows):
-        base = build_default_machine_flow()
-        if isinstance(flow, dict):
-            base.update(flow)
-
-        if not base.get("id"):
-            base["id"] = generate_next_id("F", normalized)
-
-        # Defensive normalization
-        try:
-            base["process_step_order"] = int(base.get("process_step_order", 1))
-        except Exception:
-            base["process_step_order"] = 1
-
-        try:
-            base["flow_rate_per_hr"] = float(base.get("flow_rate_per_hr", 0.0))
-        except Exception:
-            base["flow_rate_per_hr"] = 0.0
-
-        try:
-            base["lot_size"] = int(base.get("lot_size", 1))
-        except Exception:
-            base["lot_size"] = 1
-
-        try:
-            base["buffer_max_units"] = int(base.get("buffer_max_units", 0))
-        except Exception:
-            base["buffer_max_units"] = 0
-
-        try:
-            base["preferred_max_distance_ft"] = float(
-                base.get("preferred_max_distance_ft", 25.0)
-            )
-        except Exception:
-            base["preferred_max_distance_ft"] = 25.0
-
-        base["value_added_step"] = bool(base.get("value_added_step", True))
-        base["mandatory_adjacency"] = bool(base.get("mandatory_adjacency", False))
-        base["part_family"] = str(base.get("part_family", "") or "")
-        base["notes"] = str(base.get("notes", "") or "")
-
-        mode = str(base.get("transfer_mode", "human") or "human")
-        if mode not in VALID_FLOW_TRANSFER_MODES:
-            mode = "human"
-        base["transfer_mode"] = mode
-
-        normalized.append(base)
-
-    st.session_state.machine_flows = normalized
-
-
-def validate_machine_flow_record(flow, placed_machines):
-    """
-    Validate a single machine flow record.
-    Returns (ok: bool, msg: str)
-    """
-    required = [
-        "from_machine_id",
-        "to_machine_id",
-        "process_step_order",
-        "flow_rate_per_hr",
-        "transfer_mode",
-        "lot_size",
-        "buffer_max_units",
-        "preferred_max_distance_ft",
-    ]
-
-    for field in required:
-        if field not in flow:
-            return False, f"Flow missing required field: {field}"
-
-    machine_ids = {str(m.get("id", "")).strip() for m in placed_machines}
-
-    from_id = str(flow.get("from_machine_id", "")).strip()
-    to_id = str(flow.get("to_machine_id", "")).strip()
-
-    if not from_id:
-        return False, "Flow source machine ID is required."
-    if not to_id:
-        return False, "Flow destination machine ID is required."
-    if from_id == to_id:
-        return False, "Flow source and destination cannot be the same machine."
-
-    if from_id not in machine_ids:
-        return False, f"Flow source machine '{from_id}' does not exist in layout."
-    if to_id not in machine_ids:
-        return False, f"Flow destination machine '{to_id}' does not exist in layout."
-
-    try:
-        process_step_order = int(flow.get("process_step_order", 1))
-    except Exception:
-        return False, "Process step order must be an integer."
-
-    try:
-        flow_rate_per_hr = float(flow.get("flow_rate_per_hr", 0.0))
-    except Exception:
-        return False, "Flow rate per hour must be numeric."
-
-    try:
-        lot_size = int(flow.get("lot_size", 1))
-    except Exception:
-        return False, "Lot size must be an integer."
-
-    try:
-        buffer_max_units = int(flow.get("buffer_max_units", 0))
-    except Exception:
-        return False, "Buffer max units must be an integer."
-
-    try:
-        preferred_max_distance_ft = float(flow.get("preferred_max_distance_ft", 25.0))
-    except Exception:
-        return False, "Preferred max distance must be numeric."
-
-    if process_step_order < 1:
-        return False, "Process step order must be >= 1."
-    if flow_rate_per_hr < 0:
-        return False, "Flow rate per hour cannot be negative."
-    if lot_size < 1:
-        return False, "Lot size must be >= 1."
-    if buffer_max_units < 0:
-        return False, "Buffer max units cannot be negative."
-    if preferred_max_distance_ft < 0:
-        return False, "Preferred max distance cannot be negative."
-
-    mode = str(flow.get("transfer_mode", "human"))
-    if mode not in VALID_FLOW_TRANSFER_MODES:
-        return False, f"Unsupported transfer mode: {mode}"
-
-    return True, ""
-
-
-def validate_all_machine_flows(machine_flows, placed_machines):
-    """
-    Validate all machine flows. Returns (ok, errors)
-    """
-    errors = []
-    seen_ids = set()
-
-    for idx, flow in enumerate(machine_flows):
-        ok, msg = validate_machine_flow_record(flow, placed_machines)
-        if not ok:
-            errors.append(f"Flow row {idx + 1}: {msg}")
-
-        flow_id = str(flow.get("id", "")).strip()
-        if flow_id:
-            if flow_id in seen_ids:
-                errors.append(f"Duplicate flow ID detected: {flow_id}")
-            seen_ids.add(flow_id)
-
-    return len(errors) == 0, errors
-
-
-def get_machine_label_map(placed_machines):
-    """
-    Build a map of machine ID -> friendly label for UI use.
-    """
-    out = {}
-    for i, m in enumerate(placed_machines):
-        mid = str(m.get("id", f"M-{i+1:03d}"))
-        make = str(m.get("Make", "")).strip()
-        model = str(m.get("Model", "")).strip()
-        if make or model:
-            out[mid] = f"{mid} | {make} {model}".strip()
-        else:
-            out[mid] = mid
-    return out
 
 def init_session_state(machinery_lib, lighting_lib, crane_lib):
     """Initializes all required session_state variables."""
