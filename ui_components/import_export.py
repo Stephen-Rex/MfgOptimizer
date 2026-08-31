@@ -10,6 +10,7 @@ from state_manager import (
     validate_polyline,
     validate_bbox,
     polyline_length,
+    normalize_project_state_for_export,
 )
 
 def render_import_export_tab():
