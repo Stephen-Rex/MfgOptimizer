@@ -317,7 +317,7 @@ def render_machine_flows_table():
 
 
 def render_workflow_tab():
-    st.header("🔄 Machine Part Flow Configuration")
+    st.header("Part Transportation Path Configuration")
     st.markdown(
         "Specify part travel path, movement mode, and path parameters for workflow analysis."
     )
