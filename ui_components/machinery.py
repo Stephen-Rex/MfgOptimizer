@@ -18,6 +18,18 @@ def render_machinery_tab(machinery_lib):
             key="machine_lib_select",
         )
 
+        selected_spec = machinery_lib[selected_m_idx]
+
+        with st.expander("Selected Machine Optimization Metadata", expanded=False):
+            st.write(
+                {
+                    "ProcessFamily": selected_spec.get("ProcessFamily", ""),
+                    "HumanInterventionRequired": selected_spec.get("HumanInterventionRequired", False),
+                    "PreferredUtilityZone": selected_spec.get("PreferredUtilityZone", ""),
+                    "ValueAddedPrimary": selected_spec.get("ValueAddedPrimary", True),
+                }
+            )
+
         default_mx = min(70.0, float(st.session_state.floor_w))
         default_my = min(50.0, float(st.session_state.floor_h))
 
