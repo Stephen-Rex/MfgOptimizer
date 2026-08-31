@@ -28,8 +28,11 @@ def render_import_export_tab():
             "Download the current factory layout configuration as a JSON project file."
         )
 
+        # Phase 3b: normalize project state before export
+        normalize_project_state_for_export()
+
         export_data = {
-            "schema_version": "1.4",
+            "schema_version": "1.3",
             "designer_name": st.session_state.designer_name,
             "dwg_title": st.session_state.dwg_title,
             "dwg_num": st.session_state.dwg_num,
@@ -45,12 +48,20 @@ def render_import_export_tab():
             "show_safety": st.session_state.show_safety,
             "show_contour": st.session_state.show_contour,
             "show_decibel": st.session_state.show_decibel,
+
+            # Core placed objects
             "placed_machines": st.session_state.placed_machines,
             "placed_lighting": st.session_state.placed_lighting,
             "placed_conduits": st.session_state.placed_conduits,
             "placed_cranes": st.session_state.placed_cranes,
+
+            # Phase 1 / 4.6 data model
             "machine_flows": st.session_state.machine_flows,
+
+            # Workflow geometry
             "path_points": st.session_state.path_points.to_dict(orient="records"),
+
+            # Drawing/editor settings
             "show_locator_dims": st.session_state.show_locator_dims,
             "editor_enabled": st.session_state.editor_enabled,
             "editor_selected_type": st.session_state.editor_selected_type,
@@ -59,6 +70,8 @@ def render_import_export_tab():
             "editor_snap_ft": st.session_state.editor_snap_ft,
             "editor_show_grid": st.session_state.editor_show_grid,
             "editor_show_labels": st.session_state.editor_show_labels,
+
+            # Workflow dimension settings
             "workflow_dim_visible": st.session_state.workflow_dim_visible,
             "workflow_dim_label_x_offset_ft": st.session_state.workflow_dim_label_x_offset_ft,
             "workflow_dim_label_y_offset_ft": st.session_state.workflow_dim_label_y_offset_ft,
@@ -74,6 +87,10 @@ def render_import_export_tab():
             file_name=f"factory_layout_{st.session_state.dwg_num.replace(' ', '_')}.json",
             mime="application/json",
             type="primary",
+        )
+
+        st.caption(
+            "Schema 1.3 includes machine flow links and optimization-compatible layout metadata."
         )
 
         with st.expander("Preview Export File Content"):
