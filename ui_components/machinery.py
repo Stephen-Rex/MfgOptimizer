@@ -115,6 +115,29 @@ def render_machinery_tab(machinery_lib):
                 value=bool(machine.get("CraneRequired", False)),
                 key=f"edit_mcrane_{selected_placed_idx}",
             )
+            edit_human_intervention = st.checkbox(
+                "Human Intervention Required",
+                value=bool(machine.get("HumanInterventionRequired", False)),
+                key=f"edit_mhuman_{selected_placed_idx}",
+            )
+
+            edit_process_family = st.text_input(
+                "Process Family",
+                value=str(machine.get("ProcessFamily", "")),
+                key=f"edit_mpf_{selected_placed_idx}",
+            )
+
+            edit_preferred_utility_zone = st.text_input(
+                "Preferred Utility Zone",
+                value=str(machine.get("PreferredUtilityZone", "")),
+                key=f"edit_muz_{selected_placed_idx}",
+            )
+
+            edit_value_added_primary = st.checkbox(
+                "Primary Value-Added Machine",
+                value=bool(machine.get("ValueAddedPrimary", True)),
+                key=f"edit_mva_{selected_placed_idx}",
+            )            
 
             btn_col1, btn_col2, btn_col3 = st.columns(3)
             with btn_col1:
@@ -127,6 +150,10 @@ def render_machinery_tab(machinery_lib):
                     updated["Yield"] = float(edit_yield)
                     updated["Decibel"] = float(edit_decibel)
                     updated["CraneRequired"] = bool(edit_crane_required)
+                    updated["HumanInterventionRequired"] = bool(edit_human_intervention)
+                    updated["ProcessFamily"] = str(edit_process_family)
+                    updated["PreferredUtilityZone"] = str(edit_preferred_utility_zone)
+                    updated["ValueAddedPrimary"] = bool(edit_value_added_primary)  
 
                     ok, msg = validate_machine_record(
                         updated, st.session_state.floor_w, st.session_state.floor_h
