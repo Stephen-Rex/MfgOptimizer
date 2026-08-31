@@ -28,7 +28,7 @@ def render_import_export_tab():
         )
 
         export_data = {
-            "schema_version": "1.2",
+            "schema_version": "1.4",
             "designer_name": st.session_state.designer_name,
             "dwg_title": st.session_state.dwg_title,
             "dwg_num": st.session_state.dwg_num,
