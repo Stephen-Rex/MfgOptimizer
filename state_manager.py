@@ -82,20 +82,7 @@ def normalize_imported_project_state():
     Normalize imported session-state structures so older project files
     remain compatible with current app expectations.
     """
-    # Core object ID normalization
-    ensure_object_ids()
-
-    # Existing geometry/dimension normalization
-    ensure_machine_dimension_fields()
-    ensure_lighting_dimension_fields()
-    ensure_conduit_dimension_fields()
-    ensure_crane_dimension_fields()
-    ensure_workflow_dimension_fields()
-
-    # Phase 3b: machine-flow normalization
-    ensure_machine_flow_fields()
-
-    # Defensive defaults for missing collections
+    # Defensive defaults first
     if "placed_machines" not in st.session_state or st.session_state.placed_machines is None:
         st.session_state.placed_machines = []
 
@@ -113,6 +100,15 @@ def normalize_imported_project_state():
 
     if "path_points" not in st.session_state or st.session_state.path_points is None:
         st.session_state.path_points = pd.DataFrame()
+
+    # Then normalize IDs and annotation/dimension fields
+    ensure_object_ids()
+    ensure_machine_dimension_fields()
+    ensure_lighting_dimension_fields()
+    ensure_conduit_dimension_fields()
+    ensure_crane_dimension_fields()
+    ensure_workflow_dimension_fields()
+    ensure_machine_flow_fields()
 
 def validate_imported_project_state():
     """
