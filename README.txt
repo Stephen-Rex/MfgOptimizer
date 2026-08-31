@@ -43,16 +43,25 @@ http://localhost:8501
 - Route and edit conduit runs
 - Place and edit lighting fixtures
 - Place and edit overhead crane coverage areas
+- Configure workflow path geometry and movement modes
+- Define machine-to-machine value-added flow links
 - Toggle drawing layers and analysis overlays
 - Export current project layout to a JSON-formatted file
 - Import previously saved layout files (.json or .txt containing JSON)
+- Generate report bundles containing summary, safety, production, utility, workflow, and optimization data
+- Evaluate layouts using heuristic optimization scoring for flow efficiency, bottleneck support, handling/WIP risk, safety compliance, and utility serviceability
+- Generate ranked placement recommendations for selected layout issues
 
 6. Current limitations
 - No shared database or multi-user synchronization
 - No authentication or role-based access control
-- No full report package generation (PDF, drawing exports, safety reports)
-- No full HVAC, water, drainage, or network utility analysis
+- No full report package generation (PDF, drawing exports, safety reports) beyond JSON and PNG outputs
+- No full HVAC, water, drainage, or network utility engineering analysis
+- Optimization is heuristic and recommendation-based, not a full automatic layout solver
+- No discrete-event simulation or formal line-balancing solver
 - No formal forklift accessibility engine
 
 7. Notes
-This application currently functions as a prototype / engineering planning tool and should not be treated as a final regulatory or safety approval system without additional validation.
+This application currently functions as a prototype / engineering planning tool and should not be treated as a final regulatory, safety, or facility approval system without additional validation.
+
+The optimization module is intended to support layout assessment and recommendation generation for value-added operations. It does not automatically reposition equipment or replace engineering judgment.
