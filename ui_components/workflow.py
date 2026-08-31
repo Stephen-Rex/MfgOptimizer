@@ -318,9 +318,10 @@ def render_machine_flows_table():
 
 def render_workflow_tab():
     st.header("Part Transportation Path Configuration")
-    st.markdown(
-        "Specify part travel path, movement mode, and path parameters for workflow analysis."
-    )
+st.markdown(
+    "Specify the floor-level part transportation path, movement mode, and path parameters. "
+    "Use the machine workflow section below for machine-to-machine process linkage."
+)
 
     mode_options = [
         "human",
