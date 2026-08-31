@@ -16,6 +16,10 @@ def render_machine_flows_editor():
     Render controls for adding a new machine flow link.
     """
     st.subheader("Value-Added Machine Flow Links")
+    st.caption(
+        "Machine flow links support heuristic layout optimization for value-added operations. "
+        "Workflow path geometry and machine-to-machine flow relationships are evaluated separately."
+    )    
     st.markdown(
         "Define machine-to-machine production flow relationships used for "
         "value-added placement optimization."
