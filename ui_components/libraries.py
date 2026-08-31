@@ -11,6 +11,31 @@ def render_libraries_tab(machinery_lib, lighting_lib, crane_lib):
     search_term_lower = search_term.strip().lower()
 
     df_machinery = pd.DataFrame(machinery_lib)
+
+    preferred_machine_cols = [
+        "Make",
+        "Model",
+        "Type",
+        "Width",
+        "Height",
+        "Standoff",
+        "VaporPort",
+        "WaterHookup",
+        "Amperage",
+        "Wattage",
+        "ToolHeads",
+        "Volume",
+        "Yield",
+        "CraneRequired",
+        "Decibel",
+        "HumanInterventionRequired",
+        "PreferredUtilityZone",
+        "ProcessFamily",
+        "ValueAddedPrimary",
+    ]
+    existing_machine_cols = [c for c in preferred_machine_cols if c in df_machinery.columns]
+    remaining_machine_cols = [c for c in df_machinery.columns if c not in existing_machine_cols]
+    df_machinery = df_machinery[existing_machine_cols + remaining_machine_cols]
     df_lighting = pd.DataFrame(lighting_lib)
     df_cranes = pd.DataFrame(crane_lib)
 
