@@ -816,7 +816,7 @@ def score_utility_serviceability(placed_machines, placed_conduits):
 
     findings = []
     penalty = 0.0
-
+    
     for idx, machine in enumerate(placed_machines):
         mid = str(machine.get("id", f"M-{idx+1:03d}"))
 
@@ -827,32 +827,40 @@ def score_utility_serviceability(placed_machines, placed_conduits):
         except Exception:
             wattage = 0.0
 
+        preferred_utility_zone = str(machine.get("PreferredUtilityZone", "") or "")
+        value_added_primary = bool(machine.get("ValueAddedPrimary", True))
+
         # Very simple checks for first release
         has_water_route = any(c.get("utility_type", "") == "water" for c in placed_conduits)
         has_hvac_route = any(c.get("utility_type", "") == "hvac" for c in placed_conduits)
         has_electrical_route = any(c.get("utility_type", "") == "electrical" for c in placed_conduits)
 
+        weight = 1.5 if value_added_primary else 1.0
+
         if needs_water and not has_water_route:
-            penalty += 2.0
+            penalty += 2.0 * weight
             findings.append({
                 "type": "missing_water_support",
                 "machine_id": mid,
+                "preferred_utility_zone": preferred_utility_zone,
                 "message": f"Machine {mid} requires water hookup but no water route is defined.",
             })
 
         if vapor_port and vapor_port != "VP-NONE" and not has_hvac_route:
-            penalty += 2.0
+            penalty += 2.0 * weight
             findings.append({
                 "type": "missing_hvac_support",
                 "machine_id": mid,
+                "preferred_utility_zone": preferred_utility_zone,
                 "message": f"Machine {mid} has vapor port {vapor_port} but no HVAC route is defined.",
             })
 
         if wattage > 0 and not has_electrical_route:
-            penalty += 1.0
+            penalty += 1.0 * weight
             findings.append({
                 "type": "missing_electrical_support",
                 "machine_id": mid,
+                "preferred_utility_zone": preferred_utility_zone,
                 "message": f"Machine {mid} has electrical load but no electrical route is defined.",
             })
 
@@ -941,10 +949,16 @@ def generate_layout_recommendations(
 
     # Priority 5: utility support
     for item in utility_findings:
+        preferred_zone = str(item.get("preferred_utility_zone", "") or "")
+        base_message = str(item.get("message", "Improve utility support to machine."))
+
+        if preferred_zone:
+            base_message = f"{base_message} Preferred utility zone: {preferred_zone}."
+
         recommendations.append({
             "priority": 5,
             "category": "utility",
-            "message": str(item.get("message", "Improve utility support to machine.")),
+            "message": base_message,
             "related_ids": [item.get("machine_id")],
         })
 
