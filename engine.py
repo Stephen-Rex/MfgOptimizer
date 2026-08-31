@@ -21,6 +21,12 @@ TRANSFER_MODE_FACTORS = {
     "forklift": 1.25,
 }
 
+FLOW_EFFICIENCY_MAX_SCORE = 35.0
+BOTTLENECK_SUPPORT_MAX_SCORE = 20.0
+SAFETY_COMPLIANCE_MAX_SCORE = 20.0
+UTILITY_SERVICEABILITY_MAX_SCORE = 10.0
+HANDLING_WIP_MAX_SCORE = 15.0
+
 
 def index_machines_by_id(placed_machines):
     """
@@ -35,7 +41,8 @@ def index_machines_by_id(placed_machines):
 
 def safe_machine_effective_rate(machine):
     """
-    Return effective machine rate using current throughput logic assumptions.
+    Effective production rate using current model:
+    effective_rate = Volume * Yield%
     """
     try:
         volume = float(machine.get("Volume", 0.0))
@@ -64,20 +71,51 @@ def machine_center_distance_ft(machine_a, machine_b):
 
     return round(float(np.sqrt((ax - bx) ** 2 + (ay - by) ** 2)), 2)
 
+def find_bottleneck_machine(placed_machines):
+    """
+    Return (machine_id, effective_rate) for the slowest effective machine.
+    """
+    if not placed_machines:
+        return None, 0.0
+
+    best_id = None
+    min_rate = None
+
+    for idx, m in enumerate(placed_machines):
+        mid = str(m.get("id", f"M-{idx+1:03d}")).strip()
+        eff = safe_machine_effective_rate(m)
+        if min_rate is None or eff < min_rate:
+            min_rate = eff
+            best_id = mid
+
+    return best_id, float(min_rate or 0.0)
 
 def empty_optimization_report():
     """
-    Placeholder empty optimization report for Phase 1.
+    Safe default optimization report.
     """
     return {
         "report_type": "optimization_report",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "overall_score": None,
-        "subscores": {},
+        "subscores": {
+            "flow_efficiency": None,
+            "bottleneck_support": None,
+            "safety_compliance": None,
+            "utility_serviceability": None,
+            "handling_wip": None,
+        },
         "bottleneck_machine": None,
         "critical_links": [],
         "recommendations": [],
-        "status": "Phase 1 placeholder - optimization scoring not yet enabled.",
+        "findings": {
+            "flow": [],
+            "bottleneck": [],
+            "wip": [],
+            "safety": [],
+            "utility": [],
+        },
+        "status": "No optimization analysis available.",
     }
 
 
@@ -482,5 +520,523 @@ def build_full_report_bundle(session_state, workflow_paths=None):
         "lighting_report": build_lighting_report(placed_lighting),
         "crane_report": build_crane_report(placed_cranes),
         "workflow_report": build_workflow_report(workflow_paths or []),
-        "optimization_report": empty_optimization_report(),
+        "optimization_report": build_optimization_report(session_state, workflow_paths or []),
     }
+
+def score_all_flow_links(machine_flows, machine_index):
+    """
+    Score value-added machine-to-machine links based on distance, flow rate,
+    and transfer mode. Returns a dict with score, findings, and critical links.
+    """
+    if not machine_flows:
+        return {
+            "score": FLOW_EFFICIENCY_MAX_SCORE,
+            "findings": [],
+            "critical_links": [],
+            "status": "No machine flow links defined.",
+        }
+
+    total_penalty = 0.0
+    findings = []
+    critical_links = []
+
+    active_flow_count = 0
+
+    for flow in machine_flows:
+        if not bool(flow.get("value_added_step", True)):
+            # Skip non-value-added links for primary flow-efficiency scoring
+            continue
+
+        active_flow_count += 1
+
+        flow_id = str(flow.get("id", ""))
+        from_id = str(flow.get("from_machine_id", "")).strip()
+        to_id = str(flow.get("to_machine_id", "")).strip()
+
+        if from_id not in machine_index or to_id not in machine_index:
+            findings.append({
+                "type": "invalid_flow_reference",
+                "flow_id": flow_id,
+                "from_machine_id": from_id,
+                "to_machine_id": to_id,
+                "message": "Flow references machine ID not present in current layout.",
+            })
+            total_penalty += 4.0
+            continue
+
+        m1 = machine_index[from_id]
+        m2 = machine_index[to_id]
+        dist_ft = machine_center_distance_ft(m1, m2)
+
+        try:
+            rate = float(flow.get("flow_rate_per_hr", 0.0))
+        except Exception:
+            rate = 0.0
+
+        try:
+            preferred_max = float(flow.get("preferred_max_distance_ft", 25.0))
+        except Exception:
+            preferred_max = 25.0
+
+        mode = str(flow.get("transfer_mode", "human") or "human")
+        mode_factor = float(TRANSFER_MODE_FACTORS.get(mode, 1.0))
+        mandatory = bool(flow.get("mandatory_adjacency", False))
+
+        rate_factor = min(max(rate / 25.0, 0.25), 4.0)
+        excess_dist = max(0.0, dist_ft - preferred_max)
+
+        penalty = excess_dist * mode_factor * rate_factor * 0.35
+
+        if mandatory and dist_ft > preferred_max:
+            penalty += 8.0
+
+        total_penalty += penalty
+
+        if dist_ft > preferred_max:
+            findings.append({
+                "type": "long_value_added_link",
+                "flow_id": flow_id,
+                "from_machine_id": from_id,
+                "to_machine_id": to_id,
+                "distance_ft": round(dist_ft, 2),
+                "preferred_max_distance_ft": round(preferred_max, 2),
+                "flow_rate_per_hr": round(rate, 2),
+                "transfer_mode": mode,
+                "mandatory_adjacency": mandatory,
+                "message": (
+                    f"Value-added flow {flow_id} exceeds preferred distance "
+                    f"({dist_ft} ft > {preferred_max} ft)."
+                ),
+            })
+
+        if penalty >= 5.0:
+            critical_links.append({
+                "flow_id": flow_id,
+                "from_machine_id": from_id,
+                "to_machine_id": to_id,
+                "distance_ft": round(dist_ft, 2),
+                "flow_rate_per_hr": round(rate, 2),
+                "transfer_mode": mode,
+                "issue": "High transfer distance on value-added link.",
+            })
+
+    if active_flow_count == 0:
+        return {
+            "score": FLOW_EFFICIENCY_MAX_SCORE,
+            "findings": [],
+            "critical_links": [],
+            "status": "No value-added machine flow links defined.",
+        }
+
+    normalized_penalty = min(total_penalty / max(active_flow_count, 1), FLOW_EFFICIENCY_MAX_SCORE)
+    score = max(0.0, round(FLOW_EFFICIENCY_MAX_SCORE - normalized_penalty, 1))
+
+    return {
+        "score": score,
+        "findings": findings,
+        "critical_links": critical_links,
+        "status": "ok",
+    }
+
+def score_bottleneck_support(machine_flows, machine_index, bottleneck_id):
+    """
+    Score whether upstream/downstream support to bottleneck machine is spatially reasonable.
+    """
+    if not bottleneck_id:
+        return {
+            "score": BOTTLENECK_SUPPORT_MAX_SCORE,
+            "findings": [],
+            "status": "No bottleneck machine available.",
+        }
+
+    related_flows = []
+    for flow in machine_flows:
+        from_id = str(flow.get("from_machine_id", "")).strip()
+        to_id = str(flow.get("to_machine_id", "")).strip()
+        if from_id == bottleneck_id or to_id == bottleneck_id:
+            related_flows.append(flow)
+
+    if not related_flows:
+        return {
+            "score": 12.0,
+            "findings": [{
+                "type": "bottleneck_unmodeled",
+                "machine_id": bottleneck_id,
+                "message": "Bottleneck machine has no defined machine flow links.",
+            }],
+            "status": "partial",
+        }
+
+    penalty = 0.0
+    findings = []
+
+    for flow in related_flows:
+        flow_id = str(flow.get("id", ""))
+        from_id = str(flow.get("from_machine_id", "")).strip()
+        to_id = str(flow.get("to_machine_id", "")).strip()
+
+        if from_id not in machine_index or to_id not in machine_index:
+            continue
+
+        m1 = machine_index[from_id]
+        m2 = machine_index[to_id]
+        dist_ft = machine_center_distance_ft(m1, m2)
+
+        # Default support threshold for bottleneck-facing links
+        threshold_ft = 30.0
+        if dist_ft > threshold_ft:
+            local_penalty = min((dist_ft - threshold_ft) / 4.0, 6.0)
+            penalty += local_penalty
+
+            findings.append({
+                "type": "bottleneck_support_distance",
+                "flow_id": flow_id,
+                "machine_id": bottleneck_id,
+                "from_machine_id": from_id,
+                "to_machine_id": to_id,
+                "distance_ft": round(dist_ft, 2),
+                "threshold_ft": threshold_ft,
+                "message": (
+                    f"Bottleneck-related link {flow_id} is spatially long "
+                    f"({dist_ft} ft > {threshold_ft} ft)."
+                ),
+            })
+
+    score = max(0.0, round(BOTTLENECK_SUPPORT_MAX_SCORE - min(penalty, BOTTLENECK_SUPPORT_MAX_SCORE), 1))
+
+    return {
+        "score": score,
+        "findings": findings,
+        "status": "ok",
+    }
+
+def score_wip_risk(machine_flows, machine_index):
+    """
+    Heuristic WIP risk score based on upstream/downstream imbalance + distance + transfer mode.
+    """
+    if not machine_flows:
+        return {
+            "score": HANDLING_WIP_MAX_SCORE,
+            "findings": [],
+            "status": "No machine flow links defined.",
+        }
+
+    penalty = 0.0
+    findings = []
+
+    for flow in machine_flows:
+        from_id = str(flow.get("from_machine_id", "")).strip()
+        to_id = str(flow.get("to_machine_id", "")).strip()
+        flow_id = str(flow.get("id", "")).strip()
+
+        if from_id not in machine_index or to_id not in machine_index:
+            continue
+
+        upstream = machine_index[from_id]
+        downstream = machine_index[to_id]
+
+        upstream_rate = safe_machine_effective_rate(upstream)
+        downstream_rate = safe_machine_effective_rate(downstream)
+        dist_ft = machine_center_distance_ft(upstream, downstream)
+
+        mode = str(flow.get("transfer_mode", "human") or "human")
+        value_added = bool(flow.get("value_added_step", True))
+
+        # Focus on operationally relevant links
+        if not value_added:
+            continue
+
+        if upstream_rate > downstream_rate and dist_ft > 25.0 and mode in {"human", "forklift"}:
+            diff_ratio = min((upstream_rate - downstream_rate) / max(downstream_rate, 1.0), 2.0)
+            local_penalty = 2.0 + diff_ratio + min((dist_ft - 25.0) / 10.0, 3.0)
+            penalty += local_penalty
+
+            findings.append({
+                "type": "wip_risk",
+                "flow_id": flow_id,
+                "from_machine_id": from_id,
+                "to_machine_id": to_id,
+                "upstream_rate": round(upstream_rate, 2),
+                "downstream_rate": round(downstream_rate, 2),
+                "distance_ft": round(dist_ft, 2),
+                "transfer_mode": mode,
+                "message": (
+                    f"Potential WIP accumulation risk on {flow_id}: upstream rate "
+                    f"exceeds downstream rate over a long {mode} transfer."
+                ),
+            })
+
+    score = max(0.0, round(HANDLING_WIP_MAX_SCORE - min(penalty, HANDLING_WIP_MAX_SCORE), 1))
+
+    return {
+        "score": score,
+        "findings": findings,
+        "status": "ok",
+    }
+
+def score_safety_penalties(placed_machines, placed_conduits, placed_cranes=None, workflow_paths=None):
+    """
+    Convert existing layout warnings into a bounded safety score.
+    """
+    warnings = run_layout_analysis(
+        placed_machines,
+        placed_conduits,
+        placed_cranes or [],
+        workflow_paths or [],
+    )
+
+    findings = []
+    for w in warnings:
+        findings.append({
+            "type": "layout_warning",
+            "message": str(w),
+        })
+
+    # Simple first-pass heuristic: each warning costs 2 points, capped.
+    penalty = min(len(warnings) * 2.0, SAFETY_COMPLIANCE_MAX_SCORE)
+    score = max(0.0, round(SAFETY_COMPLIANCE_MAX_SCORE - penalty, 1))
+
+    return {
+        "score": score,
+        "findings": findings,
+        "status": "ok",
+    }
+
+def score_utility_serviceability(placed_machines, placed_conduits):
+    """
+    Heuristic utility score based on rough proximity of utility-dependent machines
+    to utility runs of matching type.
+    """
+    if not placed_machines:
+        return {
+            "score": UTILITY_SERVICEABILITY_MAX_SCORE,
+            "findings": [],
+            "status": "No machines placed.",
+        }
+
+    findings = []
+    penalty = 0.0
+
+    for idx, machine in enumerate(placed_machines):
+        mid = str(machine.get("id", f"M-{idx+1:03d}"))
+
+        needs_water = bool(machine.get("WaterHookup", False))
+        vapor_port = str(machine.get("VaporPort", "VP-NONE"))
+        try:
+            wattage = float(machine.get("Wattage", 0.0))
+        except Exception:
+            wattage = 0.0
+
+        # Very simple checks for first release
+        has_water_route = any(c.get("utility_type", "") == "water" for c in placed_conduits)
+        has_hvac_route = any(c.get("utility_type", "") == "hvac" for c in placed_conduits)
+        has_electrical_route = any(c.get("utility_type", "") == "electrical" for c in placed_conduits)
+
+        if needs_water and not has_water_route:
+            penalty += 2.0
+            findings.append({
+                "type": "missing_water_support",
+                "machine_id": mid,
+                "message": f"Machine {mid} requires water hookup but no water route is defined.",
+            })
+
+        if vapor_port and vapor_port != "VP-NONE" and not has_hvac_route:
+            penalty += 2.0
+            findings.append({
+                "type": "missing_hvac_support",
+                "machine_id": mid,
+                "message": f"Machine {mid} has vapor port {vapor_port} but no HVAC route is defined.",
+            })
+
+        if wattage > 0 and not has_electrical_route:
+            penalty += 1.0
+            findings.append({
+                "type": "missing_electrical_support",
+                "machine_id": mid,
+                "message": f"Machine {mid} has electrical load but no electrical route is defined.",
+            })
+
+    score = max(0.0, round(UTILITY_SERVICEABILITY_MAX_SCORE - min(penalty, UTILITY_SERVICEABILITY_MAX_SCORE), 1))
+
+    return {
+        "score": score,
+        "findings": findings,
+        "status": "ok",
+    }
+
+def generate_layout_recommendations(
+    machine_flows,
+    machine_index,
+    bottleneck_id,
+    flow_findings,
+    bottleneck_findings,
+    wip_findings,
+    safety_findings,
+    utility_findings,
+):
+    """
+    Build a ranked recommendation list from optimization findings.
+    """
+    recommendations = []
+
+    # Priority 1: safety/compliance
+    for item in safety_findings:
+        recommendations.append({
+            "priority": 1,
+            "category": "safety",
+            "message": str(item.get("message", "Resolve layout safety/compliance warning.")),
+            "related_ids": [],
+        })
+
+    # Priority 2: bottleneck support
+    for item in bottleneck_findings:
+        msg = item.get("message", "")
+        if item.get("type") == "bottleneck_unmodeled":
+            msg = (
+                f"Define machine flow links for bottleneck machine {item.get('machine_id')} "
+                "to support placement optimization."
+            )
+        recommendations.append({
+            "priority": 2,
+            "category": "bottleneck",
+            "message": msg,
+            "related_ids": [
+                item.get("machine_id"),
+                item.get("from_machine_id"),
+                item.get("to_machine_id"),
+            ],
+        })
+
+    # Priority 3: long value-added links
+    for item in flow_findings:
+        if item.get("type") == "long_value_added_link":
+            from_id = item.get("from_machine_id")
+            to_id = item.get("to_machine_id")
+            recommendations.append({
+                "priority": 3,
+                "category": "flow_distance",
+                "message": (
+                    f"Move {to_id} closer to {from_id} or reduce transfer distance on "
+                    f"flow {item.get('flow_id')}."
+                ),
+                "related_ids": [item.get("flow_id"), from_id, to_id],
+            })
+
+    # Priority 4: WIP risk
+    for item in wip_findings:
+        recommendations.append({
+            "priority": 4,
+            "category": "wip",
+            "message": (
+                f"Reduce transfer distance or rebalance rates between "
+                f"{item.get('from_machine_id')} and {item.get('to_machine_id')} "
+                f"to reduce WIP risk."
+            ),
+            "related_ids": [
+                item.get("flow_id"),
+                item.get("from_machine_id"),
+                item.get("to_machine_id"),
+            ],
+        })
+
+    # Priority 5: utility support
+    for item in utility_findings:
+        recommendations.append({
+            "priority": 5,
+            "category": "utility",
+            "message": str(item.get("message", "Improve utility support to machine.")),
+            "related_ids": [item.get("machine_id")],
+        })
+
+    # De-duplicate basic repeats by message
+    deduped = []
+    seen = set()
+    for rec in recommendations:
+        key = (rec.get("priority"), rec.get("category"), rec.get("message"))
+        if key not in seen:
+            seen.add(key)
+            deduped.append(rec)
+
+    deduped.sort(key=lambda r: (r.get("priority", 99), str(r.get("message", ""))))
+    return deduped[:20]
+
+def build_optimization_report(session_state, workflow_paths=None):
+    """
+    Build composite optimization report for value-added placement analysis.
+    """
+    workflow_paths = workflow_paths or []
+
+    placed_machines = session_state.get("placed_machines", [])
+    placed_conduits = session_state.get("placed_conduits", [])
+    placed_cranes = session_state.get("placed_cranes", [])
+    machine_flows = session_state.get("machine_flows", [])
+
+    if not placed_machines:
+        report = empty_optimization_report()
+        report["status"] = "No machines placed. Optimization report not generated."
+        return report
+
+    machine_index = index_machines_by_id(placed_machines)
+    bottleneck_id, bottleneck_rate = find_bottleneck_machine(placed_machines)
+
+    flow_score_data = score_all_flow_links(machine_flows, machine_index)
+    bottleneck_score_data = score_bottleneck_support(machine_flows, machine_index, bottleneck_id)
+    wip_score_data = score_wip_risk(machine_flows, machine_index)
+    safety_score_data = score_safety_penalties(
+        placed_machines,
+        placed_conduits,
+        placed_cranes,
+        workflow_paths,
+    )
+    utility_score_data = score_utility_serviceability(
+        placed_machines,
+        placed_conduits,
+    )
+
+    overall_score = round(
+        float(flow_score_data["score"])
+        + float(bottleneck_score_data["score"])
+        + float(safety_score_data["score"])
+        + float(utility_score_data["score"])
+        + float(wip_score_data["score"]),
+        1,
+    )
+
+    recommendations = generate_layout_recommendations(
+        machine_flows=machine_flows,
+        machine_index=machine_index,
+        bottleneck_id=bottleneck_id,
+        flow_findings=flow_score_data["findings"],
+        bottleneck_findings=bottleneck_score_data["findings"],
+        wip_findings=wip_score_data["findings"],
+        safety_findings=safety_score_data["findings"],
+        utility_findings=utility_score_data["findings"],
+    )
+
+    return {
+        "report_type": "optimization_report",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "overall_score": overall_score,
+        "subscores": {
+            "flow_efficiency": flow_score_data["score"],
+            "bottleneck_support": bottleneck_score_data["score"],
+            "safety_compliance": safety_score_data["score"],
+            "utility_serviceability": utility_score_data["score"],
+            "handling_wip": wip_score_data["score"],
+        },
+        "bottleneck_machine": bottleneck_id,
+        "bottleneck_effective_rate": round(bottleneck_rate, 2),
+        "critical_links": flow_score_data["critical_links"],
+        "recommendations": recommendations,
+        "findings": {
+            "flow": flow_score_data["findings"],
+            "bottleneck": bottleneck_score_data["findings"],
+            "wip": wip_score_data["findings"],
+            "safety": safety_score_data["findings"],
+            "utility": utility_score_data["findings"],
+        },
+        "status": "ok",
+    }
+
+
+
