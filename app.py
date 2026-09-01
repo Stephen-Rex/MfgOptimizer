@@ -33,6 +33,12 @@ from ui_components import (
 )
 from visualization import draw_3d_asme_factory_viewport, draw_asme_drawing
 
+from scene_serializer import build_threejs_scene_payload
+from webgl_canvas_component import (
+    render_webgl_canvas_component,
+    render_webgl_canvas_status_banner,
+)
+
 
 def fig_to_png_bytes(fig):
     """Convert a Matplotlib figure to PNG bytes for download."""
@@ -62,6 +68,12 @@ crane_lib = get_default_cranes()
 
 # Initialize Session State
 init_session_state(machinery_lib, lighting_lib, crane_lib)
+
+if "use_legacy_interactive_fallback" not in st.session_state:
+    st.session_state.use_legacy_interactive_fallback = True
+
+if "use_legacy_3d_fallback" not in st.session_state:
+    st.session_state.use_legacy_3d_fallback = True
 
 # Top Viewport Selection Switcher
 viewport_mode = st.radio(
@@ -295,26 +307,89 @@ if viewport_mode == "📐 2D ASME Y14.1 Blueprint View":
 
 elif viewport_mode == "🛠 Interactive 2D Layout Editor":
     st.header("🛠 Interactive 2D Layout Editor")
-    render_interactive_editor()
+    st.session_state.frontend_renderer = "threejs"
+    st.session_state.frontend_view_mode = "2d"
+
+    render_webgl_canvas_status_banner()
+
+    scene_payload_2d = build_threejs_scene_payload(
+        st.session_state,
+        view_mode="2d",
+    )
+
+    component_result_2d = render_webgl_canvas_component(
+        scene_payload_2d,
+        component_key="threejs_canvas_2d",
+        height_px=720,
+        show_debug=False,
+    )
+
+    with st.expander("Interactive Editor Fallback Options", expanded=False):
+        st.checkbox(
+            "Use Legacy Interactive 2D Fallback",
+            key="use_legacy_interactive_fallback",
+            help=(
+                "Keeps the current Streamlit/Plotly-based interactive editor available "
+                "while the Three.js frontend integration is being built."
+            ),
+        )
+
+        if st.session_state.use_legacy_interactive_fallback:
+            st.caption("Legacy interactive editor fallback is active below.")
+            render_interactive_editor()
+
+    with st.expander("Three.js Wrapper Status", expanded=False):
+        st.json(component_result_2d, expanded=False)
 
 else:
     st.header("🕶️ Interactive 3D Factory Floor Viewport")
-    fig_3d = draw_3d_asme_factory_viewport(
-        floor_w=st.session_state.floor_w,
-        floor_h=st.session_state.floor_h,
-        ceiling_h=25.0,
-        machines=st.session_state.placed_machines,
-        lighting=st.session_state.placed_lighting,
-        cranes=st.session_state.placed_cranes,
-        conduits=st.session_state.placed_conduits,
-        workflow_paths=active_workflow_paths,
-        show_machines=st.session_state.show_machines,
-        show_lighting=st.session_state.show_lighting,
-        show_cranes=st.session_state.show_cranes,
-        show_workflow=st.session_state.show_workflow,
-        show_electrical=st.session_state.show_electrical,
+    st.session_state.frontend_renderer = "threejs"
+    st.session_state.frontend_view_mode = "3d"
+
+    render_webgl_canvas_status_banner()
+
+    scene_payload_3d = build_threejs_scene_payload(
+        st.session_state,
+        view_mode="3d",
     )
-    st.plotly_chart(fig_3d, use_container_width=True)
+
+    component_result_3d = render_webgl_canvas_component(
+        scene_payload_3d,
+        component_key="threejs_canvas_3d",
+        height_px=720,
+        show_debug=False,
+    )
+
+    with st.expander("Interactive 3D Fallback Options", expanded=False):
+        st.checkbox(
+            "Use Legacy Interactive 3D Fallback",
+            key="use_legacy_3d_fallback",
+            help=(
+                "Keeps the current Plotly-based 3D viewport available while the "
+                "Three.js frontend integration is being built."
+            ),
+        )
+
+        if st.session_state.get("use_legacy_3d_fallback", True):
+            fig_3d = draw_3d_asme_factory_viewport(
+                floor_w=st.session_state.floor_w,
+                floor_h=st.session_state.floor_h,
+                ceiling_h=25.0,
+                machines=st.session_state.placed_machines,
+                lighting=st.session_state.placed_lighting,
+                cranes=st.session_state.placed_cranes,
+                conduits=st.session_state.placed_conduits,
+                workflow_paths=active_workflow_paths,
+                show_machines=st.session_state.show_machines,
+                show_lighting=st.session_state.show_lighting,
+                show_cranes=st.session_state.show_cranes,
+                show_workflow=st.session_state.show_workflow,
+                show_electrical=st.session_state.show_electrical,
+            )
+            st.plotly_chart(fig_3d, use_container_width=True)
+
+    with st.expander("Three.js Wrapper Status", expanded=False):
+        st.json(component_result_3d, expanded=False)
 
 # Analytics Summary
 metrics = calculate_production_metrics(st.session_state.placed_machines)
