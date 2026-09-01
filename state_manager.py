@@ -272,6 +272,202 @@ def get_machine_label_map(placed_machines):
             out[mid] = mid
     return out
 
+# --- Branch 4.7 additions: frontend scene/event state helpers ---
+
+VALID_FRONTEND_VIEW_MODES = {"2d", "3d"}
+VALID_FRONTEND_TOOL_MODES = {
+    "select",
+    "place_machine",
+    "move_machine",
+    "edit_conduit",
+    "edit_workflow",
+    "edit_crane",
+    "place_light",
+    "pan",
+    "orbit",
+}
+
+
+def build_default_frontend_event():
+    """
+    Default placeholder payload for browser-canvas event exchange.
+    """
+    return {
+        "event_id": 0,
+        "event_type": "",
+        "view_mode": "2d",
+        "object_type": "",
+        "object_id": "",
+        "payload": {},
+        "handled": True,
+        "status": "",
+    }
+
+
+def normalize_frontend_state():
+    """
+    Ensure frontend-interaction session state keys exist and remain valid.
+    Safe to call from init and after imports.
+    """
+    if "frontend_enabled" not in st.session_state:
+        st.session_state.frontend_enabled = False
+
+    if "frontend_renderer" not in st.session_state:
+        st.session_state.frontend_renderer = "legacy"  # legacy, threejs
+
+    if "frontend_view_mode" not in st.session_state:
+        st.session_state.frontend_view_mode = "2d"
+
+    if st.session_state.frontend_view_mode not in VALID_FRONTEND_VIEW_MODES:
+        st.session_state.frontend_view_mode = "2d"
+
+    if "frontend_tool_mode" not in st.session_state:
+        st.session_state.frontend_tool_mode = "select"
+
+    if st.session_state.frontend_tool_mode not in VALID_FRONTEND_TOOL_MODES:
+        st.session_state.frontend_tool_mode = "select"
+
+    if "frontend_scene_revision" not in st.session_state:
+        st.session_state.frontend_scene_revision = 0
+
+    if "frontend_last_event" not in st.session_state:
+        st.session_state.frontend_last_event = build_default_frontend_event()
+
+    if "frontend_pending_event" not in st.session_state:
+        st.session_state.frontend_pending_event = build_default_frontend_event()
+
+    if "frontend_last_event_id" not in st.session_state:
+        st.session_state.frontend_last_event_id = 0
+
+    if "frontend_status_msg" not in st.session_state:
+        st.session_state.frontend_status_msg = ""
+
+    if "frontend_selected_object_type" not in st.session_state:
+        st.session_state.frontend_selected_object_type = ""
+
+    if "frontend_selected_object_id" not in st.session_state:
+        st.session_state.frontend_selected_object_id = ""
+
+    if "frontend_selected_sub_index" not in st.session_state:
+        st.session_state.frontend_selected_sub_index = -1
+
+    if "frontend_hover_object_type" not in st.session_state:
+        st.session_state.frontend_hover_object_type = ""
+
+    if "frontend_hover_object_id" not in st.session_state:
+        st.session_state.frontend_hover_object_id = ""
+
+    if "frontend_snap_enabled" not in st.session_state:
+        st.session_state.frontend_snap_enabled = True
+
+    if "frontend_snap_ft" not in st.session_state:
+        st.session_state.frontend_snap_ft = 10.0
+
+    if "frontend_show_grid" not in st.session_state:
+        st.session_state.frontend_show_grid = True
+
+    if "frontend_show_labels" not in st.session_state:
+        st.session_state.frontend_show_labels = True
+
+    if "frontend_camera_target" not in st.session_state:
+        st.session_state.frontend_camera_target = {"x": 0.0, "y": 0.0, "z": 0.0}
+
+    if "frontend_camera_position" not in st.session_state:
+        st.session_state.frontend_camera_position = {"x": 0.0, "y": 0.0, "z": 200.0}
+
+    if "frontend_selection_revision" not in st.session_state:
+        st.session_state.frontend_selection_revision = 0
+
+
+def bump_frontend_scene_revision(reason=""):
+    """
+    Increment scene revision so the browser component knows the scene changed.
+    """
+    normalize_frontend_state()
+    st.session_state.frontend_scene_revision = int(
+        st.session_state.get("frontend_scene_revision", 0)
+    ) + 1
+
+    if reason:
+        st.session_state.frontend_status_msg = (
+            f"Scene revision {st.session_state.frontend_scene_revision}: {reason}"
+        )
+
+
+def clear_frontend_pending_event():
+    """
+    Reset the pending frontend event buffer after it is processed.
+    """
+    normalize_frontend_state()
+    st.session_state.frontend_pending_event = build_default_frontend_event()
+
+
+def set_frontend_pending_event(event_payload):
+    """
+    Store a browser event payload in session state.
+    """
+    normalize_frontend_state()
+
+    if not isinstance(event_payload, dict):
+        st.session_state.frontend_status_msg = "Ignored non-dict frontend event payload."
+        return
+
+    event = build_default_frontend_event()
+    event.update(event_payload)
+
+    try:
+        event["event_id"] = int(event.get("event_id", 0))
+    except Exception:
+        event["event_id"] = 0
+
+    view_mode = str(event.get("view_mode", "2d") or "2d")
+    if view_mode not in VALID_FRONTEND_VIEW_MODES:
+        view_mode = "2d"
+    event["view_mode"] = view_mode
+
+    if "payload" not in event or not isinstance(event.get("payload"), dict):
+        event["payload"] = {}
+
+    event["handled"] = bool(event.get("handled", False))
+
+    st.session_state.frontend_pending_event = event
+
+
+def mark_frontend_event_handled(status_msg=""):
+    """
+    Mark the current pending frontend event as handled and mirror it to last_event.
+    """
+    normalize_frontend_state()
+
+    event = dict(st.session_state.get("frontend_pending_event", build_default_frontend_event()))
+    event["handled"] = True
+
+    if status_msg:
+        event["status"] = status_msg
+        st.session_state.frontend_status_msg = status_msg
+
+    st.session_state.frontend_last_event = event
+    st.session_state.frontend_last_event_id = int(event.get("event_id", 0))
+    st.session_state.frontend_pending_event = build_default_frontend_event()
+
+
+def sync_frontend_selection(object_type="", object_id="", sub_index=-1):
+    """
+    Mirror selection state for use by a browser-native canvas.
+    """
+    normalize_frontend_state()
+
+    st.session_state.frontend_selected_object_type = str(object_type or "")
+    st.session_state.frontend_selected_object_id = str(object_id or "")
+
+    try:
+        st.session_state.frontend_selected_sub_index = int(sub_index)
+    except Exception:
+        st.session_state.frontend_selected_sub_index = -1
+
+    st.session_state.frontend_selection_revision = int(
+        st.session_state.get("frontend_selection_revision", 0)
+    ) + 1
 
 def normalize_project_state_for_export():
     """
@@ -318,6 +514,8 @@ def normalize_imported_project_state():
     ensure_crane_dimension_fields()
     ensure_workflow_dimension_fields()
     ensure_machine_flow_fields()
+    normalize_frontend_state()
+
 
 def validate_imported_project_state():
     """
@@ -1064,5 +1262,6 @@ def init_session_state(machinery_lib, lighting_lib, crane_lib):
     ensure_conduit_dimension_fields()
     ensure_crane_dimension_fields()
     ensure_workflow_dimension_fields()
-    ensure_machine_flow_fields()    
+    ensure_machine_flow_fields()
+    normalize_frontend_state()
 
