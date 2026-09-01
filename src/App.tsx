@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   readInitialProps,
   registerStreamlitRenderListener,
@@ -10,6 +10,8 @@ import {
 } from "./bridge/streamlitBridge";
 import type { ScenePayload } from "./types/scene";
 import type { FrontendEventPayload } from "./types/events";
+import { render2DScene } from "./renderers/render2d";
+import { render3DScene } from "./renderers/render3d";
 
 function safeSceneSummary(scene: ScenePayload | null) {
   if (!scene) {
@@ -41,6 +43,8 @@ export default function App() {
   const [componentKey, setComponentKey] = useState<string>(initial.component_key);
   const [lastEventId, setLastEventId] = useState<number>(0);
 
+  const renderHostRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     registerStreamlitRenderListener((detail) => {
       const args = detail.args ?? {};
@@ -61,8 +65,22 @@ export default function App() {
 
   useEffect(() => {
     sendNoopReady();
-    setFrameHeight(heightPx + 80);
+    setFrameHeight(heightPx + 120);
   }, [heightPx]);
+
+  useEffect(() => {
+    if (!scene || !renderHostRef.current) return;
+
+    const host = renderHostRef.current;
+    const handle =
+      scene.display.view_mode === "3d"
+        ? render3DScene(host, scene)
+        : render2DScene(host, scene);
+
+    return () => {
+      handle.dispose();
+    };
+  }, [scene]);
 
   const summary = safeSceneSummary(scene);
 
@@ -103,7 +121,7 @@ export default function App() {
           background: "#0F172A",
         }}
       >
-        <h2 style={{ marginTop: 0 }}>Three.js Frontend Starter</h2>
+        <h2 style={{ marginTop: 0 }}>Three.js Frontend Renderer</h2>
         <p style={{ marginBottom: "8px" }}>
           Component Key: <strong>{componentKey}</strong>
         </p>
@@ -121,41 +139,32 @@ export default function App() {
         </p>
 
         <div
+          ref={renderHostRef}
           style={{
             marginTop: "16px",
-            padding: "16px",
-            minHeight: `${Math.max(300, heightPx - 180)}px`,
-            border: "1px dashed #4B5563",
+            minHeight: `${Math.max(360, heightPx - 220)}px`,
+            border: "1px solid #4B5563",
             borderRadius: "8px",
             background: "#1F2937",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
+            overflow: "hidden",
           }}
-        >
-          <div>
-            <h3 style={{ marginTop: 0 }}>Render Surface Placeholder</h3>
-            <p>
-              This is the starter frontend shell. Replace this area next with the
-              real Three.js scene renderer for 2D and 3D modes.
-            </p>
-            <button
-              type="button"
-              onClick={emitSelectFirstMachine}
-              style={{
-                marginTop: "12px",
-                padding: "10px 16px",
-                borderRadius: "6px",
-                border: "none",
-                background: "#2563EB",
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              Test: Select First Machine
-            </button>
-          </div>
+        />
+
+        <div style={{ marginTop: "16px" }}>
+          <button
+            type="button"
+            onClick={emitSelectFirstMachine}
+            style={{
+              padding: "10px 16px",
+              borderRadius: "6px",
+              border: "none",
+              background: "#2563EB",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            Test: Select First Machine
+          </button>
         </div>
 
         {showDebug && (
